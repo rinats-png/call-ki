@@ -1,6 +1,7 @@
 import { SessionProvider } from "@/components/session";
 import { Sidebar } from "@/components/Sidebar";
 import { TenantBanner } from "@/components/TenantBanner";
+import { LegalFooter } from "@/components/LegalFooter";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -11,6 +12,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <TenantBanner />
           {children}
         </main>
+        <LegalFooter />
       </div>
     </SessionProvider>
   );

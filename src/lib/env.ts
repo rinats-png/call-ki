@@ -41,6 +41,9 @@ const schema = z.object({
   SMTP_FROM: z.string().optional(), // "KI-Telefonzentrale <noreply@deine-domain.de>"
 
   PLATFORM_NAME: z.string().default("KI-Telefonzentrale"),
+  /** Impressum und Datenschutzerklärung des Betreibers (docs/recht/) – erscheinen im Fuß */
+  LEGAL_IMPRINT_URL: z.string().url().or(z.literal("")).optional(),
+  LEGAL_PRIVACY_URL: z.string().url().or(z.literal("")).optional(),
   /** Erlaubte Hosts für das Abrufen von Aufnahmen (Suffix-Abgleich, nur HTTPS) – Schutz vor SSRF */
   RECORDING_HOSTS: z.string().default("api.twilio.com,retellai.com,cloudfront.net,amazonaws.com"),
 });

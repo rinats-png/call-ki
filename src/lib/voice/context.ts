@@ -25,6 +25,14 @@ export function buildGreeting(companyName: string, s: TenantConfig["settings"], 
   return g;
 }
 
+/** Kurzer Datenschutzhinweis für Anrufer (erste Stufe der Art.-13-Information). */
+export function buildPrivacyNotice(privacyUrl: string): string {
+  const base = "Ihre Angaben verwenden wir nur zur Bearbeitung Ihres Anliegens.";
+  if (!privacyUrl) return `${base} Ausführliche Informationen zum Datenschutz sendet Ihnen das Büro gern zu.`;
+  const spoken = privacyUrl.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "");
+  return `${base} Informationen zum Datenschutz finden Sie unter ${spoken}.`;
+}
+
 /**
  * Dynamic Variables für den gemeinsamen Retell-Agenten. Ein Prompt-Template
  * (voice-agent/system-prompt.md) bedient so alle Mandanten.
@@ -54,6 +62,7 @@ export function buildDynamicVariables(
     faq: s.faq || "–",
     pricing_policy: s.pricingPolicy,
     extra_instructions: s.extraInstructions || "–",
+    privacy_notice: buildPrivacyNotice(s.privacyUrl),
     business_hours: `${bh.days.map((d) => DAY[d]).join(", ")} ${bh.start}–${bh.end} Uhr`,
     emergency_enabled: s.emergency.enabled ? "ja" : "nein",
     current_datetime: new Intl.DateTimeFormat("de-DE", { timeZone: tenant.timezone, dateStyle: "full", timeStyle: "short" }).format(now),

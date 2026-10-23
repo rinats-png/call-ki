@@ -1,0 +1,39 @@
+# Unterauftragsverarbeiter und Drittlandtransfer
+
+> **Keine Rechtsberatung.** Stand der Recherche: 2026-10-23. Zertifizierungen ändern sich – vor Vertragsschluss in der offiziellen DPF-Liste (dataprivacyframework.gov) und in den aktuellen Anbieterdokumenten prüfen und Datum hier eintragen.
+
+## Liste für Anlage 3 (AVV)
+
+| # | Anbieter | Leistung | Daten | Ort | Transfergrundlage | AVV/DPA abgeschlossen |
+|---|---|---|---|---|---|---|
+| 1 | **IONOS SE**, Montabaur | VPS-Hosting (App, Datenbank, Backups) | alle Plattformdaten | Deutschland **[PRÜFEN: Rechenzentrum]** | – (EU) | ☐ `<Datum>` |
+| 2 | **Twilio Inc.** (Vertragspartner für EU-Kunden ggf. Twilio Ireland Ltd. **[PRÜFEN]**) | Telefonnummern, Anrufannahme/-weiterleitung (SIP), SMS, optional Aufnahme | Rufnummern, Verbindungsdaten, Audio-Strom, SMS-Inhalt, ggf. Aufnahme | USA/global | Binding Corporate Rules (seit 2018) + DPA mit SCC **[PRÜFEN: zusätzlich DPF?]** | ☐ `<Datum>` |
+| 3 | **Retell AI, Inc.**, Delaware, USA | KI-Sprachagent: Spracherkennung, Gesprächsführung (LLM), Sprachsynthese, Gesprächsprotokoll | Audio-Strom, Transkript, Zusammenfassung, dynamische Variablen (Name, Adresse bekannter Kunden), Funktionsaufrufe | USA (laut Retell kein Betrieb in der EU) | DPA mit SCC (Retell DPA, Stand 08.07.2026); **keine DPF-Zertifizierung gefunden** → Transfer Impact Assessment nötig **[PRÜFEN]** | ☐ `<Datum>` |
+| 3a | Unterauftragnehmer von Retell (LLM-, STT-, TTS-Anbieter, Cloud) | wie 3 | wie 3 | USA **[PRÜFEN]** | über Retell-DPA | Liste bei Retell anfordern ☐ |
+| 4 | **`<SMTP-Anbieter>`** (z. B. IONOS Mail, Brevo, Postmark) | Versand von Bestätigungen, Technikerinfos, Einladungen | E-Mail-Adresse, Name, Termin, Anliegen (Kurzfassung) | `<Ort>` | `<Grundlage>` | ☐ `<Datum>` |
+
+**Nicht** in der Liste, weil kein Unterauftragsverarbeiter des Betreibers:
+- **Microsoft 365** – der Kunde verbindet seinen eigenen Tenant per Administratorzustimmung; Microsoft ist Auftragsverarbeiter des Kunden. Die Plattform ruft Graph mit App-Berechtigungen auf und speichert keine Microsoft-Tokens.
+- **Have I Been Pwned** – erhält nur die ersten 5 Zeichen eines SHA-1-Hashes eines neuen Passworts (k-Anonymität), keinen Personenbezug.
+- **GitHub** – enthält Quellcode, keine Produktionsdaten (Geheimnis-Scan in CI).
+
+## Drittlandtransfer – Einschätzung
+
+| Anbieter | Bewertung | Maßnahmen |
+|---|---|---|
+| Twilio | Konzernweite BCR von EU-Aufsichtsbehörden genehmigt; DPA mit SCC (2021er Fassung) | DPA im Twilio-Konto akzeptieren, Region prüfen (Twilio bietet für Teile der Plattform EU-Regionen an **[PRÜFEN]**), Aufnahme standardmäßig aus |
+| Retell | Kern der Verarbeitung, USA, laut Recherche **nicht** DPF-zertifiziert (Aussage aus Community-Forum, nicht offiziell bestätigt) | SCC aus Retell-DPA, TIA dokumentieren; **Datensparsamkeit**: Agent mit Speicher-Einstellung „Basic Attributes Only“ für Mandanten ohne Aufzeichnung (`RETELL_AGENT_ID_NO_STORAGE`); Löschung je Anruf per API nach Löschfrist und bei Endkunden-Löschung; keine Trainingsnutzung (im DPA bestätigen lassen) **[PRÜFEN]** |
+
+**Offene Fragen an Retell (schriftlich):**
+1. Aktueller DPF-Status, aktuelle Unterauftragnehmerliste (welche LLM/STT/TTS?).
+2. Kann Inferenz/Speicherung auf die EU beschränkt werden? Zeitplan?
+3. Wird Audio/Transkript bei „Basic Attributes Only“ wirklich nicht gespeichert – auch nicht bei Unterauftragnehmern? Löschfristen der Logs?
+4. Bestätigung: keine Nutzung von Kundendaten zum Modelltraining (auch nicht durch LLM-Anbieter, „zero data retention“?).
+
+**Alternative bei negativem Ergebnis:** Die Plattform ist anbieterneutral aufgebaut (`provider`-Feld, Ereignis- und Tool-Schnittstelle in `src/lib/voice/`). Ein EU-gehosteter Sprach-KI-Anbieter kann als weiterer Provider ergänzt werden.
+
+## Änderungsverlauf
+
+| Datum | Änderung | Kunden informiert am |
+|---|---|---|
+| 2026-10-23 | Erstfassung | – |

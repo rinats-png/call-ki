@@ -64,6 +64,8 @@ export const tenantSettingsSchema = z.object({
       transferNumber: z.string().trim().max(30).default(""),
     })
     .default({}),
+  /** Datenschutzinformation des Kunden für Anrufer (Art. 13 DSGVO), wird von der KI genannt */
+  privacyUrl: z.string().trim().max(300).url().or(z.literal("")).default(""),
   /** Löschfrist für Transkripte/Aufnahmen in Tagen (DSGVO) */
   retentionDays: z.number().int().min(7).max(3650).default(365),
 });

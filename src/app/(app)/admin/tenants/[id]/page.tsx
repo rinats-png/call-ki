@@ -3,15 +3,16 @@
 import Link from "next/link";
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Eye, Loader2, Trash2, Copy } from "lucide-react";
+import { ArrowLeft, Eye, Loader2, Trash2, Copy, Download } from "lucide-react";
 import { usePoll } from "@/lib/use-poll";
 import { cn, fmtDateTime, TENANT_STATUS_LABEL, TENANT_STATUS_STYLE } from "@/lib/ui";
 import { USER_ROLE_LABEL, type UserRole } from "@/lib/constants";
 import { Panel, Skeleton } from "@/components/hub/Primitives";
-import { apiFetch, useSession } from "@/components/session";
+import { apiDownload, apiFetch, useSession } from "@/components/session";
 
 type Detail = {
-  id: string; name: string; industry: string; status: string; plan: string; monthlyMinuteLimit: number | null; createdAt: string;
+  id: string; slug: string; name: string; industry: string; status: string; plan: string; monthlyMinuteLimit: number | null; createdAt: string;
+  avvVersion: string | null; avvSignedAt: string | null;
   phoneNumbers: { id: string; e164: string; label: string | null; voiceAgentId: string | null; fallbackNumber: string | null }[];
   integrations: { type: string; status: string; lastError: string | null }[];
   users: { id: string; email: string; name: string | null; role: UserRole; disabled: boolean; lastLoginAt: string | null; invitePending: boolean }[];
@@ -40,6 +41,7 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
     }
     setBusy(null);
   }
+  const [confirmSlug, setConfirmSlug] = useState("");
   const patch = (body: Record<string, unknown>) => run("patch", async () => { await apiFetch(`/api/admin/tenants/${id}`, { method: "PATCH", json: body }); });
 
   if (!data) return <div className="mx-auto max-w-5xl"><Skeleton className="h-96" /></div>;
@@ -78,7 +80,16 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
             <input className="input" type="number" defaultValue={data.monthlyMinuteLimit ?? ""} placeholder="ohne Limit" onBlur={(e) => patch({ monthlyMinuteLimit: e.target.value ? Number(e.target.value) : null })} />
           </label>
         </div>
-        <p className="mt-2 text-xs"><span className={cn("chip", TENANT_STATUS_STYLE[data.status])}>{TENANT_STATUS_LABEL[data.status]}</span></p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3">
+          <label className="block"><span className="mb-1 block text-xs text-zinc-400">AVV-Version</span>
+            <input className="input" defaultValue={data.avvVersion ?? ""} placeholder="z. B. 2026-10" onBlur={(e) => e.target.value !== (data.avvVersion ?? "") && patch({ avvVersion: e.target.value || null })} />
+          </label>
+          <label className="block"><span className="mb-1 block text-xs text-zinc-400">AVV abgeschlossen am</span>
+            <input className="input" type="date" defaultValue={data.avvSignedAt?.slice(0, 10) ?? ""} onBlur={(e) => e.target.value !== (data.avvSignedAt?.slice(0, 10) ?? "") && patch({ avvSignedAt: e.target.value || null })} />
+          </label>
+          <p className="self-end text-[11px] text-zinc-500">Ohne Auftragsverarbeitungsvertrag lässt sich der Mandant nicht aktivieren (Vorlage: docs/recht/avv-vorlage.md).</p>
+        </div>
+        <p className="mt-2 text-xs"><span className={cn("chip", TENANT_STATUS_STYLE[data.status])}>{TENANT_STATUS_LABEL[data.status]}</span>{(!data.avvVersion || !data.avvSignedAt) && <span className="ml-2 text-amber-400">AVV fehlt</span>}</p>
       </Panel>
 
       <Panel title="Rufnummern">
@@ -121,6 +132,43 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
         <ul className="space-y-1 text-xs text-zinc-500">
           {data.auditLogs.map((l) => <li key={l.id}>{fmtDateTime(l.createdAt)} · {l.action}</li>)}
         </ul>
+      </Panel>
+
+      <Panel title="Vertragsende">
+        <p className="mb-3 text-sm text-zinc-400">
+          Gesamtexport aller Daten (JSON) und endgültige Löschung – auch bei Retell und Twilio. Backups laufen nach 14 Tagen aus.
+          Zum Löschen den Mandanten zuerst pausieren und die Kennung <code className="font-mono text-zinc-200">{data.slug}</code> eingeben.
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className="btn-ghost" onClick={() => run("export", () => apiDownload(`/api/admin/tenants/${id}/export`, `export-${data.slug}.json`))}>
+            <Download className="h-4 w-4" />Gesamtexport
+          </button>
+          <input className="input max-w-[220px]" placeholder={data.slug} value={confirmSlug} onChange={(e) => setConfirmSlug(e.target.value)} />
+          <button
+            className="btn-ghost text-rose-400"
+            disabled={data.status !== "PAUSED" || confirmSlug !== data.slug || busy === "delete"}
+            onClick={async () => {
+              if (!confirm(`„${data.name}“ mit allen Daten endgültig löschen? Das kann nicht rückgängig gemacht werden.`)) return;
+              setBusy("delete");
+              setMsg(null);
+              try {
+                const del = (force: boolean) => apiFetch(`/api/admin/tenants/${id}`, { method: "DELETE", json: { confirmSlug, force } });
+                try {
+                  await del(false);
+                } catch (e) {
+                  if ((e as { code?: string }).code !== "PROVIDER_INCOMPLETE" || !confirm(`${(e as Error).message}\n\nTrotzdem löschen?`)) throw e;
+                  await del(true);
+                }
+                router.push("/admin");
+              } catch (e) {
+                setMsg({ ok: false, text: (e as Error).message });
+                setBusy(null);
+              }
+            }}
+          >
+            {busy === "delete" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}Endgültig löschen
+          </button>
+        </div>
       </Panel>
     </div>
   );

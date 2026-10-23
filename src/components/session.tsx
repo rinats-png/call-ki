@@ -141,7 +141,7 @@ export async function apiFetch<T = unknown>(url: string, init?: FetchInit, retri
   }
   if (!res.ok) {
     const fields = data?.details?.fieldErrors ? Object.values(data.details.fieldErrors as Record<string, string[]>).flat().join(" · ") : "";
-    throw new Error([data?.error ?? `Fehler ${res.status}`, fields].filter(Boolean).join(": "));
+    throw Object.assign(new Error([data?.error ?? `Fehler ${res.status}`, fields].filter(Boolean).join(": ")), { code: data?.details?.code as string | undefined });
   }
   return data as T;
 }

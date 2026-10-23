@@ -53,6 +53,14 @@ Secrets erzeugen: `openssl rand -hex 24`. Updates: `git pull && docker compose u
 
 **Backups**: Der Dienst `backup` legt täglich einen Dump nach `./backups` (14 Tage). Zusätzlich extern sichern, z. B. per `rclone` auf IONOS S3 Object Storage oder das IONOS-Server-Backup aktivieren. Wiederherstellen: `gunzip -c backups/<datei>.sql.gz | docker compose exec -T db psql -U callki -d callki`.
 
+## Recht & Datenschutz
+
+Vorlagen und Einordnung (AVV, TOM, VVT, Löschkonzept, DSFA, Anrufer-Information, KI-Verordnung, Incident-Plan, Datenschutzerklärung, Impressum) liegen in [`docs/recht/`](docs/recht/README.md) – **keine Rechtsberatung, [PRÜFEN]-Stellen vor dem ersten Kunden klären lassen.** Im Produkt umgesetzt:
+- Mandant lässt sich erst mit eingetragener AVV-Version und -Datum auf „Aktiv“ setzen.
+- Vertragsende: Gesamtexport (Admin und Kunden-Admin) und endgültige Löschung eines pausierten Mandanten inkl. Retell/Twilio.
+- Datenschutz-URL des Kunden wird der KI als `{{privacy_notice}}` übergeben (im Retell-Prompt verwenden, siehe `voice-agent/system-prompt.md`).
+- `LEGAL_IMPRINT_URL` / `LEGAL_PRIVACY_URL` in `.env` → Links im Fuß von Portal und Login.
+
 ## Externe Dienste einrichten (einmalig, für alle Kunden)
 Alle URLs zum Kopieren stehen nach dem Login unter **Plattform**.
 

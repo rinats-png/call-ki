@@ -7,6 +7,7 @@ import { handleCallEvent } from "@/lib/services/calls";
 import { resolveVoiceContext } from "@/lib/voice/context";
 import { runTool } from "@/lib/voice/tools";
 import { findAvailableSlots } from "@/lib/calendar";
+import { deleteTenant, exportTenantData } from "@/lib/services/tenants";
 
 /**
  * Integrationstests gegen echte PostgreSQL-Datenbank.
@@ -97,5 +98,26 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
   it("protokolliert Benachrichtigungen auch ohne Versanddienst", async () => {
     const msgs = await prisma.message.findMany({ where: { tenantId: A.tenant.id } });
     expect(msgs.every((m) => m.tenantId === A.tenant.id)).toBe(true);
+  });
+  it("exportiert nur Daten des eigenen Mandanten", async () => {
+    const exp = await exportTenantData(A.tenant.id);
+    expect(exp?.calls.length).toBeGreaterThan(0);
+    expect(exp?.customers.every((c) => c.tenantId === A.tenant.id)).toBe(true);
+    expect(exp?.tickets.every((t) => t.tenantId === A.tenant.id)).toBe(true);
+    expect(JSON.stringify(exp)).not.toContain("passwordHash");
+  });
+
+  it("löscht einen Mandanten nur nach Anbieter-Löschung (oder ausdrücklich erzwungen) und lässt andere unberührt", async () => {
+    const before = await prisma.call.count({ where: { tenantId: A.tenant.id } });
+    // Ohne Retell-Schlüssel scheitert die Anbieter-Löschung → Abbruch ohne force
+    expect(await deleteTenant(B.tenant.id)).toEqual({ deleted: false, providerFailed: expect.any(Number) });
+    expect(await prisma.tenant.findUnique({ where: { id: B.tenant.id } })).not.toBeNull();
+    const r = await deleteTenant(B.tenant.id, { force: true });
+    expect(r.deleted).toBe(true);
+    expect(await prisma.tenant.findUnique({ where: { id: B.tenant.id } })).toBeNull();
+    expect(await prisma.call.count({ where: { tenantId: B.tenant.id } })).toBe(0);
+    expect(await prisma.customer.count({ where: { tenantId: B.tenant.id } })).toBe(0);
+    expect(await prisma.phoneNumber.count({ where: { tenantId: B.tenant.id } })).toBe(0);
+    expect(await prisma.call.count({ where: { tenantId: A.tenant.id } })).toBe(before);
   });
 });

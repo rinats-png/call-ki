@@ -1,5 +1,6 @@
 import { Zap } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LegalFooter } from "@/components/LegalFooter";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -22,6 +23,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <div className="glass p-6 animate-fadein md:p-7">{children}</div>
         </div>
       </main>
+      <LegalFooter />
     </div>
   );
 }

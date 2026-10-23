@@ -26,6 +26,10 @@ model Tenant {
   settings           Json     @default("{}")
   plan               String   @default("STARTER")
   monthlyMinuteLimit Int?
+  /// Auftragsverarbeitungsvertrag (Art. 28 DSGVO): Version der Vorlage und Abschlussdatum.
+  /// Ohne beide Angaben kann der Mandant nicht auf ACTIVE gesetzt werden.
+  avvVersion         String?
+  avvSignedAt        DateTime?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
