@@ -35,22 +35,22 @@ export function AuthForm({ title, subtitle, fields, submitLabel, onSubmit, foote
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3">
+    <form onSubmit={submit} className="space-y-4">
       <div className="mb-2">
-        <h1 className="text-lg font-semibold text-zinc-50">{title}</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight text-zinc-50">{title}</h1>
         {subtitle && <p className="mt-1 text-sm text-zinc-500">{subtitle}</p>}
       </div>
       {fields.map((f) => (
         <label key={f.name} className="block">
-          <span className="mb-1 block text-xs font-medium text-zinc-400">{f.label}</span>
+          <span className="mb-1.5 block text-sm font-semibold text-zinc-300">{f.label}</span>
           <input className="input" name={f.name} type={f.type ?? "text"} autoComplete={f.autoComplete} inputMode={f.inputMode} required={f.required ?? true} defaultValue={f.defaultValue} maxLength={200} />
           {f.hint && <span className="mt-1 block text-[11px] text-zinc-500">{f.hint}</span>}
         </label>
       ))}
-      {error && <p className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">{error}</p>}
-      {info && <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">{info}</p>}
-      <button className="btn-primary w-full" disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />}{submitLabel}</button>
-      {footer && <div className="pt-1 text-center text-xs text-zinc-500">{footer}</div>}
+      {error && <p className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">{error}</p>}
+      {info && <p className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">{info}</p>}
+      <button className="btn-primary w-full py-3 text-base" disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />}{submitLabel}</button>
+      {footer && <div className="pt-1 text-center text-sm text-zinc-500">{footer}</div>}
     </form>
   );
 }
