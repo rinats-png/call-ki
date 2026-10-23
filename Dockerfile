@@ -1,14 +1,14 @@
 # syntax=docker/dockerfile:1
 # Mehrstufiges Image für Next.js (standalone) + Prisma auf Alpine.
 
-FROM node:22-alpine AS deps
+FROM node:25-alpine AS deps
 RUN apk add --no-cache openssl libc6-compat
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 RUN npm ci
 
-FROM node:22-alpine AS build
+FROM node:25-alpine AS build
 RUN apk add --no-cache openssl libc6-compat
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
@@ -16,7 +16,7 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npx prisma generate && npx next build
 
-FROM node:22-alpine AS runtime
+FROM node:25-alpine AS runtime
 RUN apk add --no-cache openssl libc6-compat tini && npm install -g prisma@6.19.3 && addgroup -S app && adduser -S app -G app
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
