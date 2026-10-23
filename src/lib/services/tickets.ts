@@ -1,28 +1,32 @@
-import type { CallTicket, Customer, Employee } from "@prisma/client";
+import type { CallTicket, Customer, Employee, Tenant } from "@prisma/client";
 import { prisma } from "../db";
-import { env } from "../env";
 import { logger } from "../logger";
 import { assessUrgency } from "../urgency";
 import { routeTechnician, type RoutingResult } from "../routing";
 import { createCalendarEvent, createMailDraft } from "../graph";
-import { customerConfirmationEmail, eventBody, technicianBriefingEmail } from "./emails";
-import { markCustomerExisting, upsertCustomer, type CustomerInput } from "./customers";
+import { getMicrosoftLink, isSlotFree } from "../calendar";
+import { sendEmail, sendSms } from "../notify";
+import { buildIcs } from "../notify/ics";
 import { URGENCIES, type Urgency } from "../constants";
+import type { TenantConfig } from "../tenant/settings";
+import { customerConfirmationEmail, customerSms, technicianBriefingEmail, technicianSms, type MailCtx } from "./emails";
+import { markCustomerExisting, upsertCustomer, type CustomerInput } from "./customers";
 
-export async function loadRoutingCandidates() {
+type T = Pick<Tenant, "id" | "name" | "timezone">;
+
+export async function loadRoutingCandidates(tenantId: string) {
   const employees = await prisma.employee.findMany({
-    include: { _count: { select: { tickets: { where: { status: "PENDING" } } } } },
+    where: { tenantId, active: true },
+    include: { _count: { select: { tickets: { where: { status: { in: ["PENDING", "ESCALATED"] } } } } } },
   });
   return employees.map(({ _count, ...e }) => ({ ...e, openTickets: _count.tickets }));
 }
 
-export async function routeRequest(input: { postalCode?: string | null; urgency: Urgency; customerType?: string | null; pestType?: string | null }): Promise<RoutingResult> {
-  return routeTechnician(input, await loadRoutingCandidates());
-}
-
-function normalizePest(p?: string | null): string {
-  const v = (p ?? "").trim();
-  return v ? v.charAt(0).toUpperCase() + v.slice(1) : "Unbekannt";
+export async function routeRequest(tenantId: string, cfg: TenantConfig, input: { postalCode?: string | null; urgency: Urgency; customerType?: string | null; category?: string | null }): Promise<RoutingResult> {
+  return routeTechnician(
+    { ...input, specialistCustomerTypes: cfg.template.specialistCustomerTypes, roleLabels: cfg.template.roleLabels },
+    await loadRoutingCandidates(tenantId),
+  );
 }
 
 function cleanUrgency(u?: string | null): Urgency | null {
@@ -30,14 +34,20 @@ function cleanUrgency(u?: string | null): Urgency | null {
   return v && (URGENCIES as readonly string[]).includes(v) ? (v as Urgency) : null;
 }
 
+function normalizeCategory(cfg: TenantConfig, c?: string | null): string {
+  const v = (c ?? "").trim();
+  if (!v) return "Sonstiges";
+  return cfg.categories.find((k) => k.toLowerCase() === v.toLowerCase()) ?? v.charAt(0).toUpperCase() + v.slice(1);
+}
+
 export type ServiceRequestInput = {
   customer: CustomerInput;
-  pestType?: string | null;
+  category?: string | null;
   description?: string | null;
   urgency?: string | null;
   appointmentStart?: string | Date | null;
   employeeId?: string | null;
-  transcript?: string | null;
+  callId?: string | null;
   escalate?: boolean;
 };
 
@@ -45,179 +55,164 @@ export type ServiceRequestResult = {
   ticket: CallTicket & { customer: Customer; assignedEmployee: Employee | null };
   routing: RoutingResult;
   appointment: { start: Date; end: Date } | null;
-  outlook: { eventCreated: boolean; draftCreated: boolean; dryRun: boolean; errors: string[] };
+  slotTaken: boolean;
+  notify: NotifyResult;
 };
 
 /**
- * Zentraler Workflow nach einem Gespräch:
- *  Kunde anlegen/aktualisieren → Dringlichkeit prüfen → Techniker routen →
- *  Ticket erstellen → Outlook-Termin + E-Mail-Entwurf via Graph → Status setzen.
+ * Zentraler Ablauf (identisch für Sprach-KI und manuelle Erfassung):
+ * Kunde anlegen/ergänzen → Dringlichkeit → Routing → Slot erneut prüfen →
+ * Ticket anlegen bzw. (gleicher Anruf) aktualisieren → Kalender & Benachrichtigungen.
  */
-export async function processServiceRequest(input: ServiceRequestInput): Promise<ServiceRequestResult> {
-  const customer = await upsertCustomer(input.customer);
-  const pestType = normalizePest(input.pestType);
-  const urgency = input.escalate
+export async function processServiceRequest(tenant: T, cfg: TenantConfig, input: ServiceRequestInput): Promise<ServiceRequestResult> {
+  const customer = await upsertCustomer(tenant.id, input.customer);
+  const category = normalizeCategory(cfg, input.category);
+  const urgency: Urgency = input.escalate
     ? "CRITICAL"
-    : assessUrgency({ pestType, description: input.description, customerType: customer.customerType, aiUrgency: cleanUrgency(input.urgency) });
+    : assessUrgency({ category, description: input.description, customerType: customer.customerType, aiUrgency: cleanUrgency(input.urgency), rules: cfg.urgencyRules });
 
-  const routing = await routeRequest({ postalCode: customer.postalCode, urgency, customerType: customer.customerType, pestType });
+  const routing = await routeRequest(tenant.id, cfg, { postalCode: customer.postalCode, urgency, customerType: customer.customerType, category });
   let employee: Employee | null = null;
-  if (input.employeeId) employee = await prisma.employee.findUnique({ where: { id: input.employeeId } });
-  if (!employee && routing.employee) employee = await prisma.employee.findUnique({ where: { id: routing.employee.id } });
+  if (input.employeeId) employee = await prisma.employee.findFirst({ where: { id: input.employeeId, tenantId: tenant.id, active: true } });
+  if (!employee && routing.employee) employee = await prisma.employee.findFirst({ where: { id: routing.employee.id, tenantId: tenant.id } });
 
-  const summary = (input.description?.trim() || `Anfrage zu ${pestType}`).slice(0, 2000);
-
-  const ticket = await prisma.callTicket.create({
-    data: {
-      customerId: customer.id,
-      assignedEmployeeId: employee?.id,
-      pestType,
-      urgency,
-      summary,
-      transcript: input.transcript ?? undefined,
-      status: urgency === "CRITICAL" ? "ESCALATED" : "PENDING",
-    },
-    include: { customer: true, assignedEmployee: true },
-  });
+  // Idempotenz: dieselbe KI-Unterhaltung erzeugt höchstens ein Ticket
+  const existing = input.callId ? await prisma.callTicket.findFirst({ where: { tenantId: tenant.id, callId: input.callId }, orderBy: { createdAt: "desc" } }) : null;
 
   let appointment: { start: Date; end: Date } | null = null;
-  if (input.appointmentStart) {
+  let slotTaken = false;
+  if (input.appointmentStart && employee) {
     const start = new Date(input.appointmentStart);
     if (!Number.isNaN(start.getTime()) && start.getTime() > Date.now() - 5 * 60000) {
-      appointment = { start, end: new Date(start.getTime() + env().APPOINTMENT_DURATION_MIN * 60000) };
+      const slot = { start, end: new Date(start.getTime() + cfg.durationMin * 60000) };
+      if (await isSlotFree(tenant.id, cfg, employee, slot, existing?.id)) appointment = slot;
+      else slotTaken = true;
     }
   }
 
-  const outlook = await syncOutlook(ticket, employee, appointment);
-  // Kunde mit abgeschlossener Anfrage zählt künftig als Bestandskunde
-  await markCustomerExisting(customer.id);
+  const summary = (input.description?.trim() || `Anfrage: ${category}`).slice(0, 4000);
+  const status = urgency === "CRITICAL" ? "ESCALATED" : appointment ? "PROCESSED" : "PENDING";
+  const data = {
+    customerId: customer.id,
+    assignedEmployeeId: employee?.id ?? null,
+    category,
+    urgency,
+    summary,
+    status,
+    callId: input.callId ?? null,
+    ...(appointment ? { appointmentStart: appointment.start, appointmentEnd: appointment.end } : {}),
+  };
+
+  const ticket = existing
+    ? await prisma.callTicket.update({ where: { id: existing.id }, data, include: { customer: true, assignedEmployee: true } })
+    : await prisma.callTicket.create({ data: { tenantId: tenant.id, ...data }, include: { customer: true, assignedEmployee: true } });
+
+  if (input.callId) await prisma.call.updateMany({ where: { id: input.callId, tenantId: tenant.id }, data: { customerId: customer.id } });
+
+  const notify = slotTaken ? emptyNotify() : await notifyForTicket(tenant, cfg, ticket, employee, appointment, { isUpdate: !!existing });
+  await markCustomerExisting(tenant.id, customer.id);
 
   const fresh = await prisma.callTicket.findUniqueOrThrow({ where: { id: ticket.id }, include: { customer: true, assignedEmployee: true } });
-  logger.info("ticket.created", { ticketId: ticket.id, urgency, pestType, employee: employee?.name, outlook });
-  return { ticket: fresh, routing, appointment, outlook };
+  logger.info("ticket.saved", { tenantId: tenant.id, ticketId: ticket.id, urgency, updated: !!existing, slotTaken });
+  return { ticket: fresh, routing, appointment, slotTaken, notify };
 }
 
+export type NotifyResult = { calendarEvent: boolean; customer: string[]; technician: string[]; errors: string[] };
+const emptyNotify = (): NotifyResult => ({ calendarEvent: false, customer: [], technician: [], errors: [] });
+
 /**
- * Legt Termin (Kalender des Technikers) und E-Mail-Entwurf an. Idempotent:
- * bereits vorhandene IDs werden nicht erneut erzeugt – daher auch für
- * "Erneut synchronisieren" im Dashboard nutzbar.
+ * Kalender & Benachrichtigungen gemäß Mandanten-Einstellungen. Idempotent für
+ * den Outlook-Termin (calendarEventId / transactionId). Bei Aktualisierung
+ * desselben Tickets werden Benachrichtigungen nur bei neuem Termin erneut versendet.
  */
-export async function syncOutlook(
+export async function notifyForTicket(
+  tenant: T,
+  cfg: TenantConfig,
   ticket: CallTicket & { customer: Customer },
   employee: Employee | null,
   appointment: { start: Date; end: Date } | null,
-) {
-  const e = env();
-  const errors: string[] = [];
-  let eventCreated = false;
-  let draftCreated = false;
-  let dryRun = false;
-  const update: Partial<Pick<CallTicket, "outlookEventId" | "outlookDraftId" | "status">> = {};
-
-  const ctx = {
-    customer: ticket.customer,
-    employee,
-    pestType: ticket.pestType ?? "Unbekannt",
-    urgency: ticket.urgency,
-    summary: ticket.summary ?? "",
-    appointment,
-    timeZone: e.BUSINESS_TIMEZONE,
-    ticketId: ticket.id,
-  };
+  opts: { isUpdate?: boolean; force?: boolean } = {},
+): Promise<NotifyResult> {
+  const res = emptyNotify();
+  const n = cfg.settings.notifications;
+  const ms = await getMicrosoftLink(tenant.id);
   const urgent = ticket.urgency === "HIGH" || ticket.urgency === "CRITICAL";
+  const critical = ticket.urgency === "CRITICAL";
+  const ctx: MailCtx = {
+    tenant, cfg, customer: ticket.customer, employee,
+    category: ticket.category ?? "Sonstiges", urgency: ticket.urgency, summary: ticket.summary ?? "", appointment, ticketId: ticket.id,
+  };
+  const update: Partial<CallTicket> = {};
+  const location = [ticket.customer.address, ticket.customer.postalCode].filter(Boolean).join(", ") || undefined;
 
-  if (employee && appointment && !ticket.outlookEventId) {
+  // 1) Outlook-Termin beim Mitarbeiter
+  if (ms && employee?.email && appointment && !ticket.calendarEventId) {
     try {
-      const ev = await createCalendarEvent({
-        upn: employee.microsoftUpn,
-        subject: `${urgent ? "⚠ " : ""}${ctx.pestType} – ${ticket.customer.companyName ?? ticket.customer.name ?? ticket.customer.phone}`,
-        bodyHtml: eventBody(ctx),
-        start: appointment.start,
-        end: appointment.end,
-        location: [ticket.customer.address, ticket.customer.postalCode].filter(Boolean).join(", ") || undefined,
-        urgent,
-        transactionId: `ticket-${ticket.id}`,
+      const ev = await createCalendarEvent(ms.msTenantId, {
+        mailbox: employee.email, subject: `${urgent ? "⚠ " : ""}${ctx.category} – ${ticket.customer.companyName ?? ticket.customer.name ?? ticket.customer.phone}`,
+        bodyHtml: technicianBriefingEmail(ctx).html, start: appointment.start, end: appointment.end, timeZone: tenant.timezone, location, urgent,
+        transactionId: `ticket-${ticket.id}-${appointment.start.getTime()}`,
       });
-      update.outlookEventId = ev.id;
-      eventCreated = true;
-      dryRun ||= !!ev.dryRun;
+      update.calendarEventId = ev.id;
+      res.calendarEvent = true;
     } catch (err) {
-      errors.push(`Termin: ${(err as Error).message}`);
-      logger.error("graph.event_failed", { ticketId: ticket.id, error: (err as Error).message });
+      res.errors.push(`Outlook-Termin: ${(err as Error).message}`);
     }
   }
 
-  if (!ticket.outlookDraftId) {
-    const mailbox = e.MS_DRAFT_MAILBOX ?? employee?.microsoftUpn;
-    if (mailbox) {
-      const mail = ticket.customer.email ? customerConfirmationEmail(ctx) : technicianBriefingEmail(ctx);
-      const to = ticket.customer.email ? [ticket.customer.email] : employee ? [employee.microsoftUpn] : [mailbox];
-      const cc = ticket.customer.email && employee ? [employee.microsoftUpn] : [];
-      try {
-        const d = await createMailDraft({ mailbox, to, cc, subject: mail.subject, bodyHtml: mail.html, urgent });
-        update.outlookDraftId = d.id;
-        draftCreated = true;
-        dryRun ||= !!d.dryRun;
-      } catch (err) {
-        errors.push(`Entwurf: ${(err as Error).message}`);
-        logger.error("graph.draft_failed", { ticketId: ticket.id, error: (err as Error).message });
+  const shouldSend = opts.force || !opts.isUpdate || !!appointment;
+  if (shouldSend) {
+    // 2) Mitarbeiter informieren (bei Notfall gemäß emergencyAlert, sonst technicianAlert)
+    const mode = critical ? n.emergencyAlert : n.technicianAlert;
+    if (employee && mode !== "off") {
+      if ((mode === "email" || mode === "both") && employee.email) {
+        const mail = technicianBriefingEmail(ctx);
+        const ics = appointment && !update.calendarEventId && !ticket.calendarEventId
+          ? { filename: "termin.ics", content: buildIcs({ uid: `ticket-${ticket.id}@ki-telefonzentrale`, start: appointment.start, end: appointment.end, summary: mail.subject, description: ticket.summary ?? "", location }) }
+          : undefined;
+        const r = await sendEmail({ tenantId: tenant.id, ticketId: ticket.id, to: employee.email, subject: mail.subject, html: mail.html, purpose: critical ? "EMERGENCY_ALERT" : "TECHNICIAN_BRIEFING", fromName: tenant.name, ics });
+        res.technician.push(`E-Mail ${r.status}`);
+      }
+      if ((mode === "sms" || mode === "both") && employee.directPhone) {
+        const r = await sendSms({ tenantId: tenant.id, ticketId: ticket.id, to: employee.directPhone, body: technicianSms(ctx), purpose: critical ? "EMERGENCY_ALERT" : "TECHNICIAN_BRIEFING" });
+        res.technician.push(`SMS ${r.status}`);
       }
     }
-  }
 
-  const hasEvent = !!(update.outlookEventId ?? ticket.outlookEventId);
-  const hasDraft = !!(update.outlookDraftId ?? ticket.outlookDraftId);
-  if (ticket.status !== "ESCALATED" && errors.length === 0 && (hasEvent || hasDraft)) update.status = "PROCESSED";
+    // 3) Kundenbestätigung
+    const cMode = n.customerConfirmation;
+    if (cMode !== "off" && !critical) {
+      if ((cMode === "email" || cMode === "both") && ticket.customer.email) {
+        const mail = customerConfirmationEmail(ctx);
+        if (ms?.draftMailbox && n.microsoftDraftsOnly && !ticket.emailDraftId) {
+          try {
+            const d = await createMailDraft(ms.msTenantId, { mailbox: ms.draftMailbox, to: [ticket.customer.email], cc: employee?.email ? [employee.email] : [], subject: mail.subject, bodyHtml: mail.html, urgent });
+            update.emailDraftId = d.id;
+            await prisma.message.create({ data: { tenantId: tenant.id, ticketId: ticket.id, channel: "EMAIL", recipient: ticket.customer.email, subject: mail.subject, body: mail.html, purpose: "CUSTOMER_CONFIRMATION", status: "DRAFT", provider: "microsoft" } });
+            res.customer.push("Outlook-Entwurf");
+          } catch (err) {
+            res.errors.push(`Outlook-Entwurf: ${(err as Error).message}`);
+          }
+        } else if (!ms?.draftMailbox || !n.microsoftDraftsOnly) {
+          const ics = appointment ? { filename: "termin.ics", content: buildIcs({ uid: `ticket-${ticket.id}-kunde@ki-telefonzentrale`, start: appointment.start, end: appointment.end, summary: `${cfg.template.jobNoun}: ${tenant.name}`, description: ctx.category, location }) } : undefined;
+          const r = await sendEmail({ tenantId: tenant.id, ticketId: ticket.id, to: ticket.customer.email, subject: mail.subject, html: mail.html, purpose: "CUSTOMER_CONFIRMATION", fromName: tenant.name, replyTo: n.backofficeEmail || undefined, ics });
+          res.customer.push(`E-Mail ${r.status}`);
+        }
+      }
+      if (cMode === "sms" || cMode === "both") {
+        const r = await sendSms({ tenantId: tenant.id, ticketId: ticket.id, to: ticket.customer.phone, body: customerSms(ctx), purpose: "CUSTOMER_CONFIRMATION" });
+        res.customer.push(`SMS ${r.status}`);
+      }
+    }
+
+    // 4) Kopie ans Büro
+    if (n.backofficeEmail) {
+      const mail = technicianBriefingEmail(ctx);
+      await sendEmail({ tenantId: tenant.id, ticketId: ticket.id, to: n.backofficeEmail, subject: mail.subject, html: mail.html, purpose: "BACKOFFICE_COPY", fromName: tenant.name });
+    }
+  }
 
   if (Object.keys(update).length) await prisma.callTicket.update({ where: { id: ticket.id }, data: update });
-  return { eventCreated, draftCreated, dryRun, errors };
-}
-
-/**
- * Ordnet Transkript & Zusammenfassung nach Gesprächsende dem Ticket zu.
- * Das Schema enthält keine Call-ID, daher Zuordnung über die Rufnummer:
- * jüngstes Ticket des Anrufers der letzten 3 Stunden ohne Transkript.
- * Existiert keines (Anrufer hat vorzeitig aufgelegt), wird ein Rückruf-Ticket
- * angelegt – so geht kein Lead verloren.
- */
-export async function attachCallRecord(input: {
-  phone: string;
-  transcript?: string | null;
-  summary?: string | null;
-  durationSec?: number | null;
-  /** Immer neues Rückruf-Ticket anlegen (z. B. Mailbox-Nachricht). */
-  forceCallback?: boolean;
-}) {
-  const customer = await upsertCustomer({ phone: input.phone });
-  const since = new Date(Date.now() - 3 * 3600_000);
-  const ticket = input.forceCallback ? null : await prisma.callTicket.findFirst({
-    where: { customerId: customer.id, createdAt: { gte: since }, transcript: null },
-    orderBy: { createdAt: "desc" },
-  });
-
-  if (ticket) {
-    return prisma.callTicket.update({
-      where: { id: ticket.id },
-      data: {
-        transcript: input.transcript ?? undefined,
-        summary: ticket.summary && ticket.summary.length > 20 ? ticket.summary : input.summary ?? ticket.summary,
-      },
-    });
-  }
-
-  if (!input.forceCallback && (input.durationSec ?? 99) < 8 && !input.transcript) return null; // Fehlwahl / sofort aufgelegt
-
-  const urgency = assessUrgency({ description: `${input.summary ?? ""} ${input.transcript ?? ""}`, customerType: customer.customerType });
-  const routing = await routeRequest({ postalCode: customer.postalCode, urgency, customerType: customer.customerType });
-  return prisma.callTicket.create({
-    data: {
-      customerId: customer.id,
-      assignedEmployeeId: routing.employee?.id,
-      pestType: "Unbekannt",
-      urgency,
-      summary: `Gespräch ohne Abschluss – Rückruf erforderlich. ${input.summary ?? ""}`.trim(),
-      transcript: input.transcript ?? undefined,
-      status: urgency === "CRITICAL" ? "ESCALATED" : "PENDING",
-    },
-  });
+  if (res.errors.length) logger.warn("ticket.notify_errors", { tenantId: tenant.id, ticketId: ticket.id, errors: res.errors });
+  return res;
 }

@@ -1,10 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { Sidebar } from "@/components/Sidebar";
 
 export const metadata: Metadata = {
-  title: "Storm Hub · KI-Telefonzentrale",
-  description: "Autonome KI-Telefonzentrale der Storm GmbH – Schädlingsbekämpfung",
+  title: { default: "KI-Telefonzentrale", template: "%s · KI-Telefonzentrale" },
+  description: "KI-Telefonassistenz für Handwerk & Dienstleister – Anrufe annehmen, Termine planen, Notfälle eskalieren.",
   robots: { index: false, follow: false },
 };
 
@@ -25,10 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
       <body className="min-h-screen font-sans antialiased">
-        <div className="flex min-h-screen">
-          <Sidebar />
-          <main className="min-w-0 flex-1 px-4 pb-24 pt-5 md:px-8 md:pb-10">{children}</main>
-        </div>
+        {children}
       </body>
     </html>
   );

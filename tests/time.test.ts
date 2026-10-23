@@ -14,12 +14,21 @@ describe("time", () => {
     // Freitag, 23.10.2026, 07:00 Berlin
     const from = fromZoned(2026, 10, 23, 7, 0, TZ);
     const busy = [{ start: fromZoned(2026, 10, 23, 9, 0, TZ), end: fromZoned(2026, 10, 23, 12, 0, TZ) }];
-    const slots = computeFreeSlots({ from, days: 5, busy, durationMin: 60, startHour: 8, endHour: 18, timeZone: TZ, max: 3, leadMinutes: 60 });
+    const slots = computeFreeSlots({ from, days: 5, busy, durationMin: 60, start: "08:00", end: "18:00", timeZone: TZ, max: 3, leadMinutes: 60 });
     expect(slots).toHaveLength(3);
     expect(toGraphLocal(slots[0].start, TZ)).toBe("2026-10-23T08:00:00");
     expect(toGraphLocal(slots[1].start, TZ)).toBe("2026-10-23T12:00:00");
     // Samstag/Sonntag übersprungen
     for (const s of slots) expect([0, 6]).not.toContain(new Date(toGraphLocal(s.start, TZ)).getDay());
     for (const s of slots) for (const b of busy) expect(s.start < b.end && s.end > b.start).toBe(false);
+  });
+
+  it("berücksichtigt Puffer und Arbeitstage", () => {
+    const from = fromZoned(2026, 10, 23, 7, 0, TZ); // Freitag
+    const busy = [{ start: fromZoned(2026, 10, 23, 9, 0, TZ), end: fromZoned(2026, 10, 23, 10, 0, TZ) }];
+    const slots = computeFreeSlots({ from, days: 5, busy, durationMin: 60, start: "08:00", end: "12:00", timeZone: TZ, max: 2, leadMinutes: 60, bufferMin: 30, workDays: [5, 6] });
+    // 08:00–09:00 kollidiert mit Puffer (08:30–10:30) → erster Slot 10:30; Samstag erlaubt
+    expect(toGraphLocal(slots[0].start, TZ)).toBe("2026-10-23T10:30:00");
+    expect(toGraphLocal(slots[1].start, TZ)).toBe("2026-10-24T08:00:00");
   });
 });

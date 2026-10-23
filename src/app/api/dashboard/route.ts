@@ -1,33 +1,44 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { env, graphConfigured } from "@/lib/env";
-import { TIMEZONE } from "@/lib/constants";
+import { api } from "@/lib/http";
+import { requireTenant } from "@/lib/auth/session";
+import { loadTenant } from "@/lib/tenant";
+import { getMicrosoftLink } from "@/lib/calendar";
 import { fromZoned, zonedParts } from "@/lib/time";
+import { minutesThisMonth } from "@/lib/voice/context";
+import { retellConfigured, smsConfigured, smtpConfigured } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request) {
+const dayKey = (d: Date, tz: string) => {
+  const p = zonedParts(d, tz);
+  return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+};
+
+export const GET = api(async (req) => {
+  const auth = await requireTenant();
+  const { tenant } = await loadTenant(auth.tenantId);
+  const tenantId = tenant.id;
+  const tz = tenant.timezone;
   const url = new URL(req.url);
   const status = url.searchParams.get("status");
-  const urgency = url.searchParams.get("urgency");
   const q = url.searchParams.get("q")?.trim();
 
-  const now = new Date();
-  const p = zonedParts(now, TIMEZONE);
-  const startOfDay = fromZoned(p.year, p.month, p.day, 0, 0, TIMEZONE);
+  const p = zonedParts(new Date(), tz);
+  const startOfDay = fromZoned(p.year, p.month, p.day, 0, 0, tz);
   const since7 = new Date(startOfDay.getTime() - 6 * 86400000);
 
   const where: Prisma.CallTicketWhereInput = {
+    tenantId,
     ...(status ? { status } : {}),
-    ...(urgency ? { urgency } : {}),
     ...(q
       ? {
           OR: [
-            { summary: { contains: q } },
-            { pestType: { contains: q } },
-            { customer: { name: { contains: q } } },
-            { customer: { companyName: { contains: q } } },
+            { summary: { contains: q, mode: "insensitive" } },
+            { category: { contains: q, mode: "insensitive" } },
+            { customer: { name: { contains: q, mode: "insensitive" } } },
+            { customer: { companyName: { contains: q, mode: "insensitive" } } },
             { customer: { phone: { contains: q } } },
             { customer: { postalCode: { startsWith: q } } },
           ],
@@ -35,70 +46,51 @@ export async function GET(req: Request) {
       : {}),
   };
 
-  const [tickets, todayCount, escalatedOpen, pendingCount, processedToday, synced, newCustomersToday, week, employees, totalCustomers] =
-    await Promise.all([
-      prisma.callTicket.findMany({
-        where,
-        orderBy: { createdAt: "desc" },
-        take: 100,
-        select: {
-          id: true, pestType: true, urgency: true, summary: true, status: true, createdAt: true,
-          outlookEventId: true, outlookDraftId: true,
-          customer: { select: { id: true, name: true, companyName: true, phone: true, postalCode: true, customerType: true, status: true } },
-          assignedEmployee: { select: { id: true, name: true, role: true } },
-        },
-      }),
-      prisma.callTicket.count({ where: { createdAt: { gte: startOfDay } } }),
-      prisma.callTicket.count({ where: { status: "ESCALATED" } }),
-      prisma.callTicket.count({ where: { status: "PENDING" } }),
-      prisma.callTicket.count({ where: { createdAt: { gte: startOfDay }, status: "PROCESSED" } }),
-      prisma.callTicket.count({ where: { createdAt: { gte: startOfDay }, OR: [{ outlookEventId: { not: null } }, { outlookDraftId: { not: null } }] } }),
-      prisma.customer.count({ where: { createdAt: { gte: startOfDay } } }),
-      prisma.callTicket.findMany({ where: { createdAt: { gte: since7 } }, select: { createdAt: true, urgency: true } }),
-      prisma.employee.findMany({
-        orderBy: { name: "asc" },
-        include: { _count: { select: { tickets: { where: { status: { in: ["PENDING", "ESCALATED"] } } } } } },
-      }),
-      prisma.customer.count(),
-    ]);
+  const [tickets, todayCount, escalatedOpen, pendingCount, plannedToday, callsToday, newCustomersToday, week, employees, totalCustomers, minutes, ms, numbers] = await Promise.all([
+    prisma.callTicket.findMany({
+      where, orderBy: { createdAt: "desc" }, take: 100,
+      select: {
+        id: true, category: true, urgency: true, summary: true, status: true, createdAt: true, appointmentStart: true, calendarEventId: true,
+        customer: { select: { id: true, name: true, companyName: true, phone: true, postalCode: true, customerType: true, status: true } },
+        assignedEmployee: { select: { id: true, name: true, role: true } },
+        _count: { select: { messages: true } },
+      },
+    }),
+    prisma.callTicket.count({ where: { tenantId, createdAt: { gte: startOfDay } } }),
+    prisma.callTicket.count({ where: { tenantId, status: "ESCALATED" } }),
+    prisma.callTicket.count({ where: { tenantId, status: "PENDING" } }),
+    prisma.callTicket.count({ where: { tenantId, createdAt: { gte: startOfDay }, appointmentStart: { not: null } } }),
+    prisma.call.count({ where: { tenantId, startedAt: { gte: startOfDay } } }),
+    prisma.customer.count({ where: { tenantId, createdAt: { gte: startOfDay } } }),
+    prisma.call.findMany({ where: { tenantId, startedAt: { gte: since7 } }, select: { startedAt: true, tickets: { select: { urgency: true } } } }),
+    prisma.employee.findMany({
+      where: { tenantId, active: true }, orderBy: { name: "asc" },
+      include: { _count: { select: { tickets: { where: { status: { in: ["PENDING", "ESCALATED"] } } } } } },
+    }),
+    prisma.customer.count({ where: { tenantId } }),
+    minutesThisMonth(tenant),
+    getMicrosoftLink(tenantId),
+    prisma.phoneNumber.count({ where: { tenantId } }),
+  ]);
 
-  // 7-Tage-Verlauf
-  const days: { date: string; total: number; critical: number }[] = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(since7.getTime() + i * 86400000);
-    const dp = zonedParts(d, TIMEZONE);
-    days.push({ date: `${dp.year}-${String(dp.month).padStart(2, "0")}-${String(dp.day).padStart(2, "0")}`, total: 0, critical: 0 });
-  }
-  for (const t of week) {
-    const dp = zonedParts(t.createdAt, TIMEZONE);
-    const key = `${dp.year}-${String(dp.month).padStart(2, "0")}-${String(dp.day).padStart(2, "0")}`;
-    const day = days.find((x) => x.date === key);
-    if (day) {
-      day.total++;
-      if (t.urgency === "CRITICAL" || t.urgency === "HIGH") day.critical++;
-    }
+  const days = Array.from({ length: 7 }, (_, i) => ({ date: dayKey(new Date(since7.getTime() + i * 86400000 + 12 * 3600000), tz), total: 0, critical: 0 }));
+  for (const c of week) {
+    const d = days.find((x) => x.date === dayKey(c.startedAt, tz));
+    if (!d) continue;
+    d.total++;
+    if (c.tickets.some((t) => t.urgency === "CRITICAL" || t.urgency === "HIGH")) d.critical++;
   }
 
   return NextResponse.json({
     stats: {
-      todayCount,
-      escalatedOpen,
-      pendingCount,
-      processedToday,
-      outlookSyncedToday: synced,
-      newCustomersToday,
-      totalCustomers,
-      automationRate: todayCount ? Math.round((processedToday / todayCount) * 100) : null,
+      callsToday, todayCount, escalatedOpen, pendingCount, plannedToday, newCustomersToday, totalCustomers,
+      minutesThisMonth: minutes, minuteLimit: tenant.monthlyMinuteLimit,
+      automationRate: todayCount ? Math.round((plannedToday / todayCount) * 100) : null,
     },
     week: days,
-    tickets,
+    tickets: tickets.map(({ _count, ...t }) => ({ ...t, messageCount: _count.messages })),
     employees: employees.map(({ _count, ...e }) => ({ ...e, openTickets: _count.tickets })),
-    integrations: {
-      voiceProvider: env().VOICE_PROVIDER,
-      voiceConfigured: env().VOICE_PROVIDER === "retell" ? !!(env().RETELL_API_KEY && env().RETELL_AGENT_ID) : !!env().VOICE_TOOL_SECRET,
-      twilioConfigured: !!env().TWILIO_AUTH_TOKEN,
-      graphConfigured: graphConfigured(),
-    },
-    serverTime: now.toISOString(),
+    integrations: { phone: numbers > 0, voice: retellConfigured(), outlook: !!ms, email: smtpConfigured(), sms: smsConfigured() },
+    serverTime: new Date().toISOString(),
   });
-}
+});

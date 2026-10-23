@@ -1,15 +1,20 @@
 /**
- * Normalisiert Gesprächsende-Events:
- *  Retell: { event: "call_ended" | "call_analyzed", call: { call_id, from_number, transcript, call_analysis: { call_summary }, duration_ms } }
- *  Vapi:   { message: { type: "end-of-call-report", call: { customer: { number } }, artifact: { transcript }, analysis: { summary }, durationSeconds } }
+ * Normalisiert Gesprächs-Events.
+ *  Retell: { event: "call_started" | "call_ended" | "call_analyzed", call: { call_id, from_number, to_number, transcript,
+ *            recording_url, duration_ms, disconnection_reason, call_analysis: { call_summary } } }
+ *  Vapi:   { message: { type: "end-of-call-report", call: { id, customer: { number }, phoneNumber: { number } }, artifact: { transcript, recordingUrl }, analysis: { summary }, durationSeconds } }
  */
-export type CallEndEvent = {
+export type CallEvent = {
   provider: "retell" | "vapi";
+  kind: "started" | "ended" | "analyzed";
   callId: string | null;
-  phone: string | null;
+  fromNumber: string | null;
+  toNumber: string | null;
   transcript: string | null;
   summary: string | null;
   durationSec: number | null;
+  recordingUrl: string | null;
+  endReason: string | null;
 };
 
 type Json = Record<string, unknown>;
@@ -17,31 +22,41 @@ const obj = (v: unknown): Json => (v && typeof v === "object" && !Array.isArray(
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null);
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
-export function parseCallEndEvent(body: unknown): CallEndEvent | null {
+export function parseCallEvent(body: unknown): CallEvent | null {
   const b = obj(body);
   const msg = obj(b.message);
   if (msg.type === "end-of-call-report") {
     const call = obj(msg.call);
+    const art = obj(msg.artifact);
     return {
       provider: "vapi",
+      kind: "analyzed",
       callId: str(call.id),
-      phone: str(obj(call.customer).number) ?? str(obj(msg.customer).number),
-      transcript: str(obj(msg.artifact).transcript) ?? str(msg.transcript),
+      fromNumber: str(obj(call.customer).number) ?? str(obj(msg.customer).number),
+      toNumber: str(obj(call.phoneNumber).number),
+      transcript: str(art.transcript) ?? str(msg.transcript),
       summary: str(obj(msg.analysis).summary) ?? str(msg.summary),
       durationSec: num(msg.durationSeconds),
+      recordingUrl: str(art.recordingUrl) ?? str(msg.recordingUrl),
+      endReason: str(msg.endedReason),
     };
   }
-  // Retell sendet "call_ended" und anschließend "call_analyzed" (mit Zusammenfassung) – wir verarbeiten call_analyzed
-  if (b.event === "call_analyzed") {
+  const kinds: Record<string, CallEvent["kind"]> = { call_started: "started", call_ended: "ended", call_analyzed: "analyzed" };
+  const kind = typeof b.event === "string" ? kinds[b.event] : undefined;
+  if (kind) {
     const call = obj(b.call);
     const dur = num(call.duration_ms);
     return {
       provider: "retell",
+      kind,
       callId: str(call.call_id),
-      phone: str(call.from_number),
+      fromNumber: str(call.from_number),
+      toNumber: str(call.to_number),
       transcript: str(call.transcript),
       summary: str(obj(call.call_analysis).call_summary),
       durationSec: dur != null ? Math.round(dur / 1000) : null,
+      recordingUrl: str(call.recording_url),
+      endReason: str(call.disconnection_reason),
     };
   }
   return null;

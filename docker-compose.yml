@@ -1,0 +1,75 @@
+# Produktion auf einem VPS (z. B. IONOS): App + PostgreSQL + Caddy (HTTPS) + Backups + Löschfristen.
+# Start:  cp .env.example .env  →  Werte setzen  →  docker compose up -d --build
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: callki
+      POSTGRES_USER: callki
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD fehlt in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U callki -d callki"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # bewusst KEIN Port nach außen
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://callki:${POSTGRES_PASSWORD}@db:5432/callki
+      PUBLIC_BASE_URL: https://${DOMAIN:?DOMAIN fehlt in .env}
+    depends_on:
+      db:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [app]
+
+  # Tägliches Datenbank-Backup nach ./backups (14 Tage aufbewahrt). Zusätzlich extern sichern (siehe README)!
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+      - ./deploy/backup.sh:/backup.sh:ro
+    entrypoint: ["/bin/sh", "/backup.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Täglicher Aufruf des Löschfristen-Jobs (DSGVO) und Aufräumen abgelaufener Sitzungen
+  cron:
+    image: alpine:3.20
+    restart: unless-stopped
+    environment:
+      CRON_SECRET: ${CRON_SECRET:?CRON_SECRET fehlt in .env}
+    entrypoint: ["/bin/sh", "-c", "apk add --no-cache curl >/dev/null && while true; do sleep 3600; [ \"$$(date +%H)\" = \"03\" ] && curl -fsS -X POST -H \"Authorization: Bearer $$CRON_SECRET\" http://app:3000/api/cron/retention || true; done"]
+    depends_on: [app]
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:

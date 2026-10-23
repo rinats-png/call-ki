@@ -1,8 +1,9 @@
 "use client";
 
 import { CalendarCheck, Mail, Search } from "lucide-react";
-import { CUSTOMER_TYPE_LABEL, type CustomerType } from "@/lib/constants";
+import type { CustomerType } from "@/lib/constants";
 import { cn, timeAgo, URGENCY_STYLE } from "@/lib/ui";
+import { useSession } from "../session";
 import type { TicketRow } from "./types";
 import { Panel, Skeleton, StatusChip, UrgencyChip } from "./Primitives";
 
@@ -10,7 +11,8 @@ const STATUS_FILTERS = [
   { v: "", l: "Alle" },
   { v: "PENDING", l: "Offen" },
   { v: "ESCALATED", l: "Eskaliert" },
-  { v: "PROCESSED", l: "Erledigt" },
+  { v: "PROCESSED", l: "Eingeplant" },
+  { v: "CLOSED", l: "Erledigt" },
 ];
 
 export function TicketFeed(props: {
@@ -24,12 +26,14 @@ export function TicketFeed(props: {
   now: number;
 }) {
   const { tickets } = props;
+  const { me } = useSession();
+  const typeLabel = (t: string) => me?.tenant?.customerTypeLabels[t as CustomerType] ?? t;
   return (
     <Panel
       className="flex min-h-[420px] flex-col"
       title={
         <div className="flex items-center gap-2">
-          <h2 className="text-sm font-semibold text-zinc-200">Live-Anrufe</h2>
+          <h2 className="text-sm font-semibold text-zinc-200">Vorgänge</h2>
           {tickets && <span className="rounded-md bg-zinc-800 px-1.5 py-0.5 text-[11px] tabular-nums text-zinc-400">{tickets.length}</span>}
         </div>
       }
@@ -45,7 +49,7 @@ export function TicketFeed(props: {
           <button
             key={f.v}
             onClick={() => props.onStatus(f.v)}
-            className={cn("flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition", props.status === f.v ? "bg-zinc-800 text-zinc-100 shadow" : "text-zinc-500 hover:text-zinc-300")}
+            className={cn("flex-1 whitespace-nowrap rounded-md px-1.5 py-1.5 text-xs font-medium transition", props.status === f.v ? "bg-zinc-800 text-zinc-100 shadow" : "text-zinc-500 hover:text-zinc-300")}
           >
             {f.l}
           </button>
@@ -55,7 +59,7 @@ export function TicketFeed(props: {
       <div className="-mx-2 flex-1 space-y-1 overflow-y-auto px-2" style={{ maxHeight: 620 }}>
         {!tickets && Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
         {tickets?.length === 0 && (
-          <div className="grid h-48 place-items-center text-sm text-zinc-500">Keine Anrufe für diesen Filter.</div>
+          <div className="grid h-48 place-items-center text-center text-sm text-zinc-500">Keine Vorgänge für diesen Filter.<br />Neue Anrufe erscheinen hier automatisch.</div>
         )}
         {tickets?.map((t) => {
           const u = URGENCY_STYLE[t.urgency] ?? URGENCY_STYLE.MEDIUM;
@@ -74,10 +78,10 @@ export function TicketFeed(props: {
                 <div className="flex items-center gap-2">
                   <span className="truncate text-sm font-medium text-zinc-100">{who}</span>
                   {t.customer.status === "NEW" && <span className="chip border-cyan-500/30 bg-cyan-500/10 text-cyan-300">Neu</span>}
-                  <span className="hidden text-[11px] text-zinc-500 sm:inline">{CUSTOMER_TYPE_LABEL[t.customer.customerType as CustomerType]}</span>
+                  <span className="hidden text-[11px] text-zinc-500 sm:inline">{typeLabel(t.customer.customerType)}</span>
                 </div>
                 <div className="mt-0.5 truncate text-xs text-zinc-500">
-                  <span className="text-zinc-300">{t.pestType ?? "Unbekannt"}</span>
+                  <span className="text-zinc-300">{t.category ?? "Sonstiges"}</span>
                   {t.customer.postalCode && <> · PLZ {t.customer.postalCode}</>}
                   {t.assignedEmployee && <> · → {t.assignedEmployee.name}</>}
                   {t.summary && <> · {t.summary}</>}
@@ -85,8 +89,8 @@ export function TicketFeed(props: {
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1.5">
                 <div className="flex items-center gap-1.5">
-                  <CalendarCheck className={cn("h-3.5 w-3.5", t.outlookEventId ? "text-emerald-400" : "text-zinc-700")} aria-label="Outlook-Termin" />
-                  <Mail className={cn("h-3.5 w-3.5", t.outlookDraftId ? "text-emerald-400" : "text-zinc-700")} aria-label="E-Mail-Entwurf" />
+                  <CalendarCheck className={cn("h-3.5 w-3.5", t.appointmentStart ? "text-emerald-400" : "text-zinc-600/50")} aria-label={t.appointmentStart ? "Termin vergeben" : "Kein Termin"} />
+                  <Mail className={cn("h-3.5 w-3.5", t.messageCount ? "text-emerald-400" : "text-zinc-600/50")} aria-label={`${t.messageCount} Benachrichtigungen`} />
                   <UrgencyChip urgency={t.urgency} />
                 </div>
                 <div className="flex items-center gap-2">

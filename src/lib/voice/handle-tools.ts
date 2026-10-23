@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { logger } from "../logger";
 import { verifyVoiceRequest } from "../security";
 import { formatToolResponse, normalizeToolRequest } from "./payload";
+import { resolveVoiceContext } from "./context";
 import { runTool } from "./tools";
 
 export async function handleToolRequest(req: Request, toolNameFromPath?: string) {
@@ -17,12 +18,13 @@ export async function handleToolRequest(req: Request, toolNameFromPath?: string)
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const normalized = normalizeToolRequest(body, toolNameFromPath);
-  const results = await Promise.all(
-    normalized.calls.map(async (c) => ({
-      id: c.id,
-      result: await runTool(c.name || toolNameFromPath || "", c.args, { callerNumber: normalized.callerNumber }),
-    })),
-  );
-  return NextResponse.json(formatToolResponse(normalized, results));
+  const n = normalizeToolRequest(body, toolNameFromPath);
+  const ctx = await resolveVoiceContext(n.callId, n.calledNumber, n.callerNumber);
+  if (!ctx) {
+    logger.warn("voice.tools_unknown_tenant", { callId: n.callId });
+    const err = { error: "Anruf keinem Kunden zugeordnet. Bitte Anliegen notieren und Rückruf anbieten." };
+    return NextResponse.json(formatToolResponse(n, n.calls.map((c) => ({ id: c.id, result: err }))));
+  }
+  const results = await Promise.all(n.calls.map(async (c) => ({ id: c.id, result: await runTool(c.name || toolNameFromPath || "", c.args, ctx) })));
+  return NextResponse.json(formatToolResponse(n, results));
 }

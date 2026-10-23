@@ -1,20 +1,53 @@
 import { describe, expect, it } from "vitest";
 import { assessUrgency } from "@/lib/urgency";
+import { TEMPLATES } from "@/lib/tenant/templates";
+import { resolveConfig } from "@/lib/tenant/settings";
 
-describe("assessUrgency", () => {
+const pest = TEMPLATES.pest_control.urgency;
+const trades = TEMPLATES.trades.urgency;
+
+describe("assessUrgency – Schädlingsbekämpfung", () => {
   it("erkennt Notfälle", () => {
-    expect(assessUrgency({ pestType: "Wespen", description: "Mein Sohn ist allergisch und wurde gestochen" })).toBe("CRITICAL");
-    expect(assessUrgency({ pestType: "Wespen", description: "Nest in der Kita" })).toBe("CRITICAL");
+    expect(assessUrgency({ category: "Wespen", description: "Mein Sohn ist allergisch und wurde gestochen", rules: pest })).toBe("CRITICAL");
+    expect(assessUrgency({ category: "Wespen", description: "Nest in der Kita", rules: pest })).toBe("CRITICAL");
   });
-  it("stuft Gastronomie/HACCP hoch", () => {
-    expect(assessUrgency({ pestType: "Schaben", description: "in der Küche", customerType: "B2B_HACCP" })).toBe("HIGH");
-    expect(assessUrgency({ pestType: "Ratten", customerType: "B2B_HACCP" })).toBe("HIGH");
+  it("stuft Gewerbe bei Hygieneschädlingen hoch", () => {
+    expect(assessUrgency({ category: "Schaben", customerType: "BUSINESS", rules: pest })).toBe("HIGH");
+    expect(assessUrgency({ category: "Ratten", customerType: "PRIVATE", rules: pest })).toBe("MEDIUM");
   });
-  it("erkennt Beratung als niedrig", () => {
-    expect(assessUrgency({ pestType: "Ameisen", description: "nur eine Beratung, kein Notfall" })).toBe("LOW");
+  it("ignoriert verneinte Stichwörter", () => {
+    expect(assessUrgency({ category: "Ameisen", description: "nur eine Beratung, kein Notfall, keine Allergie", rules: pest })).toBe("LOW");
   });
   it("übernimmt die höhere KI-Einschätzung", () => {
-    expect(assessUrgency({ pestType: "Ameisen", description: "Beratung", aiUrgency: "HIGH" })).toBe("HIGH");
-    expect(assessUrgency({ pestType: "Wespen", description: "allergisch", aiUrgency: "LOW" })).toBe("CRITICAL");
+    expect(assessUrgency({ category: "Ameisen", description: "Beratung", aiUrgency: "HIGH", rules: pest })).toBe("HIGH");
+    expect(assessUrgency({ category: "Wespen", description: "allergisch", aiUrgency: "LOW", rules: pest })).toBe("CRITICAL");
+  });
+});
+
+describe("assessUrgency – Handwerk", () => {
+  it("erkennt Gasgeruch und Wasserschäden", () => {
+    expect(assessUrgency({ category: "Sonstiges", description: "Im Keller riecht es nach Gas", rules: trades })).toBe("CRITICAL");
+    expect(assessUrgency({ category: "Rohrbruch", rules: trades })).toBe("HIGH");
+  });
+});
+
+describe("Mandanten-Konfiguration", () => {
+  it("ergänzt eigene Stichwörter und Kategorien", () => {
+    const cfg = resolveConfig({ industry: "general", settings: { urgencyKeywords: { critical: ["serverausfall"] }, categories: ["IT-Störung"] } });
+    expect(cfg.categories).toEqual(["IT-Störung"]);
+    expect(assessUrgency({ description: "Totaler Serverausfall", rules: cfg.urgencyRules })).toBe("CRITICAL");
+  });
+  it("fällt bei ungültigen Einstellungen auf Defaults zurück", () => {
+    const cfg = resolveConfig({ industry: "unbekannt", settings: { appointments: { durationMin: "x" } } });
+    expect(cfg.template.key).toBe("general");
+    expect(cfg.durationMin).toBe(60);
+  });
+});
+
+describe("Stichwort-Erkennung in gesprochener Sprache", () => {
+  it("toleriert Füllwörter in Mehrwort-Stichwörtern", () => {
+    expect(assessUrgency({ description: "Die Heizung ist seit gestern komplett aus", rules: trades })).toBe("HIGH");
+    expect(assessUrgency({ description: "Hier riecht es stark nach Gas", rules: trades })).toBe("CRITICAL");
+    expect(assessUrgency({ description: "Heizung läuft, Wartung bitte", rules: trades })).toBe("LOW");
   });
 });

@@ -1,37 +1,43 @@
 import { z } from "zod";
 
-/** Zentral validierte Server-Konfiguration. Optionale Integrationen schalten sich bei fehlenden Werten ab. */
+/** Plattformweite Konfiguration (VPS). Mandanten-spezifisches liegt in der Datenbank. */
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
-  PUBLIC_BASE_URL: z.string().url().optional(),
+  DATABASE_URL: z.string().min(1),
+  /** Öffentliche Basis-URL, z. B. https://app.deine-domain.de (für Links, Webhooks, Twilio-Signatur) */
+  PUBLIC_BASE_URL: z.string().url().default("http://localhost:3000"),
+  /** Einmal-Token für die Ersteinrichtung des Plattform-Admins unter /setup */
+  SETUP_TOKEN: z.string().min(16).optional(),
+  /** Schutz für /api/cron/* (z. B. Löschfristen) */
+  CRON_SECRET: z.string().min(16).optional(),
 
-  // Dashboard-Zugang (HTTP Basic Auth)
-  DASHBOARD_USER: z.string().default("admin"),
-  DASHBOARD_PASSWORD: z.string().optional(),
-
-  // Twilio
+  // Twilio (Plattform-Konto; Nummern werden Mandanten zugeordnet)
+  TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_VALIDATE_SIGNATURE: z.enum(["true", "false"]).default("true"),
-  BACKOFFICE_FALLBACK_NUMBER: z.string().optional(),
+  /** Absender für SMS (Nummer oder Messaging-Service-SID "MG…") */
+  TWILIO_SMS_FROM: z.string().optional(),
 
-  // Voice AI
-  VOICE_PROVIDER: z.enum(["retell", "vapi"]).default("retell"),
-  VOICE_TOOL_SECRET: z.string().optional(),
+  // Retell AI
   RETELL_API_KEY: z.string().optional(),
+  /** Standard-Agent (gemeinsamer Prompt mit Mandanten-Variablen); je Nummer überschreibbar */
   RETELL_AGENT_ID: z.string().optional(),
-  RETELL_SIP_DOMAIN: z.string().default("5t4n6j0wnrl.sip.livekit.cloud"),
+  RETELL_SIP_DOMAIN: z.string().default("sip.retellai.com"),
+  /** Zusätzliches Shared Secret für Tool-Calls (Header x-tool-secret) */
+  VOICE_TOOL_SECRET: z.string().optional(),
 
-  // Microsoft Graph (App-Only / Client Credentials)
-  MS_TENANT_ID: z.string().optional(),
+  // Microsoft 365 – EINE mandantenfähige Entra-App der Plattform; Kunden erteilen Admin-Consent
   MS_CLIENT_ID: z.string().optional(),
   MS_CLIENT_SECRET: z.string().optional(),
-  MS_DRAFT_MAILBOX: z.string().optional(), // Postfach, in dem Kunden-E-Mail-Entwürfe landen (z. B. info@storm.gmbh)
 
-  // Terminlogik
-  BUSINESS_TIMEZONE: z.string().default("Europe/Berlin"),
-  BUSINESS_HOURS_START: z.coerce.number().int().min(0).max(23).default(8),
-  BUSINESS_HOURS_END: z.coerce.number().int().min(1).max(24).default(18),
-  APPOINTMENT_DURATION_MIN: z.coerce.number().int().min(15).max(480).default(60),
+  // E-Mail-Versand (beliebiger SMTP-Anbieter: IONOS, Postmark, Brevo, M365 …)
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().optional(), // "KI-Telefonzentrale <noreply@deine-domain.de>"
+
+  PLATFORM_NAME: z.string().default("KI-Telefonzentrale"),
 });
 
 export type Env = z.infer<typeof schema>;
@@ -41,13 +47,11 @@ export function env(): Env {
   if (!cached) cached = schema.parse(process.env);
   return cached;
 }
-
-export function graphConfigured(): boolean {
-  const e = env();
-  return Boolean(e.MS_TENANT_ID && e.MS_CLIENT_ID && e.MS_CLIENT_SECRET);
-}
-
-/** Nur für Tests. */
 export function resetEnvCache() {
   cached = null;
 }
+
+export const microsoftConfigured = () => Boolean(env().MS_CLIENT_ID && env().MS_CLIENT_SECRET);
+export const smtpConfigured = () => Boolean(env().SMTP_HOST && env().SMTP_FROM);
+export const smsConfigured = () => Boolean(env().TWILIO_ACCOUNT_SID && env().TWILIO_AUTH_TOKEN && env().TWILIO_SMS_FROM);
+export const retellConfigured = () => Boolean(env().RETELL_API_KEY && env().RETELL_AGENT_ID);

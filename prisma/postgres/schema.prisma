@@ -1,0 +1,52 @@
+// AUTOMATISCH ERZEUGT aus prisma/schema.prisma – nicht bearbeiten
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+model Customer {
+  id           String      @id @default(cuid())
+  name         String?
+  companyName  String?
+  phone        String      @unique
+  email        String?
+  address      String?
+  postalCode   String?
+  customerType String      @default("PRIVATE") // PRIVATE, B2B_HACCP, PROPERTY_MANAGEMENT
+  status       String      @default("NEW")     // NEW, EXISTING
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  tickets      CallTicket[]
+}
+
+model Employee {
+  id                  String       @id @default(cuid())
+  name                String
+  role                String       // B2B_SPECIALIST, EMERGENCY_TECH, BACKOFFICE, PEST_EXPERT
+  microsoftUpn        String       // E-Mail für Microsoft Graph API (z. B. techniker@storm.gmbh)
+  servicePostalCodes  String       // Kommagetrennte PLZ-Bereiche
+  directPhone         String?
+  createdAt           DateTime     @default(now())
+  tickets             CallTicket[]
+}
+
+model CallTicket {
+  id                String    @id @default(cuid())
+  customerId        String
+  customer          Customer  @relation(fields: [customerId], references: [id])
+  assignedEmployeeId String?
+  assignedEmployee  Employee? @relation(fields: [assignedEmployeeId], references: [id])
+  pestType          String?   // Wespen, Ratten, Bettwanzen, Schaben, Unbekannt
+  urgency           String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  summary           String?
+  transcript        String?
+  outlookEventId    String?
+  outlookDraftId    String?
+  status            String    @default("PENDING") // PENDING, PROCESSED, ESCALATED
+  createdAt         DateTime  @default(now())
+}

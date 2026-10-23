@@ -1,60 +1,67 @@
-import { env } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { maskPhone, normalizePhone } from "@/lib/phone";
+import { prisma } from "@/lib/db";
 import { publicUrl, validateTwilioRequest } from "@/lib/security";
 import { dialSip, twimlResponse } from "@/lib/twiml";
-import { fallbackTwiml } from "@/lib/voice/fallback";
+import { resolveConfig } from "@/lib/tenant/settings";
 import { findCustomerByPhone } from "@/lib/services/customers";
 import { registerRetellCall } from "@/lib/voice/retell";
+import { fallbackTwiml } from "@/lib/voice/fallback";
+import { buildDynamicVariables, minutesThisMonth } from "@/lib/voice/context";
+import { tenantForCalledNumber, twilioParams } from "@/lib/voice/inbound";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Twilio "A call comes in" Webhook.
- * Erkennt den Anrufer (Neu-/Bestandskunde) und übergibt an die Sprach-KI:
- *  - Retell: Registrierung + SIP-Weiterleitung, Kundendaten als Dynamic Variables
- *  - Vapi:   Redirect auf den Vapi-Twilio-Endpunkt (Nummer muss in Vapi importiert sein)
- * Bei Fehlern greift die Weiterleitung ins Büro, damit kein Anruf verloren geht.
+ * Twilio "A call comes in": angerufene Nummer → Mandant → Retell-Agent mit
+ * Mandanten-Variablen. Bei Störung, Pause oder erschöpftem Kontingent: Fallback.
  */
 export async function POST(req: Request) {
-  const form = await req.formData();
-  const params: Record<string, string> = {};
-  form.forEach((v, k) => (params[k] = String(v)));
-
+  const params = await twilioParams(req);
   if (!validateTwilioRequest(req.headers.get("x-twilio-signature"), publicUrl(req), params)) {
-    logger.warn("twilio.invalid_signature", { url: publicUrl(req) });
+    logger.warn("twilio.invalid_signature");
     return new Response("Forbidden", { status: 403 });
   }
 
-  const e = env();
+  const number = await tenantForCalledNumber(params.To);
+  if (!number) {
+    logger.warn("twilio.unknown_number", { to: params.To });
+    return fallbackTwiml({});
+  }
+  const tenant = number.tenant;
   const from = normalizePhone(params.From) ?? "anonymous";
-  const to = params.To ?? "";
-  logger.info("twilio.inbound", { callSid: params.CallSid, from: maskPhone(from) });
+
+  const call = await prisma.call.upsert({
+    where: { twilioCallSid: params.CallSid },
+    create: { tenantId: tenant.id, twilioCallSid: params.CallSid, fromNumber: from, toNumber: number.e164 },
+    update: {},
+  });
+  const fallback = (status: string) =>
+    prisma.call.update({ where: { id: call.id }, data: { status } }).then(() =>
+      fallbackTwiml({ companyName: tenant.name, fallbackNumber: number.fallbackNumber, callerId: params.To, recordingAction: `/api/twilio/recording?call=${call.id}` }),
+    );
+
+  if (tenant.status === "PAUSED") return fallback("FALLBACK");
+  if (tenant.monthlyMinuteLimit != null && (await minutesThisMonth(tenant)) >= tenant.monthlyMinuteLimit) {
+    logger.warn("tenant.minute_limit_reached", { tenantId: tenant.id });
+    return fallback("FALLBACK");
+  }
 
   try {
-    if (e.VOICE_PROVIDER === "vapi") {
-      return twimlResponse(`<Redirect method="POST">https://api.vapi.ai/twilio/inbound_call</Redirect>`);
-    }
-
-    const customer = from !== "anonymous" ? await findCustomerByPhone(from).catch(() => null) : null;
+    const cfg = resolveConfig(tenant);
+    const customer = from !== "anonymous" ? await findCustomerByPhone(tenant.id, from) : null;
     const { callId, sipUri } = await registerRetellCall({
+      agentId: number.voiceAgentId,
       fromNumber: from,
-      toNumber: to,
-      metadata: { twilioCallSid: params.CallSid, customerId: customer?.id ?? null },
-      dynamicVariables: {
-        caller_number: from,
-        customer_status: customer?.status ?? "NEW",
-        customer_name: customer?.name ?? "",
-        customer_company: customer?.companyName ?? "",
-        customer_type: customer?.customerType ?? "PRIVATE",
-        customer_postal_code: customer?.postalCode ?? "",
-        customer_address: customer?.address ?? "",
-      },
+      toNumber: number.e164,
+      metadata: { tenant_id: tenant.id, call_row_id: call.id, twilio_call_sid: params.CallSid },
+      dynamicVariables: buildDynamicVariables(tenant, cfg, { number: from, customer }),
     });
-    logger.info("retell.registered", { callSid: params.CallSid, callId });
+    await prisma.call.update({ where: { id: call.id }, data: { providerCallId: callId, status: "IN_PROGRESS", customerId: customer?.id } });
+    logger.info("twilio.inbound", { tenantId: tenant.id, from: maskPhone(from), callId });
     return twimlResponse(dialSip(sipUri));
   } catch (err) {
-    logger.error("twilio.ai_handoff_failed", { error: (err as Error).message });
-    return fallbackTwiml(params.To);
+    logger.error("twilio.ai_handoff_failed", { tenantId: tenant.id, error: (err as Error).message });
+    return fallback("FALLBACK");
   }
 }

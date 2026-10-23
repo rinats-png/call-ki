@@ -1,50 +1,243 @@
+// Mandantenfähiges Datenmodell der KI-Telefonzentrale.
+// Plattform (du) → Tenant (deine Kunden, z. B. Storm GmbH) → deren Anrufer (Customer), Mitarbeiter, Tickets.
+// Jede fachliche Tabelle trägt tenantId; Zugriffe laufen ausschließlich über tenant-gebundene Services.
+
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
+// ───────────────────────────── Plattform & Zugang
+
+model Tenant {
+  id                 String   @id @default(cuid())
+  slug               String   @unique
+  name               String
+  industry           String   @default("general") // Branchenvorlage: pest_control, trades, general
+  status             String   @default("ONBOARDING") // ONBOARDING, ACTIVE, PAUSED
+  timezone           String   @default("Europe/Berlin")
+  logoUrl            String?
+  /// Mandanten-Einstellungen (KI, Geschäftszeiten, Termine, Benachrichtigungen) – Schema: src/lib/tenant/settings.ts
+  settings           Json     @default("{}")
+  plan               String   @default("STARTER")
+  monthlyMinuteLimit Int?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  users        User[]
+  phoneNumbers PhoneNumber[]
+  integrations Integration[]
+  customers    Customer[]
+  employees    Employee[]
+  tickets      CallTicket[]
+  calls        Call[]
+  messages     Message[]
+  auditLogs    AuditLog[]
+}
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  name           String?
+  passwordHash   String?
+  role           String // PLATFORM_ADMIN, TENANT_ADMIN, TENANT_USER
+  tenantId       String?
+  tenant         Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  failedLogins   Int       @default(0)
+  lockedUntil    DateTime?
+  lastLoginAt    DateTime?
+  disabled       Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  sessions       Session[]
+  tokens         AuthToken[]
+
+  @@index([tenantId])
+}
+
+model Session {
+  id             String   @id // SHA-256 des Cookie-Tokens
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Plattform-Admins können in einen Mandanten wechseln ("Als Kunde öffnen")
+  activeTenantId String?
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  lastSeenAt     DateTime @default(now())
+  userAgent      String?
+
+  @@index([userId])
+}
+
+model AuthToken {
+  id        String    @id // SHA-256 des Tokens
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String // INVITE, PASSWORD_RESET
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  tenantId  String?
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    String?
+  action    String
+  target    String?
+  meta      Json?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+}
+
+// ───────────────────────────── Telefonie & Integrationen
+
+model PhoneNumber {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  e164         String   @unique // Twilio-Nummer, auf die der Kunde umleitet
+  label        String?
+  /// Optional eigener Retell-Agent je Nummer (sonst Plattform-Standard-Agent)
+  voiceAgentId String?
+  /// Weiterleitung, wenn KI nicht verfügbar / Kontingent erschöpft
+  fallbackNumber String?
+  createdAt    DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+model Integration {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type      String // MICROSOFT_365 (Erweiterung: GOOGLE_CALENDAR, CRM_*)
+  status    String   @default("PENDING") // PENDING, CONNECTED, ERROR, DISCONNECTED
+  /// Nicht-geheime Konfiguration (z. B. Microsoft-Tenant-ID, Entwurfs-Postfach)
+  config    Json     @default("{}")
+  lastError String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, type])
+}
+
+// ───────────────────────────── Fachdaten je Mandant
+
 model Customer {
-  id           String      @id @default(cuid())
+  id           String       @id @default(cuid())
+  tenantId     String
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name         String?
   companyName  String?
-  phone        String      @unique
+  phone        String
   email        String?
   address      String?
   postalCode   String?
-  customerType String      @default("PRIVATE") // PRIVATE, B2B_HACCP, PROPERTY_MANAGEMENT
-  status       String      @default("NEW")     // NEW, EXISTING
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  customerType String       @default("PRIVATE") // PRIVATE, BUSINESS, PROPERTY_MANAGEMENT
+  status       String       @default("NEW") // NEW, EXISTING
+  notes        String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
   tickets      CallTicket[]
+  calls        Call[]
+
+  @@unique([tenantId, phone])
 }
 
 model Employee {
-  id                  String       @id @default(cuid())
-  name                String
-  role                String       // B2B_SPECIALIST, EMERGENCY_TECH, BACKOFFICE, PEST_EXPERT
-  microsoftUpn        String       // E-Mail für Microsoft Graph API (z. B. techniker@storm.gmbh)
-  servicePostalCodes  String       // Kommagetrennte PLZ-Bereiche
-  directPhone         String?
-  createdAt           DateTime     @default(now())
-  tickets             CallTicket[]
+  id                 String       @id @default(cuid())
+  tenantId           String
+  tenant             Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name               String
+  role               String // FIELD_TECH, EMERGENCY_TECH, SPECIALIST, BACKOFFICE
+  email              String? // Kalender (Microsoft 365) und Benachrichtigungen
+  servicePostalCodes String       @default("*") // Kommagetrennt: 10115, 12, 13000-13999, *
+  directPhone        String?
+  active             Boolean      @default(true)
+  createdAt          DateTime     @default(now())
+  tickets            CallTicket[]
+
+  @@index([tenantId])
+}
+
+model Call {
+  id             String      @id @default(cuid())
+  tenantId       String
+  tenant         Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  provider       String      @default("retell")
+  providerCallId String?     @unique
+  twilioCallSid  String?     @unique
+  fromNumber     String
+  toNumber       String
+  customerId     String?
+  customer       Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  status         String      @default("RINGING") // RINGING, IN_PROGRESS, ENDED, FAILED, FALLBACK, VOICEMAIL
+  startedAt      DateTime    @default(now())
+  endedAt        DateTime?
+  durationSec    Int?
+  transcript     String?
+  summary        String?
+  recordingUrl   String?
+  endReason      String?
+  tickets        CallTicket[]
+
+  @@index([tenantId, startedAt])
 }
 
 model CallTicket {
-  id                String    @id @default(cuid())
-  customerId        String
-  customer          Customer  @relation(fields: [customerId], references: [id])
+  id                 String    @id @default(cuid())
+  tenantId           String
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customerId         String
+  customer           Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  callId             String?
+  call               Call?     @relation(fields: [callId], references: [id], onDelete: SetNull)
   assignedEmployeeId String?
-  assignedEmployee  Employee? @relation(fields: [assignedEmployeeId], references: [id])
-  pestType          String?   // Wespen, Ratten, Bettwanzen, Schaben, Unbekannt
-  urgency           String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
-  summary           String?
-  transcript        String?
-  outlookEventId    String?
-  outlookDraftId    String?
-  status            String    @default("PENDING") // PENDING, PROCESSED, ESCALATED
-  createdAt         DateTime  @default(now())
+  assignedEmployee   Employee? @relation(fields: [assignedEmployeeId], references: [id], onDelete: SetNull)
+  category           String? // Anliegen laut Branchenvorlage, z. B. Wespen, Rohrbruch
+  urgency            String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  summary            String?
+  transcript         String?
+  appointmentStart   DateTime?
+  appointmentEnd     DateTime?
+  calendarEventId    String? // Microsoft-365-Event (falls verbunden)
+  emailDraftId       String? // Microsoft-365-Entwurf (falls verbunden)
+  status             String    @default("PENDING") // PENDING, PROCESSED, ESCALATED, CLOSED
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  messages           Message[]
+
+  @@index([tenantId, createdAt])
+  @@index([assignedEmployeeId, appointmentStart])
+}
+
+/// Protokoll aller ausgehenden Benachrichtigungen (E-Mail, SMS) – auch wenn kein Versanddienst konfiguriert ist.
+model Message {
+  id         String      @id @default(cuid())
+  tenantId   String?
+  tenant     Tenant?     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ticketId   String?
+  ticket     CallTicket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  channel    String // EMAIL, SMS
+  recipient  String
+  subject    String?
+  body       String
+  purpose    String // CUSTOMER_CONFIRMATION, TECHNICIAN_BRIEFING, EMERGENCY_ALERT, INVITE, PASSWORD_RESET
+  status     String      @default("QUEUED") // QUEUED, SENT, DRAFT, FAILED, SKIPPED
+  provider   String? // smtp, twilio, microsoft
+  error      String?
+  createdAt  DateTime    @default(now())
+
+  @@index([tenantId, createdAt])
 }

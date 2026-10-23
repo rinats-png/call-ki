@@ -1,16 +1,18 @@
-import { PhoneIncoming, Siren, Sparkles, UserPlus, CalendarCheck } from "lucide-react";
+import { PhoneIncoming, Siren, CalendarCheck, UserPlus, Timer } from "lucide-react";
 import { cn } from "@/lib/ui";
 import type { DashboardData } from "./types";
 import { Skeleton } from "./Primitives";
 
 export function KpiCards({ data }: { data: DashboardData | null }) {
   const s = data?.stats;
+  const limit = s?.minuteLimit;
+  const usage = s && limit ? Math.round((s.minutesThisMonth / limit) * 100) : null;
   const cards = [
-    { label: "Anrufe heute", value: s?.todayCount, icon: PhoneIncoming, tone: "cyan", sub: s ? `${s.pendingCount} offen gesamt` : "" },
+    { label: "Anrufe heute", value: s?.callsToday, icon: PhoneIncoming, tone: "cyan", sub: s ? `${s.todayCount} Vorgänge · ${s.pendingCount} offen` : "" },
     { label: "Notfälle offen", value: s?.escalatedOpen, icon: Siren, tone: s && s.escalatedOpen > 0 ? "amber" : "zinc", sub: "Eskaliert an Notdienst" },
-    { label: "Automatisiert", value: s ? (s.automationRate == null ? "–" : `${s.automationRate}%`) : undefined, icon: Sparkles, tone: "emerald", sub: s ? `${s.processedToday} heute abgeschlossen` : "" },
+    { label: "Termine heute vergeben", value: s?.plannedToday, icon: CalendarCheck, tone: "emerald", sub: s ? (s.automationRate == null ? "–" : `${s.automationRate}% der Vorgänge`) : "" },
     { label: "Neukunden heute", value: s?.newCustomersToday, icon: UserPlus, tone: "cyan", sub: s ? `${s.totalCustomers} Kunden gesamt` : "" },
-    { label: "Outlook-Sync", value: s?.outlookSyncedToday, icon: CalendarCheck, tone: "emerald", sub: "Termine & Entwürfe heute" },
+    { label: "Minuten im Monat", value: s?.minutesThisMonth, icon: Timer, tone: usage != null && usage >= 90 ? "amber" : "emerald", sub: limit ? `von ${limit} (${usage}%)` : "ohne Limit" },
   ] as const;
 
   const tones = {
@@ -24,9 +26,9 @@ export function KpiCards({ data }: { data: DashboardData | null }) {
     <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
       {cards.map((c, i) => (
         <div key={c.label} className={cn("glass relative overflow-hidden p-4 animate-fadein", c.tone === "amber" && "border-amber-500/30")} style={{ animationDelay: `${i * 40}ms` }}>
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-2">
             <span className="label">{c.label}</span>
-            <span className={cn("grid h-8 w-8 place-items-center rounded-lg ring-1", tones[c.tone])}>
+            <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg ring-1", tones[c.tone])}>
               <c.icon className="h-4 w-4" />
             </span>
           </div>

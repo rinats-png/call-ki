@@ -13,6 +13,7 @@ import { RoutingSimulator } from "./RoutingSimulator";
 import { TicketDrawer } from "./TicketDrawer";
 import { SimulateCall } from "./SimulateCall";
 import { LiveDot } from "./Primitives";
+import { useSession } from "../session";
 
 export function Hub() {
   const [status, setStatus] = useState("");
@@ -34,6 +35,7 @@ export function Hub() {
   const qs = new URLSearchParams({ ...(status && { status }), ...(debounced && { q: debounced }) }).toString();
   const { data, error, reload } = usePoll<DashboardData>(`/api/dashboard${qs ? `?${qs}` : ""}`, 5000);
   const i = data?.integrations;
+  const { me } = useSession();
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-5">
@@ -43,13 +45,14 @@ export function Hub() {
             <LiveDot color={error ? "amber" : "emerald"} />
             {error ? "Verbindung unterbrochen" : "Live · Aktualisierung alle 5 s"}
           </div>
-          <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-zinc-50 md:text-3xl">KI-Telefonzentrale</h1>
-          <p className="text-sm text-zinc-500">Storm GmbH · Schädlingsbekämpfung</p>
+          <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-zinc-50 md:text-3xl">{me?.tenant?.name ?? "KI-Telefonzentrale"}</h1>
+          <p className="text-sm text-zinc-500">KI-Telefonzentrale · {me?.user.name ?? me?.user.email ?? ""}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Integration label="Twilio" ok={i?.twilioConfigured} />
-          <Integration label={i?.voiceProvider === "vapi" ? "Vapi" : "Retell AI"} ok={i?.voiceConfigured} ai />
-          <Integration label="Outlook" ok={i?.graphConfigured} />
+          <Integration label="Rufnummer" ok={i?.phone} />
+          <Integration label="KI-Agent" ok={i?.voice} ai />
+          <Integration label="Outlook" ok={i?.outlook} optional />
+          <Integration label="E-Mail" ok={i?.email} />
           <button className="btn-primary ml-1" onClick={() => setSimulate(true)}><Plus className="h-4 w-4" />Anruf erfassen</button>
         </div>
       </header>
@@ -89,12 +92,12 @@ export function Hub() {
   );
 }
 
-function Integration({ label, ok, ai }: { label: string; ok?: boolean; ai?: boolean }) {
+function Integration({ label, ok, ai, optional }: { label: string; ok?: boolean; ai?: boolean; optional?: boolean }) {
   return (
     <span className={cn("chip px-2.5 py-1 text-xs", ok ? (ai ? "border-cyan-500/30 bg-cyan-500/10 text-cyan-200" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200") : "border-zinc-800 bg-zinc-900 text-zinc-500")}>
       <LiveDot color={ok ? (ai ? "cyan" : "emerald") : "zinc"} />
       {label}
-      {ok === false && <span className="text-zinc-600">· offline</span>}
+      {ok === false && <span className="text-zinc-500">· {optional ? "nicht verbunden" : "fehlt"}</span>}
     </span>
   );
 }

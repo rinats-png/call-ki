@@ -1,15 +1,20 @@
-import { env } from "../env";
-import { dialNumber, say, twimlResponse } from "../twiml";
+import { dialNumber, say, twimlResponse, xmlEscape } from "../twiml";
 
-/** Fallback, wenn die Sprach-KI nicht erreichbar ist: Weiterleitung ins Büro oder Mailbox. */
-export function fallbackTwiml(callerId?: string) {
-  const backoffice = env().BACKOFFICE_FALLBACK_NUMBER;
-  if (backoffice) {
-    return twimlResponse(say("Willkommen bei der Storm GmbH. Einen Moment bitte, wir verbinden Sie mit unserem Team.") + dialNumber(backoffice, callerId));
+/**
+ * Fallback, wenn die KI nicht verfügbar ist (Störung, Kontingent erschöpft, Mandant pausiert):
+ * Weiterleitung an die Fallback-Nummer des Mandanten, sonst Mailbox → Rückruf-Ticket.
+ */
+export function fallbackTwiml(opts: { companyName?: string; fallbackNumber?: string | null; callerId?: string; recordingAction?: string }) {
+  const name = opts.companyName ?? "uns";
+  if (opts.fallbackNumber) {
+    return twimlResponse(say(`Willkommen bei ${name}. Einen Moment bitte, wir verbinden Sie.`) + dialNumber(opts.fallbackNumber, opts.callerId));
+  }
+  if (!opts.recordingAction) {
+    return twimlResponse(say("Diese Rufnummer ist derzeit nicht erreichbar. Auf Wiederhören.") + "<Hangup/>");
   }
   return twimlResponse(
-    say("Willkommen bei der Storm GmbH. Leider sind gerade alle Leitungen belegt. Bitte hinterlassen Sie nach dem Signalton Ihren Namen, Ihre Adresse und Ihr Anliegen. Wir rufen Sie schnellstmöglich zurück.") +
-      `<Record maxLength="120" playBeep="true" action="/api/twilio/recording" method="POST" />` +
+    say(`Willkommen bei ${name}. Leider ist gerade niemand erreichbar. Bitte hinterlassen Sie nach dem Signalton Ihren Namen, Ihre Adresse und Ihr Anliegen. Wir rufen Sie zurück.`) +
+      `<Record maxLength="120" playBeep="true" action="${xmlEscape(opts.recordingAction)}" method="POST" />` +
       say("Wir haben keine Nachricht erhalten. Auf Wiederhören."),
   );
 }

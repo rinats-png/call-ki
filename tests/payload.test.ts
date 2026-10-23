@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { formatToolResponse, normalizeToolRequest } from "@/lib/voice/payload";
-import { parseCallEndEvent } from "@/lib/voice/events";
+import { parseCallEvent } from "@/lib/voice/events";
 
 describe("Tool-Payloads", () => {
   it("parst Retell Custom Functions", () => {
     const r = normalizeToolRequest({ name: "find_technician", args: { postalCode: "20095" }, call: { call_id: "c1", from_number: "+4940123" } });
     expect(r.provider).toBe("retell");
     expect(r.callerNumber).toBe("+4940123");
+    expect(r.calledNumber).toBeNull();
     expect(r.calls[0]).toEqual({ id: null, name: "find_technician", args: { postalCode: "20095" } });
   });
 
@@ -31,14 +32,16 @@ describe("Tool-Payloads", () => {
 
 describe("Call-End-Events", () => {
   it("parst Retell call_analyzed", () => {
-    const e = parseCallEndEvent({ event: "call_analyzed", call: { call_id: "c1", from_number: "+49", transcript: "Agent: Hallo", call_analysis: { call_summary: "Wespen" }, duration_ms: 61000 } });
+    const e = parseCallEvent({ event: "call_analyzed", call: { call_id: "c1", from_number: "+49", transcript: "Agent: Hallo", call_analysis: { call_summary: "Wespen" }, duration_ms: 61000 } });
     expect(e).toMatchObject({ provider: "retell", summary: "Wespen", durationSec: 61 });
   });
-  it("ignoriert Retell call_started", () => {
-    expect(parseCallEndEvent({ event: "call_started", call: {} })).toBeNull();
+  it("erkennt Retell call_started / call_ended und ignoriert Unbekanntes", () => {
+    expect(parseCallEvent({ event: "call_started", call: { call_id: "c1" } })?.kind).toBe("started");
+    expect(parseCallEvent({ event: "call_ended", call: { call_id: "c1", to_number: "+4930", recording_url: "https://r" } })).toMatchObject({ kind: "ended", toNumber: "+4930", recordingUrl: "https://r" });
+    expect(parseCallEvent({ event: "something_else" })).toBeNull();
   });
   it("parst Vapi end-of-call-report", () => {
-    const e = parseCallEndEvent({ message: { type: "end-of-call-report", call: { customer: { number: "+49151" } }, artifact: { transcript: "AI: Hallo" }, analysis: { summary: "Ratten" } } });
-    expect(e).toMatchObject({ provider: "vapi", phone: "+49151", transcript: "AI: Hallo", summary: "Ratten" });
+    const e = parseCallEvent({ message: { type: "end-of-call-report", call: { customer: { number: "+49151" } }, artifact: { transcript: "AI: Hallo" }, analysis: { summary: "Ratten" } } });
+    expect(e).toMatchObject({ provider: "vapi", fromNumber: "+49151", transcript: "AI: Hallo", summary: "Ratten" });
   });
 });

@@ -1,9 +1,12 @@
-import { ROLE_LABEL, type EmployeeRole } from "@/lib/constants";
+"use client";
+
 import { cn } from "@/lib/ui";
+import { useSession } from "../session";
 import type { EmployeeRow } from "./types";
 import { Panel } from "./Primitives";
 
 export function TeamLoad({ employees }: { employees: EmployeeRow[] }) {
+  const { me } = useSession();
   const max = Math.max(5, ...employees.map((e) => e.openTickets));
   return (
     <Panel title="Team-Auslastung">
@@ -18,7 +21,7 @@ export function TeamLoad({ employees }: { employees: EmployeeRow[] }) {
                     {e.name.split(" ").map((p) => p[0]).join("").slice(0, 2)}
                   </span>
                   <span className="truncate text-zinc-200">{e.name}</span>
-                  <span className="hidden truncate text-[11px] text-zinc-500 sm:inline">{ROLE_LABEL[e.role as EmployeeRole] ?? e.role}</span>
+                  <span className="hidden truncate text-[11px] text-zinc-500 sm:inline">{me?.tenant?.roleLabels[e.role as keyof typeof me.tenant.roleLabels] ?? e.role}</span>
                 </span>
                 <span className="tabular-nums text-xs text-zinc-400">{e.openTickets}</span>
               </div>
@@ -28,7 +31,7 @@ export function TeamLoad({ employees }: { employees: EmployeeRow[] }) {
             </li>
           );
         })}
-        {employees.length === 0 && <li className="text-sm text-zinc-500">Keine Mitarbeiter angelegt.</li>}
+        {employees.length === 0 && <li className="text-sm text-zinc-500">Noch kein Team angelegt.</li>}
       </ul>
     </Panel>
   );

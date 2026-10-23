@@ -1,30 +1,25 @@
+import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
-import { normalizePhone } from "@/lib/phone";
 import { publicUrl, validateTwilioRequest } from "@/lib/security";
 import { say, twimlResponse } from "@/lib/twiml";
-import { attachCallRecord } from "@/lib/services/tickets";
+import { resolveConfig } from "@/lib/tenant/settings";
+import { createCallbackTicket } from "@/lib/services/calls";
+import { twilioParams } from "@/lib/voice/inbound";
 
 export const dynamic = "force-dynamic";
 
-/** <Record action> der Mailbox: legt ein Rückruf-Ticket mit Link zur Sprachnachricht an. */
+/** Mailbox-Aufnahme → Rückruf-Ticket beim richtigen Mandanten. */
 export async function POST(req: Request) {
-  const form = await req.formData();
-  const params: Record<string, string> = {};
-  form.forEach((v, k) => (params[k] = String(v)));
-  if (!validateTwilioRequest(req.headers.get("x-twilio-signature"), publicUrl(req), params)) {
-    return new Response("Forbidden", { status: 403 });
-  }
+  const params = await twilioParams(req);
+  if (!validateTwilioRequest(req.headers.get("x-twilio-signature"), publicUrl(req), params)) return new Response("Forbidden", { status: 403 });
 
-  const phone = normalizePhone(params.From);
-  if (phone && params.RecordingUrl) {
+  const callId = new URL(req.url).searchParams.get("call");
+  const call = callId ? await prisma.call.findUnique({ where: { id: callId }, include: { tenant: true } }) : null;
+  if (call && params.RecordingUrl) {
     try {
-      await attachCallRecord({
-        phone,
-        summary: `Sprachnachricht (${params.RecordingDuration ?? "?"} s): ${params.RecordingUrl}`,
-        durationSec: Number(params.RecordingDuration) || null,
-        transcript: null,
-        forceCallback: true,
-      });
+      const duration = Number(params.RecordingDuration) || 0;
+      await prisma.call.update({ where: { id: call.id }, data: { status: "VOICEMAIL", recordingUrl: params.RecordingUrl, durationSec: duration, endedAt: new Date() } });
+      await createCallbackTicket(call.tenant, resolveConfig(call.tenant), { ...call, recordingUrl: params.RecordingUrl }, `Sprachnachricht (${duration} s) – bitte abhören und zurückrufen.`);
     } catch (err) {
       logger.error("twilio.recording_failed", { error: (err as Error).message });
     }

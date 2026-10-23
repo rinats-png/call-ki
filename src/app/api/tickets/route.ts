@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { api, readJson } from "@/lib/http";
+import { requireTenant } from "@/lib/auth/session";
+import { loadTenant } from "@/lib/tenant";
 import { CUSTOMER_TYPES, URGENCIES } from "@/lib/constants";
 import { processServiceRequest } from "@/lib/services/tickets";
+import { audit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -13,25 +17,19 @@ const schema = z.object({
   address: z.string().optional(),
   postalCode: z.string().optional(),
   customerType: z.enum(CUSTOMER_TYPES).optional(),
-  pestType: z.string().optional(),
+  category: z.string().optional(),
   description: z.string().min(3),
   urgency: z.enum(URGENCIES).optional(),
   appointmentStart: z.string().datetime({ offset: true }).optional(),
-  transcript: z.string().optional(),
+  employeeId: z.string().optional(),
 });
 
-/** Manuelle Erfassung / Anrufsimulation aus dem Hub – nutzt exakt denselben Workflow wie die Sprach-KI. */
-export async function POST(req: Request) {
-  const parsed = schema.safeParse(await req.json().catch(() => null));
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-  const { phone, name, companyName, email, address, postalCode, customerType, ...rest } = parsed.data;
-  try {
-    const result = await processServiceRequest({
-      customer: { phone, name, companyName, email, address, postalCode, customerType },
-      ...rest,
-    });
-    return NextResponse.json(result, { status: 201 });
-  } catch (err) {
-    return NextResponse.json({ error: (err as Error).message }, { status: 422 });
-  }
-}
+/** Manuelle Erfassung (Büro) – identischer Ablauf wie bei der Sprach-KI. */
+export const POST = api(async (req) => {
+  const auth = await requireTenant();
+  const { tenant, cfg } = await loadTenant(auth.tenantId);
+  const { phone, name, companyName, email, address, postalCode, customerType, ...rest } = schema.parse(await readJson(req));
+  const result = await processServiceRequest(tenant, cfg, { customer: { phone, name, companyName, email, address, postalCode, customerType }, ...rest });
+  await audit({ tenantId: tenant.id, userId: auth.user.id, action: "ticket.create_manual", target: result.ticket.id });
+  return NextResponse.json(result, { status: 201 });
+});

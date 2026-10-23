@@ -6,10 +6,14 @@ export type RoutingInput = {
   postalCode?: string | null;
   urgency: Urgency;
   customerType?: string | null;
-  pestType?: string | null;
+  category?: string | null;
+  /** Kundentypen, die an SPECIALIST gehen (aus Branchenvorlage) */
+  specialistCustomerTypes?: string[];
+  /** Anzeigenamen der Rollen (aus Branchenvorlage) für die Begründung */
+  roleLabels?: Partial<Record<string, string>>;
 };
 
-export type RoutingCandidate = Pick<Employee, "id" | "name" | "role" | "microsoftUpn" | "servicePostalCodes" | "directPhone"> & {
+export type RoutingCandidate = Pick<Employee, "id" | "name" | "role" | "email" | "servicePostalCodes" | "directPhone"> & {
   openTickets?: number;
 };
 
@@ -26,12 +30,13 @@ export type RoutingResult = {
 /** Welche Rolle passt fachlich zum Anliegen? */
 export function preferredRoleFor(input: RoutingInput): EmployeeRole {
   if (URGENCY_RANK[input.urgency] >= URGENCY_RANK.CRITICAL) return "EMERGENCY_TECH";
-  if (input.customerType === "B2B_HACCP" || input.customerType === "PROPERTY_MANAGEMENT") return "B2B_SPECIALIST";
+  const specialistTypes = input.specialistCustomerTypes ?? ["BUSINESS", "PROPERTY_MANAGEMENT"];
+  if (input.customerType && specialistTypes.includes(input.customerType)) return "SPECIALIST";
   if (URGENCY_RANK[input.urgency] >= URGENCY_RANK.HIGH) return "EMERGENCY_TECH";
-  return "PEST_EXPERT";
+  return "FIELD_TECH";
 }
 
-const FIELD_ROLES: EmployeeRole[] = ["PEST_EXPERT", "EMERGENCY_TECH", "B2B_SPECIALIST"];
+const FIELD_ROLES: EmployeeRole[] = ["FIELD_TECH", "EMERGENCY_TECH", "SPECIALIST"];
 
 /**
  * Smart Routing:
@@ -67,11 +72,12 @@ export function routeTechnician(input: RoutingInput, employees: RoutingCandidate
     return { employee: null, preferredRole, reason: "Keine Mitarbeiter hinterlegt.", areaMatch: false, transferRecommended: false, ranked };
   }
 
+  const L = (r: string) => input.roleLabels?.[r] ?? r;
   let reason: string;
-  if (best.area.matched && best.isPreferred) reason = `${best.e.name} ist ${preferredRole} und für PLZ ${plz} zuständig.`;
-  else if (best.area.matched) reason = `Kein ${preferredRole} für PLZ ${plz} – ${best.e.name} (${best.e.role}) ist im Gebiet zuständig.`;
-  else if (best.isPreferred) reason = `Kein Techniker für PLZ ${plz ?? "unbekannt"} – überregionaler ${preferredRole}: ${best.e.name}.`;
-  else reason = `Kein passender Techniker gefunden – Weiterleitung an ${best.e.name} (${best.e.role}) für Rückruf.`;
+  if (best.area.matched && best.isPreferred) reason = `${best.e.name} (${L(preferredRole)}) ist für PLZ ${plz} zuständig.`;
+  else if (best.area.matched) reason = `Kein ${L(preferredRole)} für PLZ ${plz} – ${best.e.name} (${L(best.e.role)}) ist im Gebiet zuständig.`;
+  else if (best.isPreferred) reason = plz ? `Niemand für PLZ ${plz} hinterlegt – überregional: ${best.e.name} (${L(preferredRole)}).` : `Keine PLZ angegeben – ${best.e.name} (${L(preferredRole)}).`;
+  else reason = `Keine passende Person gefunden – Weiterleitung an ${best.e.name} (${L(best.e.role)}) für Rückruf.`;
 
   return {
     employee: best.e,

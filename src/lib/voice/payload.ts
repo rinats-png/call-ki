@@ -9,6 +9,8 @@ export type NormalizedToolRequest = {
   provider: "retell" | "vapi" | "generic";
   callId: string | null;
   callerNumber: string | null;
+  /** Angerufene Nummer (zur Mandanten-Zuordnung, falls Call-ID unbekannt) */
+  calledNumber: string | null;
   calls: ToolCall[];
 };
 
@@ -38,6 +40,7 @@ export function normalizeToolRequest(body: unknown, toolNameFromPath?: string): 
       provider: "vapi",
       callId: str(call.id),
       callerNumber: str(obj(call.customer).number) ?? str(obj(message.customer).number),
+      calledNumber: str(obj(call.phoneNumber).number) ?? str(obj(message.phoneNumber).number),
       calls: list.map((tc) => {
         const fn = obj(tc.function);
         return { id: str(tc.id), name: str(fn.name) ?? str(tc.name) ?? "", args: parseArgs(fn.arguments ?? tc.arguments) };
@@ -51,6 +54,7 @@ export function normalizeToolRequest(body: unknown, toolNameFromPath?: string): 
       provider: "retell",
       callId: str(call.call_id),
       callerNumber: str(call.from_number),
+      calledNumber: str(call.to_number),
       calls: [{ id: null, name: str(b.name) ?? toolNameFromPath ?? "", args: parseArgs(b.args) }],
     };
   }
@@ -59,6 +63,7 @@ export function normalizeToolRequest(body: unknown, toolNameFromPath?: string): 
     provider: "generic",
     callId: null,
     callerNumber: str(b.callerNumber) ?? str(b.from_number),
+    calledNumber: str(b.calledNumber) ?? str(b.to_number),
     calls: [{ id: null, name: str(b.name) ?? toolNameFromPath ?? "", args: parseArgs(b.args ?? b.arguments ?? b) }],
   };
 }

@@ -48,51 +48,68 @@ export function formatGermanDateTime(date: Date, timeZone: string): string {
 
 export type Interval = { start: Date; end: Date };
 
+const ISO_DAY: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
+const toMin = (hhmm: string) => {
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+};
+
 /**
- * Berechnet freie Slots innerhalb der Geschäftszeiten (Mo–Fr) ab `from`,
- * unter Ausschluss belegter Intervalle.
+ * Freie Slots innerhalb der Geschäftszeiten ab `from`. Belegte Intervalle werden
+ * um `bufferMin` (Anfahrt/Puffer) erweitert.
  */
 export function computeFreeSlots(opts: {
   from: Date;
   days: number;
   busy: Interval[];
   durationMin: number;
-  startHour: number;
-  endHour: number;
   timeZone: string;
+  /** ISO-Wochentage (1 = Mo … 7 = So) */
+  workDays?: number[];
+  start?: string; // "08:00"
+  end?: string; // "18:00"
+  bufferMin?: number;
   max?: number;
   leadMinutes?: number;
+  /** Abstand zwischen zwei angebotenen Slots */
+  spreadMin?: number;
 }): Interval[] {
-  const { from, days, busy, durationMin, startHour, endHour, timeZone } = opts;
+  const { from, days, durationMin, timeZone } = opts;
+  const workDays = opts.workDays ?? [1, 2, 3, 4, 5];
+  const startMin = toMin(opts.start ?? "08:00");
+  const endMin = toMin(opts.end ?? "18:00");
+  const buffer = (opts.bufferMin ?? 0) * 60000;
   const max = opts.max ?? 3;
+  const step = 30 * 60000;
   const earliest = new Date(from.getTime() + (opts.leadMinutes ?? 120) * 60000);
+  const busy = opts.busy.map((b) => ({ start: new Date(b.start.getTime() - buffer), end: new Date(b.end.getTime() + buffer) }));
   const slots: Interval[] = [];
   const base = zonedParts(from, timeZone);
+  const roundUp = (d: Date) => {
+    const r = d.getTime() % step;
+    return r ? new Date(d.getTime() + (step - r)) : d;
+  };
 
-  for (let i = 0; i < days && slots.length < max; i++) {
-    const dayStart = fromZoned(base.year, base.month, base.day + i, startHour, 0, timeZone);
-    const wd = zonedParts(dayStart, timeZone).weekday;
-    if (wd === "Sat" || wd === "Sun") continue;
-    const dayEnd = fromZoned(base.year, base.month, base.day + i, endHour, 0, timeZone);
+  for (let i = 0; i <= days && slots.length < max; i++) {
+    const dayStart = fromZoned(base.year, base.month, base.day + i, Math.floor(startMin / 60), startMin % 60, timeZone);
+    if (!workDays.includes(ISO_DAY[zonedParts(dayStart, timeZone).weekday])) continue;
+    const dayEnd = fromZoned(base.year, base.month, base.day + i, Math.floor(endMin / 60), endMin % 60, timeZone);
 
-    // Auf volle halbe Stunde ab frühestem Zeitpunkt runden
-    let cursor = new Date(Math.max(dayStart.getTime(), earliest.getTime()));
-    const rem = cursor.getTime() % (30 * 60000);
-    if (rem) cursor = new Date(cursor.getTime() + (30 * 60000 - rem));
-
+    let cursor = roundUp(new Date(Math.max(dayStart.getTime(), earliest.getTime())));
     while (cursor.getTime() + durationMin * 60000 <= dayEnd.getTime() && slots.length < max) {
       const end = new Date(cursor.getTime() + durationMin * 60000);
       const clash = busy.find((b) => b.start < end && b.end > cursor);
       if (clash) {
-        cursor = new Date(Math.max(clash.end.getTime(), cursor.getTime() + 30 * 60000));
-        const r = cursor.getTime() % (30 * 60000);
-        if (r) cursor = new Date(cursor.getTime() + (30 * 60000 - r));
+        cursor = roundUp(new Date(Math.max(clash.end.getTime(), cursor.getTime() + step)));
         continue;
       }
       slots.push({ start: cursor, end });
-      // nächster Vorschlag frühestens 2h später für sinnvolle Auswahl
-      cursor = new Date(end.getTime() + 60 * 60000);
+      cursor = roundUp(new Date(end.getTime() + (opts.spreadMin ?? 60) * 60000));
     }
   }
   return slots;
+}
+
+export function overlaps(a: Interval, b: Interval): boolean {
+  return a.start < b.end && a.end > b.start;
 }

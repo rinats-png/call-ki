@@ -1,93 +1,103 @@
-# Storm GmbH · KI-Telefonzentrale
+# KI-Telefonzentrale – Mandantenfähige Plattform
 
-Autonome KI-Telefonzentrale für die Schädlingsbekämpfung der Storm GmbH (https://storm.gmbh/).
-Eingehende Anrufe laufen über **Twilio** zur Sprach-KI (**Retell AI** oder **Vapi**). Die KI unterscheidet Neu- und Bestandskunden, ermittelt per **Smart Routing** den passenden Techniker, legt über die **Microsoft Graph API** echte **Outlook-Termine und E-Mail-Entwürfe** an und spielt alles live in ein **Interactive Hub Dashboard (Dark Mode)**.
+Eine Plattform, mit der **du als Anbieter** beliebig viele Firmen (Mandanten) mit einer KI-Telefonassistenz versorgst. Jeder Kunde erhält ein eigenes Portal, sieht nur seine Daten, und die KI arbeitet mit seinem Firmenwissen, seinem Team und seinem Kalender.
 
 ```
-Anrufer ──▶ Twilio ──▶ /api/twilio/voice ──▶ Retell (SIP) / Vapi
-                             │ Kundenerkennung (Dynamic Variables)
-                             ▼
-             Sprach-KI ──Function Calls──▶ /api/voice/tools/*
-                                              │ identify_caller · save_customer
-                                              │ find_technician (Routing + freie Slots aus Outlook)
-                                              │ book_appointment (Ticket + Termin + E-Mail-Entwurf)
-                                              │ escalate_emergency (Notdienst + Durchstellung)
-                                              ▼
-                              Prisma (SQLite/PostgreSQL) ◀──▶ Microsoft Graph
-             Gesprächsende ──▶ /api/voice/events (Transkript + Zusammenfassung)
-                                              ▼
-                                   Hub-Dashboard (Live, 5 s)
+Anrufer ─▶ Kunden-Nr. (Rufumleitung) ─▶ Twilio-Nummer ─▶ /api/twilio/voice
+                                                  │ Nummer → Mandant, Kontingent prüfen
+                                                  ▼
+                       Retell-Agent (EIN Prompt für alle, Variablen je Mandant)
+                                                  │ Function Calls (an Mandant gebunden)
+                                                  ▼
+            identify_caller · save_customer · find_technician · book_appointment · escalate_emergency
+                                                  │
+     PostgreSQL (tenantId überall) ◀──────────────┼──────────▶ Kalender: intern + optional Microsoft 365
+                                                  │                 Benachrichtigung: E-Mail (+ICS) · SMS
+            /api/voice/events ◀── Gesprächsende: Transkript, Zusammenfassung, Rückruf-Vorgang bei Abbruch
+                                                  ▼
+          Portal des Kunden (Hub, Anrufe, Kunden, Team, Einstellungen)   ·   Deine Verwaltung (/admin)
 ```
 
-## Schnellstart
+## Rollen
+| Rolle | Sieht / darf |
+|---|---|
+| **Plattform-Admin** (du) | Alle Mandanten anlegen, pausieren, Tarif & Minutenlimit, Rufnummern zuordnen, Zugangslinks erzeugen, Plattform-Status. „Portal öffnen“ für Support (wird im Kunden-Protokoll sichtbar). |
+| **Kunden-Admin** | Eigenes Portal komplett: Team & Einsatzgebiete, KI-Texte, Geschäftszeiten, Benachrichtigungen, Microsoft 365, Benutzer, Protokoll, DSGVO-Löschung. |
+| **Kunden-Mitarbeiter** | Vorgänge, Anrufe, Kunden bearbeiten – keine Einstellungen. |
+
+## Was die Plattform abdeckt
+- **Mehrere Branchen** über Vorlagen (`src/lib/tenant/templates.ts`): Schädlingsbekämpfung, Handwerk (SHK/Elektro/Dach), Allgemeiner Dienstleister. Jede Vorlage bringt Anliegen-Kategorien, Notfall-Stichwörter, Rollenbezeichnungen und Gesprächsleitfaden mit; Kunden ergänzen eigene Kategorien/Stichwörter/FAQ.
+- **Kunden ohne Microsoft**: interner Kalender + E-Mail mit Kalendereintrag (.ics) funktioniert mit Outlook, Google, Apple.
+- **Kunden mit Microsoft 365**: „Mit Microsoft verbinden“ → Admin-Freigabe → echte Outlook-Verfügbarkeit, Termine direkt im Kalender, Kundenbestätigung als Entwurf. Keine Kunden-Passwörter/Secrets gespeichert (eine mandantenfähige Entra-App).
+- **Kunde behält seine Nummer**: Rufumleitung (bei besetzt / nach X Sekunden / außerhalb Geschäftszeiten) auf die zugeordnete Twilio-Nummer.
+- **Ausfallsicherheit**: KI nicht erreichbar, Kunde pausiert oder Minutenlimit erreicht → Weiterleitung an Fallback-Nummer oder Mailbox → Rückruf-Vorgang mit Aufnahme.
+- **Kein verlorener Lead**: aufgelegte Gespräche erzeugen automatisch Rückruf-Vorgänge.
+- **Doppelbuchungsschutz**: Slot wird unmittelbar vor der Buchung neu geprüft; je Anruf höchstens ein Vorgang (idempotent).
+- **DSGVO**: Löschfristen je Kunde (Transkripte/Aufnahmen), Datenauskunft (JSON), vollständige Löschung eines Anrufers, Audit-Log, KI-Transparenzhinweis in der Begrüßung, Hosting in Deutschland (IONOS).
+
+## Installation auf dem IONOS-VPS
+Voraussetzung: VPS mit Ubuntu 24.04, min. 2 vCPU / 4 GB RAM, eine (Sub-)Domain.
 
 ```bash
-npm install
-cp .env.example .env          # Werte eintragen (siehe unten)
-npm run setup                 # Datenbank anlegen + Mitarbeiter seeden
-SEED_DEMO_DATA=true npm run db:seed   # optional: Demo-Tickets
-npm run dev                   # http://localhost:3000
+# 1. DNS: A-Record app.deine-domain.de → IP des VPS
+# 2. Auf dem Server:
+sudo apt update && sudo apt install -y docker.io docker-compose-v2 git ufw
+sudo ufw allow 22 && sudo ufw allow 80 && sudo ufw allow 443 && sudo ufw enable
+git clone https://github.com/rinats-png/call-ki.git && cd call-ki
+cp .env.example .env && nano .env      # DOMAIN, POSTGRES_PASSWORD, SETUP_TOKEN, CRON_SECRET, VOICE_TOOL_SECRET, SMTP, Twilio, Retell
+docker compose up -d --build
+# 3. https://app.deine-domain.de/setup öffnen → Setup-Token eingeben → Plattform-Admin anlegen
 ```
+Secrets erzeugen: `openssl rand -hex 24`. Updates: `git pull && docker compose up -d --build` (Migrationen laufen beim Start automatisch).
 
-Ohne Microsoft-Zugangsdaten läuft der Graph-Client im **Dry-Run** (Termine/Entwürfe werden simuliert und im Hub als „Simuliert“ markiert). Lokal ohne Secrets sind die Webhooks offen. In Produktion (`NODE_ENV=production`) sind `DASHBOARD_PASSWORD` und `VOICE_TOOL_SECRET` bzw. `RETELL_API_KEY` Pflicht.
+**Backups**: Der Dienst `backup` legt täglich einen Dump nach `./backups` (14 Tage). Zusätzlich extern sichern, z. B. per `rclone` auf IONOS S3 Object Storage oder das IONOS-Server-Backup aktivieren. Wiederherstellen: `gunzip -c backups/<datei>.sql.gz | docker compose exec -T db psql -U callki -d callki`.
 
-Für lokale Tests mit echten Anrufen: Tunnel (z. B. `ngrok http 3000`) starten und `PUBLIC_BASE_URL` auf die Tunnel-URL setzen.
+## Externe Dienste einrichten (einmalig, für alle Kunden)
+Alle URLs zum Kopieren stehen nach dem Login unter **Plattform**.
 
-## Hosting (Netlify)
-`netlify.toml` ist vorkonfiguriert. Beim Build wird aus `prisma/schema.prisma` automatisch eine PostgreSQL-Variante erzeugt (`scripts/prisma-postgres.mjs`). Die Datenbank stellt **Netlify Database** bereit; Netlify wendet die Migrationen aus `netlify/database/migrations/` (Tabellen + Beispiel-Team) vor jedem Publish an. Lokal bleibt SQLite.
+1. **Twilio**: Konto anlegen, deutsche Nummern kaufen (Regulatory Bundle mit Adressnachweis nötig). Je Nummer unter *Voice Configuration*: „A call comes in“ → `https://DOMAIN/api/twilio/voice` (POST), „Primary handler fails“ → `https://DOMAIN/api/twilio/fallback`. `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN` in `.env`.
+2. **Retell AI**: Einen Agenten anlegen (Sprache Deutsch, deutsche Stimme).
+   - General Prompt: Inhalt von `voice-agent/system-prompt.md`, Begin Message: `{{greeting}}`.
+   - Custom Functions aus `voice-agent/tools.json`, URL `https://DOMAIN/api/voice/tools/<name>`, Header `x-tool-secret: <VOICE_TOOL_SECRET>`.
+   - Eingebaute Funktionen „End Call“ und „Transfer Call“ (dynamische Nummer aus `transferNumber`) aktivieren.
+   - Agent-Webhook: `https://DOMAIN/api/voice/events`. Post-Call-Analyse (Zusammenfassung) aktivieren.
+   - `RETELL_API_KEY` und `RETELL_AGENT_ID` in `.env`. Für Sonderfälle kann je Nummer ein eigener Agent hinterlegt werden.
+3. **E-Mail (SMTP)**: z. B. ein IONOS-Postfach `noreply@deine-domain.de`; SPF/DKIM für die Domain setzen, damit Mails nicht im Spam landen.
+4. **SMS (optional)**: `TWILIO_SMS_FROM` (SMS-fähige Nummer oder Messaging-Service-SID).
+5. **Microsoft 365 (optional)**: Entra ID → App-Registrierung → „Konten in einem beliebigen Organisationsverzeichnis“ (mandantenfähig). Redirect-URI (Web): `https://DOMAIN/api/integrations/microsoft/callback`. API-Berechtigungen (Anwendung): `Calendars.ReadWrite`, `Mail.ReadWrite`. Client-Secret erzeugen → `MS_CLIENT_ID`/`MS_CLIENT_SECRET`. Für produktiven Einsatz bei fremden Firmen: App bei Microsoft als „Publisher verified“ verifizieren lassen.
 
-Env-Variablen auf Netlify: `DASHBOARD_PASSWORD`, `VOICE_TOOL_SECRET`, `PUBLIC_BASE_URL` sowie, je nach Bedarf, die Twilio-, Retell/Vapi- und Microsoft-Werte aus `.env.example`. Eine andere Postgres-Datenbank lässt sich über `DATABASE_URL` nutzen.
+## Neuen Kunden aufschalten (ca. 15 Minuten)
+1. **/admin → Neuer Kunde**: Name, Branche, Admin-E-Mail, Twilio-Nummer, Minutenlimit → Einladung geht per E-Mail raus (ohne SMTP wird der Link angezeigt).
+2. Kunde aktiviert den Zugang und pflegt unter **Team** Mitarbeiter mit PLZ-Gebieten, E-Mail und Handy (für Notfälle).
+3. Unter **Konto**: Unternehmensbeschreibung, Einsatzgebiet, FAQ, Geschäftszeiten, Benachrichtigungen. Optional Microsoft 365 verbinden.
+4. Testanruf auf die Twilio-Nummer. Danach beim Kunden die **Rufumleitung** seiner bisherigen Nummer einrichten.
+5. Status in /admin auf **Aktiv** setzen.
 
-## Integrationen einrichten
-
-Alle Webhook-URLs zum Kopieren stehen auch im Hub unter **Setup**.
-
-### 1. Twilio
-| Feld (Phone Number → Voice) | URL |
-|---|---|
-| A call comes in (POST) | `{PUBLIC_BASE_URL}/api/twilio/voice` |
-| Primary handler fails | `{PUBLIC_BASE_URL}/api/twilio/fallback` |
-
-Jede Anfrage wird über `X-Twilio-Signature` geprüft (`TWILIO_AUTH_TOKEN`). Ist die KI nicht erreichbar, wird an `BACKOFFICE_FALLBACK_NUMBER` weitergeleitet, sonst nimmt eine Mailbox die Nachricht auf und legt ein Rückruf-Ticket mit Link zur Aufnahme an.
-
-### 2. Sprach-KI
-- **Retell AI** (`VOICE_PROVIDER=retell`): Agent anlegen, Prompt aus `voice-agent/system-prompt.md` übernehmen, Custom Functions aus `voice-agent/tools.json` anlegen (URL `…/api/voice/tools/{name}`, Header `x-tool-secret: VOICE_TOOL_SECRET`), Agent-Webhook auf `…/api/voice/events`. `RETELL_API_KEY` + `RETELL_AGENT_ID` setzen. Den eingebauten `transfer_call` für Notfälle aktivieren. Der Twilio-Webhook registriert jeden Anruf per `register-phone-call` und leitet ihn per SIP weiter. Die Kundendaten gehen als Dynamic Variables (`{{customer_status}}`, `{{customer_name}}` …) mit.
-- **Vapi** (`VOICE_PROVIDER=vapi`): Twilio-Nummer in Vapi importieren, Server URL `…/api/voice/tools` bzw. `…/api/voice/events`, Server URL Secret = `VOICE_TOOL_SECRET`. Tools aus `voice-agent/tools.json` übernehmen.
-
-### 3. Microsoft Graph (Outlook)
-1. Entra ID → App-Registrierung → Client Secret erzeugen.
-2. **Application Permissions**: `Calendars.ReadWrite`, `Mail.ReadWrite` → Admin Consent.
-3. Zugriff per *Application Access Policy* / *RBAC for Applications* auf die Postfächer der Storm GmbH beschränken.
-4. `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_DRAFT_MAILBOX` setzen.
-
-Ablauf: Freie Slots kommen aus `calendarView` des Technikers (Geschäftszeiten Mo–Fr, konfigurierbar). Termine landen im Kalender des Technikers (idempotent über `transactionId`). Der E-Mail-Entwurf ist eine Kundenbestätigung (wenn eine E-Mail bekannt ist, Techniker in CC), sonst ein Briefing an den Techniker. Entwürfe werden **nicht automatisch versendet**, sondern vom Büro geprüft. Fehlgeschlagene Synchronisierungen lassen sich im Ticket-Detail erneut auslösen. Token-Caching sowie Retries bei 429/5xx sind eingebaut.
-
-## Smart Routing
-`src/lib/routing.ts`:
-1. **Rolle bestimmen**: Notfall (CRITICAL) → `EMERGENCY_TECH`, HACCP/Hausverwaltung → `B2B_SPECIALIST`, HIGH → `EMERGENCY_TECH`, sonst `PEST_EXPERT`.
-2. **Gebiet**: `servicePostalCodes` unterstützt exakte PLZ (`20095`), Präfixe (`20`), Bereiche (`20000-25999`) und `*`. Der genaueste Treffer gewinnt.
-3. **Fallback-Kette**: passende Rolle im Gebiet → anderer Außendienst im Gebiet → passende Rolle überregional → Backoffice.
-4. **Lastverteilung** über die Anzahl offener Tickets.
-
-Die Dringlichkeit (`src/lib/urgency.ts`) kombiniert die KI-Einschätzung mit Regeln (Allergie, Kita/Klinik, Gastronomie/HACCP …). Es gilt immer die höhere Stufe. Den Routing-Simulator gibt es live im Hub.
-
-## Hinweise zum Datenmodell
-Das Prisma-Schema entspricht exakt der Vorgabe. Da `CallTicket` keine Call-ID hat, werden Transkripte nach Gesprächsende über die Rufnummer zugeordnet: Sie gehen an das jüngste Ticket des Anrufers der letzten 3 Stunden ohne Transkript. Gibt es keins, entsteht ein Rückruf-Ticket, damit kein Lead verloren geht.
-
-Für PostgreSQL in `prisma/schema.prisma` `provider = "postgresql"` und `url = env("DATABASE_URL")` setzen.
-
-**Vor dem Livebetrieb** die Beispiel-Mitarbeiter (Namen, UPNs, PLZ-Gebiete, Direktwahlen) unter **Team** durch die echten Daten ersetzen.
-
-## Skripte
+## Entwicklung
+```bash
+docker compose -f docker-compose.dev.yml up -d   # Postgres auf localhost:5432
+cp .env.example .env                              # DATABASE_URL zeigt auf die Dev-DB
+npm install && npx prisma migrate dev && npx prisma db seed
+npm run dev   # http://localhost:3000 – admin@example.com / storm@example.com, Passwort demo-passwort-123
+```
 | Befehl | Zweck |
 |---|---|
-| `npm run dev` / `build` / `start` | Entwicklung / Produktion |
-| `npm test` | Unit-Tests (Routing, PLZ, Dringlichkeit, Signaturen, Payloads, Zeitzonen/Slots) |
+| `npm test` | Unit-Tests; mit `TEST_DATABASE_URL=… ` zusätzlich Integrationstests gegen Postgres (Mandantentrennung, Doppelbuchung, Idempotenz, Rückruf-Vorgänge) |
 | `npm run typecheck` · `npm run lint` | Qualitätschecks |
-| `npm run db:studio` | Daten im Browser bearbeiten |
+| `npx prisma migrate dev --name <name>` | Schemaänderung als Migration |
 
 ## Sicherheit
-- Dashboard & interne APIs: HTTP Basic Auth (`src/middleware.ts`)
-- Twilio: HMAC-SHA1-Signaturprüfung · Retell: HMAC-SHA256 · Vapi/generisch: Shared Secret (Konstantzeit-Vergleich)
-- Logs maskieren Rufnummern (DSGVO), strukturiertes JSON-Logging
-- Health-Check: `GET /api/health`
+- Login mit scrypt-Hashes, httpOnly-Sitzungscookies (SameSite=Lax), Sperre nach 5 Fehlversuchen, CSRF-Prüfung der Herkunft, Sicherheits-Header (CSP, HSTS via Caddy).
+- Mandantentrennung in jeder Abfrage (`tenantId`), Mandant bei Sprachanrufen nur aus eigener Call-Tabelle/angerufener Nummer – nie aus KI-Parametern. Integrationstests prüfen das.
+- Webhooks: Twilio-Signatur (HMAC-SHA1), Retell-Signatur (HMAC-SHA256) bzw. Shared Secret.
+- Datenbank ohne öffentlichen Port; Rufnummern in Logs maskiert.
+
+## Erweiterungen (vorbereitet, noch nicht umgesetzt)
+- **Abrechnung**: Minuten je Kunde/Monat werden erfasst (Admin-Übersicht) → Export bzw. Stripe-Anbindung.
+- **Google Calendar** als weiterer Kalender-Provider (`src/lib/calendar.ts`, Stelle `busyFromProviders`).
+- **Eigene Absenderdomain je Kunde**, eigenes Branding/Farbe, eigene Portal-Domain.
+- **2-Faktor-Anmeldung**, Postgres Row-Level-Security als zweite Schutzschicht.
+- **Aufnahmen über die Plattform ausliefern** (statt Link zum Anbieter), Wissensdatenbank je Kunde, weitere Branchenvorlagen, Outbound-Rückrufe durch die KI.
+
+## Wichtig vor dem Verkauf (nicht technisch)
+AV-Vertrag (Auftragsverarbeitung) mit jedem Kunden und Unterauftragsverarbeiter-Liste (IONOS, Twilio, Retell inkl. genutztem Sprachmodell, ggf. Microsoft, SMTP-Anbieter), Datenschutzerklärung, AGB/SLA, Prüfung der Datenübermittlung in Drittländer (Twilio/Retell sind US-Anbieter). Bitte anwaltlich prüfen lassen.

@@ -3,24 +3,26 @@ import { env } from "../env";
 /**
  * Registriert einen eingehenden Twilio-Anruf bei Retell (Custom Telephony)
  * und liefert die SIP-URI, auf die Twilio den Anruf weiterleitet.
- * https://docs.retellai.com/deploy/custom-telephony
+ * https://docs.retellai.com/deploy/custom-telephony (Dial to SIP URI: sip:{call_id}@sip.retellai.com)
  */
 export async function registerRetellCall(input: {
+  agentId?: string | null;
   fromNumber: string;
   toNumber: string;
   dynamicVariables?: Record<string, string>;
   metadata?: Record<string, unknown>;
 }): Promise<{ callId: string; sipUri: string }> {
   const e = env();
-  if (!e.RETELL_API_KEY || !e.RETELL_AGENT_ID) throw new Error("Retell ist nicht konfiguriert");
+  const agentId = input.agentId || e.RETELL_AGENT_ID;
+  if (!e.RETELL_API_KEY || !agentId) throw new Error("Retell ist nicht konfiguriert");
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 4000); // Twilio wartet max. 15 s – schnell scheitern & Fallback
+  const timer = setTimeout(() => controller.abort(), 5000); // Twilio wartet max. 15 s – schnell scheitern & Fallback
   try {
     const res = await fetch("https://api.retellai.com/v2/register-phone-call", {
       method: "POST",
       headers: { Authorization: `Bearer ${e.RETELL_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        agent_id: e.RETELL_AGENT_ID,
+        agent_id: agentId,
         from_number: input.fromNumber,
         to_number: input.toNumber,
         direction: "inbound",

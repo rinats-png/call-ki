@@ -11,9 +11,33 @@ export const URGENCY_STYLE: Record<string, { label: string; dot: string; chip: s
 
 export const STATUS_STYLE: Record<string, { label: string; chip: string }> = {
   PENDING: { label: "Offen", chip: "border-zinc-700 bg-zinc-800/60 text-zinc-300" },
-  PROCESSED: { label: "Erledigt", chip: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" },
+  PROCESSED: { label: "Eingeplant", chip: "border-cyan-500/30 bg-cyan-500/10 text-cyan-300" },
   ESCALATED: { label: "Eskaliert", chip: "border-amber-500/40 bg-amber-500/15 text-amber-300" },
+  CLOSED: { label: "Erledigt", chip: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" },
 };
+
+export const MESSAGE_STATUS: Record<string, { label: string; chip: string }> = {
+  SENT: { label: "Gesendet", chip: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" },
+  DRAFT: { label: "Entwurf", chip: "border-cyan-500/30 bg-cyan-500/10 text-cyan-300" },
+  QUEUED: { label: "Wartend", chip: "border-zinc-700 bg-zinc-800 text-zinc-400" },
+  SKIPPED: { label: "Nicht versendet", chip: "border-zinc-700 bg-zinc-800 text-zinc-400" },
+  FAILED: { label: "Fehler", chip: "border-amber-500/40 bg-amber-500/15 text-amber-300" },
+};
+
+export const PURPOSE_LABEL: Record<string, string> = {
+  CUSTOMER_CONFIRMATION: "Kundenbestätigung",
+  TECHNICIAN_BRIEFING: "Info an Mitarbeiter",
+  EMERGENCY_ALERT: "Notfall-Alarm",
+  BACKOFFICE_COPY: "Kopie Büro",
+  INVITE: "Einladung",
+  PASSWORD_RESET: "Passwort-Reset",
+};
+
+export function fmtDuration(sec: number | null | undefined) {
+  if (sec == null) return "–";
+  const m = Math.floor(sec / 60);
+  return m ? `${m}:${String(sec % 60).padStart(2, "0")} min` : `${sec} s`;
+}
 
 export function timeAgo(iso: string, now = Date.now()): string {
   const s = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000));
@@ -29,3 +53,10 @@ export function timeAgo(iso: string, now = Date.now()): string {
 export function fmtDateTime(iso: string) {
   return new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Berlin" }).format(new Date(iso));
 }
+
+export const TENANT_STATUS_STYLE: Record<string, string> = {
+  ACTIVE: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+  ONBOARDING: "border-cyan-500/30 bg-cyan-500/10 text-cyan-300",
+  PAUSED: "border-amber-500/40 bg-amber-500/15 text-amber-300",
+};
+export const TENANT_STATUS_LABEL: Record<string, string> = { ACTIVE: "Aktiv", ONBOARDING: "Einrichtung", PAUSED: "Pausiert" };

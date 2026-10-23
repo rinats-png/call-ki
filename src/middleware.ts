@@ -1,44 +1,36 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 /**
- * Schützt Dashboard & interne APIs per HTTP Basic Auth.
- * Webhooks (Twilio, Voice-AI) prüfen eigene Signaturen und bleiben offen.
+ * Erste Schutzschicht (Edge): leitet Nutzer ohne Sitzungs-Cookie zum Login und
+ * blockt Cross-Site-Schreibzugriffe (CSRF). Die eigentliche Prüfung von Sitzung,
+ * Rolle und Mandant erfolgt serverseitig in jeder Route (src/lib/auth/session.ts).
  */
-const PUBLIC_PREFIXES = ["/api/twilio/", "/api/voice/", "/api/health"];
-
-function timingSafeEqualStr(a: string, b: string) {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
+const SESSION_COOKIE = "ck_session";
+const PUBLIC_PAGES = ["/login", "/setup", "/forgot", "/invite/", "/reset/"];
+const PUBLIC_API = ["/api/auth/", "/api/twilio/", "/api/voice/", "/api/health", "/api/cron/"];
+/** Webhooks werden von Twilio/Retell aufgerufen – eigene Signaturprüfung, kein CSRF-Check */
+const WEBHOOK_API = ["/api/twilio/", "/api/voice/", "/api/cron/"];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) return NextResponse.next();
+  const isApi = pathname.startsWith("/api/");
 
-  const password = process.env.DASHBOARD_PASSWORD;
-  const user = process.env.DASHBOARD_USER ?? "admin";
-  if (!password) {
-    if (process.env.NODE_ENV === "production") {
-      return new NextResponse("DASHBOARD_PASSWORD ist nicht gesetzt.", { status: 503 });
-    }
-    return NextResponse.next();
-  }
-
-  const header = req.headers.get("authorization") ?? "";
-  if (header.startsWith("Basic ")) {
-    try {
-      const [u, ...rest] = atob(header.slice(6)).split(":");
-      if (timingSafeEqualStr(u, user) && timingSafeEqualStr(rest.join(":"), password)) return NextResponse.next();
-    } catch {
-      /* ungültiges Base64 */
+  if (isApi && req.method !== "GET" && req.method !== "HEAD" && !WEBHOOK_API.some((p) => pathname.startsWith(p))) {
+    const origin = req.headers.get("origin");
+    const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+    if (origin && host && new URL(origin).host !== host) {
+      return NextResponse.json({ error: "Ungültige Herkunft" }, { status: 403 });
     }
   }
-  return new NextResponse("Authentifizierung erforderlich", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="Storm KI-Telefonzentrale", charset="UTF-8"' },
-  });
+
+  if ((isApi ? PUBLIC_API : PUBLIC_PAGES).some((p) => pathname.startsWith(p))) return NextResponse.next();
+  if (req.cookies.has(SESSION_COOKIE)) return NextResponse.next();
+
+  if (isApi) return NextResponse.json({ error: "Nicht angemeldet" }, { status: 401 });
+  const url = req.nextUrl.clone();
+  url.pathname = "/login";
+  url.search = pathname !== "/" ? `?next=${encodeURIComponent(pathname)}` : "";
+  return NextResponse.redirect(url);
 }
 
 export const config = {

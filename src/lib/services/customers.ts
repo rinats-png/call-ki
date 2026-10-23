@@ -3,14 +3,13 @@ import { normalizePhone } from "../phone";
 import { normalizePostalCode } from "../postal";
 import { CUSTOMER_TYPES, type CustomerType } from "../constants";
 
-export async function findCustomerByPhone(rawPhone: string) {
+/** Alle Funktionen sind an einen Mandanten gebunden – es gibt keinen Zugriff ohne tenantId. */
+export async function findCustomerByPhone(tenantId: string, rawPhone: string) {
   const phone = normalizePhone(rawPhone);
   if (!phone) return null;
   return prisma.customer.findUnique({
-    where: { phone },
-    include: {
-      tickets: { orderBy: { createdAt: "desc" }, take: 3, include: { assignedEmployee: { select: { name: true } } } },
-    },
+    where: { tenantId_phone: { tenantId, phone } },
+    include: { tickets: { orderBy: { createdAt: "desc" }, take: 3, include: { assignedEmployee: { select: { name: true } } } } },
   });
 }
 
@@ -22,23 +21,22 @@ export type CustomerInput = {
   address?: string | null;
   postalCode?: string | null;
   customerType?: string | null;
+  notes?: string | null;
 };
 
 function cleanType(t?: string | null): CustomerType | undefined {
   return t && (CUSTOMER_TYPES as readonly string[]).includes(t) ? (t as CustomerType) : undefined;
 }
 
-function cleanEmail(e?: string | null): string | undefined {
+/** Wandelt gesprochene E-Mails um ("max punkt muster at web punkt de") und validiert. */
+export function cleanEmail(e?: string | null): string | undefined {
   if (!e) return undefined;
-  const v = e.trim().toLowerCase().replace(/\s+at\s+/g, "@").replace(/\s+punkt\s+/g, ".").replace(/\s/g, "");
+  const v = e.trim().toLowerCase().replace(/\s+(at|ät)\s+/g, "@").replace(/\s+punkt\s+/g, ".").replace(/\s+(minus|bindestrich)\s+/g, "-").replace(/\s+unterstrich\s+/g, "_").replace(/\s/g, "");
   return /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(v) ? v : undefined;
 }
 
-/**
- * Legt Neukunden an bzw. ergänzt Bestandskunden. Leere Werte überschreiben
- * niemals vorhandene Daten. Ein Kunde mit mindestens einem Ticket gilt als EXISTING.
- */
-export async function upsertCustomer(input: CustomerInput) {
+/** Legt an oder ergänzt. Leere Werte überschreiben nie vorhandene Daten. */
+export async function upsertCustomer(tenantId: string, input: CustomerInput) {
   const phone = normalizePhone(input.phone);
   if (!phone) throw new Error("Ungültige Telefonnummer");
   const data = {
@@ -48,14 +46,38 @@ export async function upsertCustomer(input: CustomerInput) {
     address: input.address?.trim() || undefined,
     postalCode: normalizePostalCode(input.postalCode) ?? undefined,
     customerType: cleanType(input.customerType),
+    notes: input.notes?.trim() || undefined,
   };
   return prisma.customer.upsert({
-    where: { phone },
-    create: { phone, ...data },
+    where: { tenantId_phone: { tenantId, phone } },
+    create: { tenantId, phone, ...data },
     update: data,
   });
 }
 
-export async function markCustomerExisting(customerId: string) {
-  await prisma.customer.updateMany({ where: { id: customerId, status: "NEW" }, data: { status: "EXISTING" } });
+export async function markCustomerExisting(tenantId: string, customerId: string) {
+  await prisma.customer.updateMany({ where: { id: customerId, tenantId, status: "NEW" }, data: { status: "EXISTING" } });
+}
+
+/** DSGVO Art. 15: Datenauskunft */
+export async function exportCustomerData(tenantId: string, customerId: string) {
+  return prisma.customer.findFirst({
+    where: { id: customerId, tenantId },
+    include: {
+      tickets: { select: { id: true, category: true, urgency: true, summary: true, transcript: true, appointmentStart: true, status: true, createdAt: true } },
+      calls: { select: { id: true, startedAt: true, durationSec: true, transcript: true, summary: true, recordingUrl: true } },
+    },
+  });
+}
+
+/** DSGVO Art. 17: Löschung des Anrufers samt Vorgängen, Anrufen und Nachrichten. */
+export async function eraseCustomer(tenantId: string, customerId: string) {
+  const c = await prisma.customer.findFirst({ where: { id: customerId, tenantId }, select: { id: true, phone: true, email: true } });
+  if (!c) return false;
+  await prisma.$transaction([
+    prisma.message.deleteMany({ where: { tenantId, OR: [{ ticket: { customerId: c.id } }, { recipient: c.phone }, ...(c.email ? [{ recipient: c.email }] : [])] } }),
+    prisma.call.deleteMany({ where: { tenantId, customerId: c.id } }),
+    prisma.customer.delete({ where: { id: c.id } }), // Tickets per Cascade
+  ]);
+  return true;
 }

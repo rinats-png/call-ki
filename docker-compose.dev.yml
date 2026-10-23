@@ -1,0 +1,13 @@
+# Nur für die lokale Entwicklung: PostgreSQL auf localhost:5432
+#   docker compose -f docker-compose.dev.yml up -d
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: callki
+      POSTGRES_USER: callki
+      POSTGRES_PASSWORD: callki
+    ports: ["5432:5432"]
+    volumes: [dev-db:/var/lib/postgresql/data]
+volumes:
+  dev-db:
