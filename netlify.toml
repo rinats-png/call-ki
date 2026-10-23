@@ -1,0 +1,9 @@
+# Netlify: Next.js + Netlify Database (PostgreSQL).
+# Lokal bleibt SQLite (npm run dev); beim Build wird der Prisma-Client für PostgreSQL erzeugt.
+# Migrationen unter netlify/database/migrations werden von Netlify vor dem Publish angewendet.
+[build]
+  command = "node scripts/prisma-postgres.mjs && prisma generate --schema=prisma/postgres/schema.prisma && next build"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NEXT_TELEMETRY_DISABLED = "1"

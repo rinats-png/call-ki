@@ -33,6 +33,11 @@ Ohne Microsoft-Zugangsdaten läuft der Graph-Client im **Dry-Run** (Termine/Entw
 
 Für lokale Tests mit echten Anrufen: Tunnel (z. B. `ngrok http 3000`) starten und `PUBLIC_BASE_URL` auf die Tunnel-URL setzen.
 
+## Hosting (Netlify)
+`netlify.toml` ist vorkonfiguriert. Beim Build wird aus `prisma/schema.prisma` automatisch eine PostgreSQL-Variante erzeugt (`scripts/prisma-postgres.mjs`). Die Datenbank stellt **Netlify Database** bereit; Netlify wendet die Migrationen aus `netlify/database/migrations/` (Tabellen + Beispiel-Team) vor jedem Publish an. Lokal bleibt SQLite.
+
+Env-Variablen auf Netlify: `DASHBOARD_PASSWORD`, `VOICE_TOOL_SECRET`, `PUBLIC_BASE_URL` sowie, je nach Bedarf, die Twilio-, Retell/Vapi- und Microsoft-Werte aus `.env.example`. Eine andere Postgres-Datenbank lässt sich über `DATABASE_URL` nutzen.
+
 ## Integrationen einrichten
 
 Alle Webhook-URLs zum Kopieren stehen auch im Hub unter **Setup**.

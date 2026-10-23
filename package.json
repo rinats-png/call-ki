@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
+    "build:postgres": "node scripts/prisma-postgres.mjs && prisma generate --schema=prisma/postgres/schema.prisma && next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -20,6 +21,7 @@
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@netlify/database": "^2.0.1",
     "@prisma/client": "^6.19.3",
     "lucide-react": "^0.460.0",
     "next": "^15.5.28",
