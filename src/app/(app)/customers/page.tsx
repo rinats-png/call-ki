@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { Search, X, Loader2, Download, Trash2 } from "lucide-react";
 import { usePoll } from "@/lib/use-poll";
 import { CUSTOMER_TYPES, type CustomerType } from "@/lib/constants";
-import { fmtDateTime } from "@/lib/ui";
-import { Panel, Skeleton, StatusChip, UrgencyChip } from "@/components/hub/Primitives";
+import { cn, fmtDateTime } from "@/lib/ui";
+import { PageHero } from "@/components/PageHero";
+import { Skeleton, StatusChip, UrgencyChip } from "@/components/hub/Primitives";
 import { apiDownload, apiFetch, useSession } from "@/components/session";
 
 type Row = {
@@ -15,71 +16,95 @@ type Row = {
 };
 type Detail = Omit<Row, "tickets"> & { notes: string | null; tickets: { id: string; category: string | null; urgency: string; status: string; summary: string | null; createdAt: string }[] };
 
+const TYPE_TONE: Record<string, string> = {
+  PRIVATE: "bg-cyan-400/15 text-cyan-300",
+  BUSINESS: "bg-emerald-400/15 text-emerald-300",
+  PROPERTY_MANAGEMENT: "bg-amber-400/15 text-amber-300",
+};
+const initials = (s: string) => s.replace(/[^\p{L}\s]/gu, "").split(/\s+/).filter(Boolean).map((p) => p[0]).join("").slice(0, 2).toUpperCase() || "?";
+
 export default function CustomersPage() {
   const { me } = useSession();
   const [q, setQ] = useState("");
   const [d, setD] = useState("");
+  const [type, setType] = useState<string>("");
   const [open, setOpen] = useState<string | null>(null);
   useEffect(() => {
     const t = setTimeout(() => setD(q), 300);
     return () => clearTimeout(t);
   }, [q]);
   const { data, reload } = usePoll<Row[]>(`/api/customers${d ? `?q=${encodeURIComponent(d)}` : ""}`, 15000);
+  const { data: all } = usePoll<Row[]>("/api/customers", 60000);
   const typeLabel = (t: string) => me?.tenant?.customerTypeLabels[t as CustomerType] ?? t;
+  const count = (f: (r: Row) => boolean) => all?.filter(f).length ?? "–";
+  const rows = data?.filter((c) => !type || c.customerType === type);
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-5">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">Kunden</h1>
-        <p className="text-sm text-zinc-500">Werden automatisch über die Rufnummer erkannt und angelegt.</p>
-      </header>
-      <Panel
-        title={<span className="text-sm text-zinc-400">{data ? `${data.length} Einträge` : "Lade…"}</span>}
-        action={
-          <div className="relative w-56">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
-            <input className="input py-1.5 pl-8 text-xs" placeholder="Name, Nummer, PLZ…" value={q} onChange={(e) => setQ(e.target.value)} />
-          </div>
-        }
-      >
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-zinc-800 text-[11px] uppercase tracking-wider text-zinc-500">
-                <th className="py-2 pr-3 font-medium">Kunde</th>
-                <th className="py-2 pr-3 font-medium">Kontakt</th>
-                <th className="py-2 pr-3 font-medium">Adresse</th>
-                <th className="py-2 pr-3 font-medium">Typ</th>
-                <th className="py-2 pr-3 font-medium">Vorgänge</th>
-                <th className="py-2 font-medium">Letzter Kontakt</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!data && Array.from({ length: 6 }).map((_, i) => <tr key={i}><td colSpan={6} className="py-2"><Skeleton className="h-8" /></td></tr>)}
-              {data?.map((c) => (
-                <tr key={c.id} onClick={() => setOpen(c.id)} className="cursor-pointer border-b border-zinc-800/60 transition hover:bg-zinc-800/30">
-                  <td className="py-3 pr-3">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-zinc-100">{c.companyName ?? c.name ?? "Unbekannt"}</span>
-                      {c.status === "NEW" && <span className="chip border-cyan-500/30 bg-cyan-500/10 text-cyan-300">Neu</span>}
-                    </div>
-                    {c.companyName && c.name && <div className="text-xs text-zinc-500">{c.name}</div>}
-                  </td>
-                  <td className="py-3 pr-3 text-zinc-300">
-                    <div className="font-mono text-xs">{c.phone}</div>
-                    <div className="text-xs text-zinc-500">{c.email ?? "—"}</div>
-                  </td>
-                  <td className="py-3 pr-3 text-xs text-zinc-400">{[c.address, c.postalCode].filter(Boolean).join(", ") || "—"}</td>
-                  <td className="py-3 pr-3 text-xs text-zinc-400">{typeLabel(c.customerType)}</td>
-                  <td className="py-3 pr-3 tabular-nums text-zinc-300">{c._count.tickets}</td>
-                  <td className="py-3 text-xs text-zinc-500">{c.tickets[0] ? <>{fmtDateTime(c.tickets[0].createdAt)} · {c.tickets[0].category}</> : "—"}</td>
-                </tr>
-              ))}
-              {data?.length === 0 && <tr><td colSpan={6} className="py-10 text-center text-zinc-500">Keine Kunden gefunden.</td></tr>}
-            </tbody>
-          </table>
+      <PageHero
+        eyebrow="Werden automatisch über die Rufnummer erkannt und angelegt"
+        title="Kunden"
+        value={all ? all.length : "–"}
+        valueLabel={all && all.length >= 200 ? "neueste Einträge" : "Einträge"}
+        stats={[
+          { label: "Neu", value: count((r) => r.status === "NEW") },
+          { label: typeLabel("BUSINESS"), value: count((r) => r.customerType === "BUSINESS") },
+          { label: typeLabel("PROPERTY_MANAGEMENT"), value: count((r) => r.customerType === "PROPERTY_MANAGEMENT") },
+        ]}
+      />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="glass flex gap-1 overflow-x-auto rounded-full p-1">
+          {["", ...CUSTOMER_TYPES].map((t) => (
+            <button key={t || "all"} type="button" onClick={() => setType(t)} aria-pressed={type === t} className={cn("nav-item py-1.5", type === t && "nav-item-active")}>
+              {t ? typeLabel(t) : "Alle"}
+            </button>
+          ))}
         </div>
-      </Panel>
+        <div className="relative ml-auto w-full sm:w-72">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+          <input className="input rounded-full pl-10" placeholder="Name, Nummer, PLZ…" aria-label="Kunden durchsuchen" value={q} onChange={(e) => setQ(e.target.value)} />
+        </div>
+      </div>
+
+      <section className="glass p-2 md:p-3">
+        <div className="hidden grid-cols-[44px_minmax(0,2fr)_minmax(0,1.3fr)_minmax(0,1.6fr)_90px_minmax(0,1.4fr)] gap-4 px-4 pb-2 pt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 lg:grid">
+          <span /><span>Kunde</span><span>Kontakt</span><span>Adresse</span><span className="text-center">Vorgänge</span><span>Letzter Kontakt</span>
+        </div>
+        <ul className="space-y-1.5">
+          {!rows && Array.from({ length: 6 }).map((_, i) => <li key={i}><Skeleton className="h-16 rounded-2xl" /></li>)}
+          {rows?.map((c) => {
+            const name = c.companyName ?? c.name ?? "Unbekannt";
+            return (
+              <li key={c.id}>
+                <button type="button" onClick={() => setOpen(c.id)} className="glass-soft grid w-full grid-cols-[44px_minmax(0,1fr)] items-center gap-x-3 gap-y-1 px-3 py-3 text-left transition hover:bg-zinc-800/70 lg:grid-cols-[44px_minmax(0,2fr)_minmax(0,1.3fr)_minmax(0,1.6fr)_90px_minmax(0,1.4fr)] lg:gap-4 lg:px-4">
+                  <span className={cn("row-span-3 grid h-11 w-11 place-items-center rounded-full text-sm font-bold lg:row-span-1", TYPE_TONE[c.customerType] ?? TYPE_TONE.PRIVATE)}>{initials(name)}</span>
+                  <span className="min-w-0">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="truncate font-bold text-zinc-50">{name}</span>
+                      {c.status === "NEW" && <span className="chip border-cyan-500/30 bg-cyan-500/10 text-cyan-300">Neu</span>}
+                    </span>
+                    <span className="block truncate text-xs text-zinc-500">{c.companyName && c.name ? `${c.name} · ` : ""}{typeLabel(c.customerType)}</span>
+                  </span>
+                  <span className="min-w-0 text-xs">
+                    <span className="block font-mono text-zinc-200">{c.phone}</span>
+                    <span className="block truncate text-zinc-500">{c.email ?? "keine E-Mail"}</span>
+                  </span>
+                  <span className="min-w-0 truncate text-xs text-zinc-400">{[c.address, c.postalCode].filter(Boolean).join(", ") || "—"}</span>
+                  <span className="hidden justify-center lg:flex">
+                    <span className="grid h-8 min-w-8 place-items-center rounded-full bg-zinc-800 px-2 text-sm font-bold tabular-nums text-zinc-100">{c._count.tickets}</span>
+                  </span>
+                  <span className="min-w-0 truncate text-xs text-zinc-500">
+                    {c.tickets[0] ? <><span className="text-zinc-300">{c.tickets[0].category}</span> · {fmtDateTime(c.tickets[0].createdAt)}</> : "—"}
+                    <span className="lg:hidden"> · {c._count.tickets} Vorgänge</span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+          {rows?.length === 0 && <li className="py-12 text-center text-sm text-zinc-500">Keine Kunden gefunden.</li>}
+        </ul>
+      </section>
       {open && <CustomerDrawer id={open} onClose={() => setOpen(null)} onChanged={reload} />}
     </div>
   );
@@ -126,10 +151,10 @@ function CustomerDrawer({ id, onClose, onChanged }: { id: string; onClose: () =>
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
 
   return (
-    <div className="fixed inset-0 z-50 !m-0 flex justify-end">
+    <div className="fixed inset-0 z-50 !m-0 flex justify-end p-0 sm:p-3">
       <div className="absolute inset-0 bg-scrim/50 backdrop-blur-sm" onClick={onClose} />
-      <aside className="relative flex h-full w-full max-w-xl flex-col border-l border-zinc-800 bg-zinc-950/95 backdrop-blur-md animate-slidein">
-        <header className="flex items-start justify-between border-b border-zinc-800 p-5">
+      <aside className="glass relative flex h-full w-full max-w-xl flex-col overflow-hidden rounded-none !bg-[rgb(var(--page)/0.96)] animate-slidein sm:rounded-3xl">
+        <header className="flex items-start justify-between gap-3 p-5">
           {c ? <div><h3 className="text-lg font-semibold text-zinc-50">{c.companyName ?? c.name ?? c.phone}</h3><p className="font-mono text-xs text-zinc-500">{c.phone}</p></div> : <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />}
           <button onClick={onClose} className="btn-ghost p-2" aria-label="Schließen"><X className="h-4 w-4" /></button>
         </header>
@@ -163,9 +188,9 @@ function CustomerDrawer({ id, onClose, onChanged }: { id: string; onClose: () =>
                 </div>
               ))}
             </section>
-            <section className="flex flex-wrap gap-2 border-t border-zinc-800 pt-4">
+            <section className="flex flex-wrap gap-2 border-t border-zinc-700/60 pt-4">
               <button className="btn-ghost text-xs" onClick={() => apiDownload(`/api/customers/${id}/export`, `auskunft-${id}.json`).catch((e) => setMsg((e as Error).message))}><Download className="h-3.5 w-3.5" />Datenauskunft (DSGVO)</button>
-              {isTenantAdmin && <button className="btn-ghost text-xs text-amber-300" onClick={erase}><Trash2 className="h-3.5 w-3.5" />Endgültig löschen</button>}
+              {isTenantAdmin && <button className="btn-ghost text-xs text-rose-400" onClick={erase}><Trash2 className="h-3.5 w-3.5" />Endgültig löschen</button>}
             </section>
           </div>
         )}

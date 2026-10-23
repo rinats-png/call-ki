@@ -15,7 +15,7 @@ Gemeinsame Merkliste. Erledigtes bitte hier abhaken oder streichen.
 - [ ] **Stimme und Sprache je Kunde** in der Oberfläche wählen (auch Englisch, Türkisch).
 - [ ] **Überwachung & Alarme**, Statusseite.
 - [ ] **Gemeinsamer Speicher für die Anfrage-Begrenzung** (Redis o. ä.) – auf Netlify (mehrere Instanzen) greift sie sonst unzuverlässig.
-- [x] Design 17 (Mint auf Glas) umgesetzt: Admin mit Glas-Seitenleiste + Kunden-Kontingent, Kunde mit Verbrauchs-Hero und schwebender Navigation. Offen: restliche Unterseiten (Kunden, Team, Einstellungen) nutzen bereits die neuen Farben und Karten, bekommen aber noch kein eigenes Layout.
+- [x] Design 17 (Mint auf Glas) in allen Bereichen umgesetzt: Admin mit Glas-Seitenleiste + Kunden-Kontingent, Kunde mit Verbrauchs-Hero und schwebender Navigation, Kunden und Team mit Kennzahlen-Band, Einstellungen mit Glas-Menü.
 
 ## Recht
 - [ ] AVV/DPA mit Vapi und ElevenLabs (und weiteren gewählten Anbietern) abschließen, in `docs/recht/unterauftragsverarbeiter.md` eintragen.

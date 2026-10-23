@@ -57,7 +57,7 @@ export function useSettings() {
 export function SaveBar({ save, state, dirty, readOnly }: Pick<ReturnType<typeof useSettings>, "save" | "state" | "dirty" | "readOnly">) {
   if (readOnly) return null;
   return (
-    <div className="sticky bottom-4 z-10 flex items-center justify-end gap-3">
+    <div className="sticky bottom-24 z-10 flex items-center justify-end gap-3">
       {typeof state === "object" && <span className="rounded-lg bg-zinc-900 px-2 py-1 text-xs text-amber-400">{state.error}</span>}
       {state === "saved" && <span className="flex items-center gap-1 text-xs text-emerald-400"><Check className="h-3.5 w-3.5" />Gespeichert</span>}
       <button className="btn-primary shadow-lg" onClick={save} disabled={!dirty || state === "saving"}>
