@@ -36,7 +36,7 @@ export function SimulateCall({ onClose, onCreated }: { onClose: () => void; onCr
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4">
+    <div className="fixed inset-0 z-50 !m-0 grid place-items-center p-4">
       <div className="absolute inset-0 bg-scrim/50 backdrop-blur-sm" onClick={onClose} />
       <form onSubmit={submit} className="glass relative max-h-[92vh] w-full max-w-lg overflow-y-auto p-5 animate-fadein">
         <header className="mb-4 flex items-center justify-between">

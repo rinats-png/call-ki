@@ -93,7 +93,7 @@ function CreateTenant({ templates, onClose, onCreated }: { templates: { key: str
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4">
+    <div className="fixed inset-0 z-50 !m-0 grid place-items-center p-4">
       <div className="absolute inset-0 bg-scrim/50 backdrop-blur-sm" onClick={onClose} />
       <div className="glass relative w-full max-w-lg p-5 animate-fadein">
         <header className="mb-4 flex items-center justify-between">
