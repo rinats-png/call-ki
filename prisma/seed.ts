@@ -12,8 +12,8 @@ const prisma = new PrismaClient();
 
 function hash(pw: string) {
   const salt = crypto.randomBytes(16);
-  const key = crypto.scryptSync(pw, salt, 64, { N: 16384, r: 8, p: 1 });
-  return `scrypt$16384$8$1$${salt.toString("base64")}$${key.toString("base64")}`;
+  const key = crypto.scryptSync(pw, salt, 64, { N: 131072, r: 8, p: 1, maxmem: 256 * 1024 * 1024 });
+  return `scrypt$131072$8$1$${salt.toString("base64")}$${key.toString("base64")}`;
 }
 
 async function main() {

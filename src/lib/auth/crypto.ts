@@ -1,7 +1,11 @@
 import crypto from "node:crypto";
 
-/** Passwort-Hashing mit scrypt (Node-Bordmittel, keine native Abhängigkeit). */
-const N = 16384, R = 8, P = 1, KEYLEN = 64;
+/**
+ * Passwort-Hashing mit scrypt (Node-Bordmittel, keine native Abhängigkeit).
+ * Parameter nach OWASP Password Storage Cheat Sheet: N=2^17, r=8, p=1 (~128 MiB).
+ * Ältere Hashes bleiben gültig – die Parameter stehen im gespeicherten Hash.
+ */
+const N = 131072, R = 8, P = 1, KEYLEN = 64;
 
 export async function hashPassword(password: string): Promise<string> {
   const salt = crypto.randomBytes(16);
@@ -20,7 +24,7 @@ export async function verifyPassword(password: string, stored: string | null | u
 
 function scrypt(password: string, salt: Buffer, n = N, r = R, p = P, keylen = KEYLEN): Promise<Buffer> {
   return new Promise((resolve, reject) =>
-    crypto.scrypt(password.normalize("NFKC"), salt, keylen, { N: n, r, p, maxmem: 64 * 1024 * 1024 }, (err, key) => (err ? reject(err) : resolve(key))),
+    crypto.scrypt(password.normalize("NFKC"), salt, keylen, { N: n, r, p, maxmem: 256 * 1024 * 1024 }, (err, key) => (err ? reject(err) : resolve(key))),
   );
 }
 
@@ -32,9 +36,10 @@ export function sha256(value: string): string {
   return crypto.createHash("sha256").update(value).digest("hex");
 }
 
-/** Mindestanforderung: 10 Zeichen. Länge schlägt Komplexitätsregeln (NIST 800-63B). */
+/** Mindestlänge 12 Zeichen, alle Zeichen erlaubt, keine Kompositionsregeln (NIST SP 800-63B). */
+export const PASSWORD_MIN = 12;
 export function passwordProblem(pw: string): string | null {
-  if (pw.length < 10) return "Das Passwort muss mindestens 10 Zeichen lang sein.";
+  if (pw.length < PASSWORD_MIN) return `Das Passwort muss mindestens ${PASSWORD_MIN} Zeichen lang sein.`;
   if (pw.length > 200) return "Das Passwort ist zu lang.";
   return null;
 }

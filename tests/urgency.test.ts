@@ -51,3 +51,18 @@ describe("Stichwort-Erkennung in gesprochener Sprache", () => {
     expect(assessUrgency({ description: "Heizung läuft, Wartung bitte", rules: trades })).toBe("LOW");
   });
 });
+
+import { buildGreeting } from "@/lib/voice/context";
+import { parseSettings } from "@/lib/tenant/settings";
+
+describe("Begrüßung (KI-Transparenz, Art. 50 KI-VO)", () => {
+  it("ergänzt den KI-Hinweis bei eigener Begrüßung ohne Offenlegung", () => {
+    const g = buildGreeting("Meister KG", parseSettings({ greeting: "Meister KG, schönen guten Tag!", assistantName: "Max" }));
+    expect(g).toMatch(/KI-Assistenz/);
+    expect(g).toMatch(/aufgezeichnet/);
+  });
+  it("lässt eine Begrüßung mit Offenlegung unverändert (ohne Aufzeichnung)", () => {
+    const g = buildGreeting("X", parseSettings({ greeting: "Hallo, hier ist die digitale Assistentin von X.", announceRecording: false }));
+    expect(g).toBe("Hallo, hier ist die digitale Assistentin von X.");
+  });
+});

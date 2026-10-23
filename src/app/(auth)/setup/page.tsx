@@ -26,7 +26,7 @@ export default function Page() {
         { name: "setupToken", label: "Setup-Token", type: "password" },
         { name: "name", label: "Name", autoComplete: "name" },
         { name: "email", label: "E-Mail", type: "email", autoComplete: "username" },
-        { name: "password", label: "Passwort", type: "password", autoComplete: "new-password", hint: "Mindestens 10 Zeichen." },
+        { name: "password", label: "Passwort", type: "password", autoComplete: "new-password", hint: "Mindestens 12 Zeichen." },
       ]}
       onSubmit={async (v) => {
         await apiFetch("/api/auth/setup", { method: "POST", json: v });

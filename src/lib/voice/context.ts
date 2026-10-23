@@ -7,6 +7,24 @@ import type { CustomerType } from "../constants";
 
 const DAY = ["", "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
+/** Erkennt, ob ein Text bereits offenlegt, dass eine KI spricht. */
+const AI_DISCLOSURE = /\b(KI|künstliche[nr]?\s+Intelligenz|digitale[nr]?\s+Assist|virtuelle[nr]?\s+Assist|Sprachassist|automatische[nr]?\s+Assist|Telefonassistenz)/i;
+
+/**
+ * Begrüßung mit Pflichthinweisen: Offenlegung der KI (Art. 50 KI-Verordnung) und – falls
+ * aktiviert – Aufzeichnungshinweis. Eine eigene Begrüßung des Kunden wird ergänzt, nie ersetzt.
+ */
+export function buildGreeting(companyName: string, s: TenantConfig["settings"]): string {
+  const recording = s.announceRecording ? " Das Gespräch wird zur Bearbeitung Ihres Anliegens aufgezeichnet." : "";
+  if (!s.greeting) {
+    return `${companyName}, guten Tag! Hier spricht ${s.assistantName}, die digitale Assistentin.${recording} Wie kann ich Ihnen helfen?`;
+  }
+  let g = s.greeting.trim();
+  if (!AI_DISCLOSURE.test(g)) g = `${g} Sie sprechen mit ${s.assistantName}, der digitalen KI-Assistenz von ${companyName}.`;
+  if (recording && !/aufgezeichnet|aufzeichnung|mitgeschnitten/i.test(g)) g += recording;
+  return g;
+}
+
 /**
  * Dynamic Variables für den gemeinsamen Retell-Agenten. Ein Prompt-Template
  * (voice-agent/system-prompt.md) bedient so alle Mandanten.
@@ -20,9 +38,7 @@ export function buildDynamicVariables(tenant: Tenant, cfg: TenantConfig, caller:
   return {
     company_name: tenant.name,
     assistant_name: s.assistantName,
-    greeting:
-      s.greeting ||
-      `${tenant.name}, guten Tag! Hier spricht ${s.assistantName}, die digitale Assistentin.${s.announceRecording ? " Das Gespräch wird zur Bearbeitung Ihres Anliegens aufgezeichnet." : ""} Wie kann ich Ihnen helfen?`,
+    greeting: buildGreeting(tenant.name, s),
     company_description: s.companyDescription || t.description,
     industry_context: t.promptContext,
     intake_questions: t.intakeQuestions.join(" "),

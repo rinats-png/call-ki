@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+import nodemailer, { type Transporter } from "nodemailer";
 import { prisma } from "../db";
 import { env, smsConfigured, smtpConfigured } from "../env";
 import { logger } from "../logger";
@@ -10,7 +10,7 @@ import { logger } from "../logger";
  */
 export type Purpose = "CUSTOMER_CONFIRMATION" | "TECHNICIAN_BRIEFING" | "EMERGENCY_ALERT" | "INVITE" | "PASSWORD_RESET" | "BACKOFFICE_COPY";
 
-let transport: nodemailer.Transporter | null = null;
+let transport: Transporter | null = null;
 function mailer() {
   if (!transport) {
     const e = env();
@@ -19,6 +19,9 @@ function mailer() {
       port: e.SMTP_PORT,
       secure: e.SMTP_PORT === 465,
       auth: e.SMTP_USER ? { user: e.SMTP_USER, pass: e.SMTP_PASS } : undefined,
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
     });
   }
   return transport;
@@ -80,6 +83,7 @@ export async function sendSms(m: { tenantId: string; ticketId?: string | null; t
         "Content-Type": "application/x-www-form-urlencoded",
       },
       body: new URLSearchParams({ To: m.to, Body: m.body.slice(0, 1500), ...(from.startsWith("MG") ? { MessagingServiceSid: from } : { From: from }) }),
+      signal: AbortSignal.timeout(10_000),
     });
     const json = (await res.json().catch(() => ({}))) as { message?: string };
     if (!res.ok) throw new Error(json.message ?? `HTTP ${res.status}`);

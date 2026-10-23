@@ -19,7 +19,7 @@ export const POST = api(async (req) => {
   // Gleiche Antwort für unbekannte Nutzer und falsches Passwort (keine Nutzer-Enumeration)
   const fail = new HttpError(401, "E-Mail oder Passwort ist falsch.");
   if (!user || user.disabled) {
-    await verifyPassword(password, "scrypt$16384$8$1$AAAAAAAAAAAAAAAAAAAAAA==$AAAA"); // Timing angleichen
+    await verifyPassword(password, "scrypt$131072$8$1$AAAAAAAAAAAAAAAAAAAAAA==$AAAA"); // Timing angleichen
     throw fail;
   }
   if (user.lockedUntil && user.lockedUntil > new Date()) {

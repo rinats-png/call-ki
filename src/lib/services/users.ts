@@ -5,12 +5,12 @@ import { emailLayout, sendEmail } from "../notify";
 import { xmlEscape as h } from "../twiml";
 
 const INVITE_DAYS = 7;
-const RESET_HOURS = 2;
+const RESET_MINUTES = 30;
 
 /** Erstellt einen Einmal-Link (Einladung / Passwort-Reset). Der Klartext-Token existiert nur im Link. */
 export async function createAuthLink(userId: string, type: "INVITE" | "PASSWORD_RESET"): Promise<string> {
   const token = randomToken();
-  const ttl = type === "INVITE" ? INVITE_DAYS * 86400_000 : RESET_HOURS * 3600_000;
+  const ttl = type === "INVITE" ? INVITE_DAYS * 86400_000 : RESET_MINUTES * 60_000;
   await prisma.authToken.updateMany({ where: { userId, type, usedAt: null }, data: { usedAt: new Date() } }); // alte Links entwerten
   await prisma.authToken.create({ data: { id: sha256(token), userId, type, expiresAt: new Date(Date.now() + ttl) } });
   const path = type === "INVITE" ? "invite" : "reset";
@@ -53,7 +53,7 @@ export async function sendPasswordResetEmail(user: { id: string; email: string; 
     html: emailLayout(
       `<p>Sie haben das Zurücksetzen Ihres Passworts angefordert.</p>` +
         `<p><a href="${link}" style="display:inline-block;background:#2f5fd0;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">Neues Passwort festlegen</a></p>` +
-        `<p style="color:#6b7484;font-size:12px">Der Link ist ${RESET_HOURS} Stunden gültig. Falls Sie das nicht waren, ignorieren Sie diese E-Mail.</p>`,
+        `<p style="color:#6b7484;font-size:12px">Der Link ist ${RESET_MINUTES} Minuten gültig. Falls Sie das nicht waren, ignorieren Sie diese E-Mail.</p>`,
       platform,
     ),
   });

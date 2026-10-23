@@ -11,6 +11,7 @@ import { toGraphLocal, type Interval } from "./time";
  */
 const GRAPH = "https://graph.microsoft.com/v1.0";
 const LOGIN = "https://login.microsoftonline.com";
+const TIMEOUT_MS = 8000;
 
 export class GraphError extends Error {
   constructor(message: string, public status: number, public body?: unknown) {
@@ -29,6 +30,7 @@ async function getAccessToken(msTenantId: string): Promise<string> {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({ client_id: e.MS_CLIENT_ID!, client_secret: e.MS_CLIENT_SECRET!, scope: "https://graph.microsoft.com/.default", grant_type: "client_credentials" }),
     cache: "no-store",
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   const json = (await res.json().catch(() => ({}))) as { access_token?: string; expires_in?: number; error_description?: string };
   if (!res.ok || !json.access_token) throw new GraphError(`Microsoft-Anmeldung fehlgeschlagen: ${json.error_description?.split("\r\n")[0] ?? res.statusText}`, res.status, json);
@@ -42,10 +44,12 @@ async function graphFetch<T>(msTenantId: string, path: string, init: RequestInit
     ...init,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...init.headers },
     cache: "no-store",
+    // Kurzes Timeout: Die Sprach-KI wartet im Gespräch auf die Antwort
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   });
-  if ((res.status === 429 || res.status >= 500) && attempt < 3) {
+  if ((res.status === 429 || res.status >= 500) && attempt < 2) {
     const retryAfter = Number(res.headers.get("Retry-After")) || 2 ** attempt;
-    await new Promise((r) => setTimeout(r, Math.min(retryAfter, 10) * 1000));
+    await new Promise((r) => setTimeout(r, Math.min(retryAfter, 3) * 1000));
     return graphFetch<T>(msTenantId, path, init, attempt + 1);
   }
   if (res.status === 401 && attempt === 0) {
