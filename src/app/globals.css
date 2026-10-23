@@ -1,0 +1,33 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+}
+
+html, body { background: #09090b; color: #e4e4e7; }
+
+body {
+  background-image:
+    radial-gradient(60rem 30rem at 10% -10%, rgba(34, 211, 238, 0.07), transparent 60%),
+    radial-gradient(50rem 30rem at 100% 0%, rgba(16, 185, 129, 0.05), transparent 60%);
+  background-attachment: fixed;
+}
+
+@layer components {
+  .glass { @apply bg-zinc-900/80 backdrop-blur-md border border-zinc-800 rounded-2xl; }
+  .glass-soft { @apply bg-zinc-900/50 backdrop-blur-md border border-zinc-800/80 rounded-xl; }
+  .label { @apply text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-500; }
+  .input { @apply w-full rounded-lg border border-zinc-800 bg-zinc-950/70 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none transition focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/15; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-primary { @apply btn bg-cyan-400 text-zinc-950 hover:bg-cyan-300 shadow-[0_0_24px_-6px_rgba(34,211,238,0.6)]; }
+  .btn-ghost { @apply btn border border-zinc-800 bg-zinc-900/60 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100; }
+  .chip { @apply inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium; }
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #27272a; border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }

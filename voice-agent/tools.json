@@ -1,0 +1,82 @@
+{
+  "$comment": "Function-Definitionen (JSON Schema) für Retell Custom Functions bzw. Vapi Tools. URL je Funktion: {PUBLIC_BASE_URL}/api/voice/tools/{name}. Header: x-tool-secret: {VOICE_TOOL_SECRET}. Die Rufnummer des Anrufers wird automatisch aus dem Call-Kontext übernommen; 'phone' nur bei abweichender Rückrufnummer setzen.",
+  "tools": [
+    {
+      "name": "identify_caller",
+      "description": "Prüft anhand der Rufnummer, ob der Anrufer Neu- oder Bestandskunde ist, und liefert bekannte Stammdaten sowie die letzten Vorgänge.",
+      "parameters": {
+        "type": "object",
+        "properties": { "phone": { "type": "string", "description": "Optional: abweichende Rufnummer" } }
+      }
+    },
+    {
+      "name": "save_customer",
+      "description": "Speichert oder ergänzt die Kundendaten (Name, Firma, Adresse, PLZ, E-Mail, Kundentyp).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "phone": { "type": "string" },
+          "name": { "type": "string" },
+          "companyName": { "type": "string" },
+          "email": { "type": "string" },
+          "address": { "type": "string", "description": "Straße, Hausnummer, Ort" },
+          "postalCode": { "type": "string", "description": "5-stellige PLZ" },
+          "customerType": { "type": "string", "enum": ["PRIVATE", "B2B_HACCP", "PROPERTY_MANAGEMENT"] }
+        }
+      }
+    },
+    {
+      "name": "find_technician",
+      "description": "Ermittelt per Smart Routing den zuständigen Techniker (PLZ, Kundentyp, Dringlichkeit) und liefert bis zu drei freie Termine aus dessen Outlook-Kalender.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "postalCode": { "type": "string" },
+          "pestType": { "type": "string", "description": "z. B. Wespen, Ratten, Mäuse, Bettwanzen, Schaben, Ameisen, Tauben, Unbekannt" },
+          "description": { "type": "string", "description": "Kurzbeschreibung des Befalls inkl. Ort und Risikofaktoren" },
+          "urgency": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"] },
+          "customerType": { "type": "string", "enum": ["PRIVATE", "B2B_HACCP", "PROPERTY_MANAGEMENT"] }
+        },
+        "required": ["pestType"]
+      }
+    },
+    {
+      "name": "book_appointment",
+      "description": "Legt das Ticket an, trägt den Termin im Outlook-Kalender des Technikers ein und erstellt einen E-Mail-Entwurf (Kundenbestätigung bzw. Technikerbriefing). Ohne appointmentStart wird ein Rückruf-Ticket erstellt.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "pestType": { "type": "string" },
+          "description": { "type": "string", "description": "Zusammenfassung des Anliegens für den Techniker" },
+          "urgency": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"] },
+          "appointmentStart": { "type": "string", "description": "Exakter 'start'-Wert (ISO 8601) eines Slots aus find_technician" },
+          "employeeId": { "type": "string", "description": "employeeId aus find_technician" },
+          "name": { "type": "string" },
+          "companyName": { "type": "string" },
+          "email": { "type": "string" },
+          "address": { "type": "string" },
+          "postalCode": { "type": "string" },
+          "customerType": { "type": "string", "enum": ["PRIVATE", "B2B_HACCP", "PROPERTY_MANAGEMENT"] },
+          "phone": { "type": "string" }
+        },
+        "required": ["description"]
+      }
+    },
+    {
+      "name": "escalate_emergency",
+      "description": "Notfall: legt ein eskaliertes Ticket an, informiert den Notdienst und liefert die Nummer für die Live-Durchstellung (transfer_call).",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "pestType": { "type": "string" },
+          "description": { "type": "string" },
+          "postalCode": { "type": "string" },
+          "address": { "type": "string" },
+          "name": { "type": "string" },
+          "phone": { "type": "string" }
+        },
+        "required": ["description"]
+      }
+    }
+  ]
+}
