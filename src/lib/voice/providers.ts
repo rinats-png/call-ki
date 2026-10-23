@@ -1,6 +1,7 @@
 import type { Call } from "@prisma/client";
 import { env } from "../env";
 import { logger } from "../logger";
+import { setting } from "../platform/config";
 
 /**
  * Löschung von Gesprächsdaten bei den Anbietern (DSGVO: Löschfrist & Löschanspruch
@@ -16,9 +17,37 @@ const twilioAuth = () => {
 /** 2xx oder 404/422 (bereits gelöscht/unbekannt) gelten als erledigt. */
 const done = (status: number) => (status >= 200 && status < 300) || status === 404 || status === 422;
 
-async function del(url: string, auth: string): Promise<number> {
-  const res = await fetch(url, { method: "DELETE", headers: { Authorization: auth }, signal: AbortSignal.timeout(10_000) });
+async function del(url: string, auth: string | Record<string, string>): Promise<number> {
+  const headers = typeof auth === "string" ? { Authorization: auth } : auth;
+  const res = await fetch(url, { method: "DELETE", headers, signal: AbortSignal.timeout(10_000) });
   return res.status;
+}
+
+/** Löscht Gesprächsdaten bei Vapi bzw. ElevenLabs (DSGVO-Löschung, Löschfrist). */
+async function purgeOtherProvider(call: Pick<Call, "provider" | "providerCallId">, details: string[]): Promise<boolean> {
+  if (!call.providerCallId) return true;
+  const id = encodeURIComponent(call.providerCallId);
+  if (call.provider === "vapi") {
+    const key = setting("VAPI_API_KEY");
+    if (!key) {
+      details.push("vapi: kein API-Schlüssel");
+      return false;
+    }
+    const s = await del(`https://api.vapi.ai/call/${id}`, `Bearer ${key}`);
+    details.push(`vapi: ${s}`);
+    return done(s);
+  }
+  if (call.provider === "elevenlabs") {
+    const key = setting("ELEVENLABS_API_KEY");
+    if (!key) {
+      details.push("elevenlabs: kein API-Schlüssel");
+      return false;
+    }
+    const s = await del(`${setting("ELEVENLABS_API_BASE") || "https://api.elevenlabs.io"}/v1/convai/conversations/${id}`, { "xi-api-key": key });
+    details.push(`elevenlabs: ${s}`);
+    return done(s);
+  }
+  return true; // SIP-Anbieter: Löschung beim Anbieter selbst (siehe Anleitung)
 }
 
 export type PurgeResult = { ok: boolean; details: string[] };
@@ -41,6 +70,15 @@ export async function purgeCallAtProviders(call: Pick<Call, "provider" | "provid
         ok = false;
         details.push(`retell: ${(err as Error).message}`);
       }
+    }
+  }
+
+  if (call.provider !== "retell") {
+    try {
+      ok = (await purgeOtherProvider(call, details)) && ok;
+    } catch (err) {
+      ok = false;
+      details.push(`${call.provider}: ${(err as Error).message}`);
     }
   }
 

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { databaseUrl } from "./database-url";
+import { getOverlay, overlayVersion } from "./platform/overlay";
 
 /** Plattformweite Konfiguration (VPS). Mandanten-spezifisches liegt in der Datenbank. */
 const schema = z.object({
@@ -52,8 +53,17 @@ const schema = z.object({
 export type Env = z.infer<typeof schema>;
 
 let cached: Env | null = null;
+let cachedVersion = -1;
+/** Konfiguration = Umgebungsvariablen, überlagert von Einstellungen aus der Oberfläche (PlatformSetting). */
 export function env(): Env {
-  if (!cached) cached = schema.parse({ ...process.env, DATABASE_URL: databaseUrl() });
+  if (!cached || cachedVersion !== overlayVersion()) {
+    const ui = Object.fromEntries(Object.entries(getOverlay()).filter(([k]) => !["DATABASE_URL", "NODE_ENV", "APP_ENCRYPTION_KEY"].includes(k)));
+    const merged = schema.safeParse({ ...process.env, ...ui, DATABASE_URL: databaseUrl() });
+    // Ungültiger Wert aus der Oberfläche darf die App nie lahmlegen → ohne Oberflächenwerte weiter
+    cached = merged.success ? merged.data : schema.parse({ ...process.env, DATABASE_URL: databaseUrl() });
+    if (!merged.success) console.error(JSON.stringify({ level: "error", event: "env.overlay_invalid", keys: merged.error.issues.map((i) => i.path.join(".")) }));
+    cachedVersion = overlayVersion();
+  }
   return cached;
 }
 export function resetEnvCache() {

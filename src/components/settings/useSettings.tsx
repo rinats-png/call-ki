@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Loader2, Check } from "lucide-react";
 import type { TenantSettings } from "@/lib/tenant/settings";
 import { apiFetch, useSession } from "../session";
+import { InfoTip } from "@/components/InfoTip";
 
 export type SettingsPayload = {
   tenant: { id: string; name: string; industry: string; timezone: string; logoUrl: string | null; status: string };
@@ -66,10 +67,10 @@ export function SaveBar({ save, state, dirty, readOnly }: Pick<ReturnType<typeof
   );
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: React.ReactNode; children: React.ReactNode }) {
+export function Field({ label, hint, help, children }: { label: string; hint?: React.ReactNode; help?: string[]; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-zinc-400">{label}</span>
+      <span className="mb-1 flex items-center gap-1 text-xs font-medium text-zinc-400">{label}{help && <InfoTip title={label} steps={help} />}</span>
       {children}
       {hint && <span className="mt-1 block text-[11px] leading-relaxed text-zinc-500">{hint}</span>}
     </label>

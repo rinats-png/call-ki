@@ -1,23 +1,27 @@
 import { logger } from "@/lib/logger";
+import { ensurePlatformConfig } from "@/lib/platform/config";
 import { maskPhone, normalizePhone } from "@/lib/phone";
 import { prisma } from "@/lib/db";
 import { publicUrl, validateTwilioRequest } from "@/lib/security";
-import { dialSip, twimlResponse } from "@/lib/twiml";
+import { twimlResponse } from "@/lib/twiml";
 import { resolveConfig } from "@/lib/tenant/settings";
 import { findCustomerByPhone } from "@/lib/services/customers";
-import { registerRetellCall } from "@/lib/voice/retell";
+import { handoffCall, providerFor } from "@/lib/voice/handoff";
+import { zeroRetention } from "@/lib/voice/retention-flags";
 import { fallbackTwiml } from "@/lib/voice/fallback";
-import { buildDynamicVariables, minutesThisMonth, selectAgent } from "@/lib/voice/context";
+import { buildDynamicVariables, selectAgent } from "@/lib/voice/context";
+import { minuteGate } from "@/lib/billing";
 import { tenantForCalledNumber, twilioParams } from "@/lib/voice/inbound";
 import { hit, LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 /**
- * Twilio "A call comes in": angerufene Nummer → Mandant → Retell-Agent mit
+ * Twilio "A call comes in": angerufene Nummer → Mandant → gewählte Sprach-KI mit
  * Mandanten-Variablen. Bei Störung, Pause oder erschöpftem Kontingent: Fallback.
  */
 export async function POST(req: Request) {
+  await ensurePlatformConfig();
   const params = await twilioParams(req);
   if (!validateTwilioRequest(req.headers.get("x-twilio-signature"), publicUrl(req), params)) {
     logger.warn("twilio.invalid_signature");
@@ -48,25 +52,41 @@ export async function POST(req: Request) {
     logger.warn("twilio.caller_rate_limited", { tenantId: tenant.id, from: maskPhone(from) });
     return fallback("FALLBACK");
   }
-  if (tenant.monthlyMinuteLimit != null && (await minutesThisMonth(tenant)) >= tenant.monthlyMinuteLimit) {
-    logger.warn("tenant.minute_limit_reached", { tenantId: tenant.id });
+  const gate = await minuteGate(tenant);
+  if (gate.blocked) {
+    logger.warn("tenant.minute_limit_reached", { tenantId: tenant.id, reason: gate.reason });
     return fallback("FALLBACK");
   }
 
   try {
     const cfg = resolveConfig(tenant);
     const customer = from !== "anonymous" ? await findCustomerByPhone(tenant.id, from) : null;
-    const agent = selectAgent(number.voiceAgentId, cfg);
-    const { callId, sipUri } = await registerRetellCall({
-      agentId: agent.agentId,
+    const choice = providerFor(number, tenant);
+    // Aufzeichnungs-Hinweis: Retell wählt bei Bedarf den Agenten ohne Speicherung; andere Anbieter
+    // gelten als speichernd, außer „Zero Retention“ ist für sie bestätigt.
+    let agentId = choice.agentId;
+    let recorded = true;
+    if (choice.provider === "retell") {
+      const a = selectAgent(choice.agentId, cfg);
+      agentId = a.agentId;
+      recorded = a.recorded;
+    } else if (!cfg.settings.announceRecording && zeroRetention(choice.provider)) {
+      recorded = false;
+    }
+    const result = await handoffCall({
+      provider: choice.provider,
+      agentId,
+      recorded,
       fromNumber: from,
       toNumber: number.e164,
-      metadata: { tenant_id: tenant.id, call_row_id: call.id, twilio_call_sid: params.CallSid },
-      dynamicVariables: buildDynamicVariables(tenant, cfg, { number: from, customer }, agent.recorded),
+      tenant,
+      callRowId: call.id,
+      twilioCallSid: params.CallSid,
+      dynamicVariables: buildDynamicVariables(tenant, cfg, { number: from, customer }, recorded),
     });
-    await prisma.call.update({ where: { id: call.id }, data: { providerCallId: callId, status: "IN_PROGRESS", customerId: customer?.id } });
-    logger.info("twilio.inbound", { tenantId: tenant.id, from: maskPhone(from), callId });
-    return twimlResponse(dialSip(sipUri));
+    await prisma.call.update({ where: { id: call.id }, data: { provider: result.provider, providerCallId: result.providerCallId, status: "IN_PROGRESS", customerId: customer?.id } });
+    logger.info("twilio.inbound", { tenantId: tenant.id, from: maskPhone(from), provider: result.provider });
+    return twimlResponse(result.twiml);
   } catch (err) {
     logger.error("twilio.ai_handoff_failed", { tenantId: tenant.id, error: (err as Error).message });
     return fallback("FALLBACK");

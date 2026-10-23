@@ -40,9 +40,9 @@ export default function Page() {
 
       <Panel title="Terminvergabe durch die KI">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Dauer eines Termins (Minuten)" hint="0 = Standard der Branche"><input type="number" className="input" value={ap.durationMin} onChange={(e) => setS("appointments", { ...ap, durationMin: num(e.target.value) })} /></Field>
-          <Field label="Puffer / Anfahrt zwischen Terminen (Minuten)"><input type="number" className="input" value={ap.bufferMin} onChange={(e) => setS("appointments", { ...ap, bufferMin: num(e.target.value) })} /></Field>
-          <Field label="Frühester Termin ab Anruf (Minuten)" hint="Bei hoher Dringlichkeit max. 60 Minuten"><input type="number" className="input" value={ap.leadMin} onChange={(e) => setS("appointments", { ...ap, leadMin: num(e.target.value) })} /></Field>
+          <Field label="Dauer eines Termins (Minuten)" help={["0 = Standard der Branchenvorlage.", "Die KI bietet nur Zeitfenster an, in die ein Termin dieser Länge passt."]} hint="0 = Standard der Branche"><input type="number" className="input" value={ap.durationMin} onChange={(e) => setS("appointments", { ...ap, durationMin: num(e.target.value) })} /></Field>
+          <Field label="Puffer / Anfahrt zwischen Terminen (Minuten)" help={["Zeit, die zwischen zwei Terminen frei bleibt – z. B. für die Anfahrt."]}><input type="number" className="input" value={ap.bufferMin} onChange={(e) => setS("appointments", { ...ap, bufferMin: num(e.target.value) })} /></Field>
+          <Field label="Frühester Termin ab Anruf (Minuten)" help={["Wie kurzfristig die KI Termine anbieten darf, z. B. 120 = frühestens in zwei Stunden."]} hint="Bei hoher Dringlichkeit max. 60 Minuten"><input type="number" className="input" value={ap.leadMin} onChange={(e) => setS("appointments", { ...ap, leadMin: num(e.target.value) })} /></Field>
           <Field label="Wie viele Tage im Voraus"><input type="number" className="input" value={ap.daysAhead} onChange={(e) => setS("appointments", { ...ap, daysAhead: Math.max(1, num(e.target.value)) })} /></Field>
           <Field label="Anzahl angebotener Termine"><input type="number" min={1} max={5} className="input" value={ap.slotsOffered} onChange={(e) => setS("appointments", { ...ap, slotsOffered: Math.min(5, Math.max(1, num(e.target.value))) })} /></Field>
         </div>
@@ -53,12 +53,12 @@ export default function Page() {
           <Field label="Notfall-Erkennung">
             <label className="flex h-[38px] items-center gap-2 text-sm text-zinc-300"><input type="checkbox" checked={em.enabled} onChange={(e) => setS("emergency", { ...em, enabled: e.target.checked })} />Notfälle live durchstellen</label>
           </Field>
-          <Field label="Notfall-Nummer (Fallback)" hint="Wenn der zuständige Notdienst keine Direktwahl hinterlegt hat."><input className="input" value={em.transferNumber} onChange={(e) => setS("emergency", { ...em, transferNumber: e.target.value })} placeholder="+49 151 …" /></Field>
+          <Field label="Notfall-Nummer (Fallback)" help={["Wird angerufen, wenn der zuständige Notdienst-Mitarbeiter keine Direktwahl hat.", "Format +49…"]} hint="Wenn der zuständige Notdienst keine Direktwahl hinterlegt hat."><input className="input" value={em.transferNumber} onChange={(e) => setS("emergency", { ...em, transferNumber: e.target.value })} placeholder="+49 151 …" /></Field>
         </div>
       </Panel>
 
       <Panel title="Datenschutz">
-        <Field label="Löschfrist für Transkripte & Aufnahmen (Tage)" hint="Danach werden Gesprächsinhalte automatisch gelöscht. Vorgänge (Kunde, Termin, Anliegen) bleiben erhalten.">
+        <Field label="Löschfrist für Transkripte & Aufnahmen (Tage)" help={["Danach löscht die Plattform Mitschriften, Zusammenfassungen und Aufnahmen automatisch – auch beim KI-Anbieter.", "Vorgänge (Kunde, Termin, Anliegen) bleiben erhalten. Empfehlung: 30–90 Tage."]} hint="Danach werden Gesprächsinhalte automatisch gelöscht. Vorgänge (Kunde, Termin, Anliegen) bleiben erhalten.">
           <input type="number" className="input max-w-[200px]" value={draft.settings.retentionDays} onChange={(e) => setS("retentionDays", Math.max(7, num(e.target.value)))} />
         </Field>
         <div className="mt-3">

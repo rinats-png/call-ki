@@ -10,6 +10,7 @@ const TABS = [
   { href: "/settings/scheduling", label: "Termine & Notfall" },
   { href: "/settings/notifications", label: "Benachrichtigungen" },
   { href: "/settings/integrations", label: "Integrationen" },
+  { href: "/settings/plan", label: "Tarif & Verbrauch" },
   { href: "/settings/users", label: "Benutzer", admin: true },
   { href: "/settings/activity", label: "Protokoll" },
 ];

@@ -30,6 +30,17 @@ model Tenant {
   /// Ohne beide Angaben kann der Mandant nicht auf ACTIVE gesetzt werden.
   avvVersion         String?
   avvSignedAt        DateTime?
+  /// Paket (Preise, Freiminuten, Überminuten) – Einzelwerte je Kunde überschreibbar
+  planId                  String?
+  planRef                 Plan?    @relation(fields: [planId], references: [id], onDelete: SetNull)
+  priceOverrideCents      Int?
+  includedMinutesOverride Int?
+  overageCentsOverride    Int?
+  billingNote             String?
+  /// Sprach-KI dieses Kunden (leer = Plattform-Standard), z. B. retell, vapi, elevenlabs, sip:bland
+  voiceProvider      String?
+  /// Agent/Assistent beim Anbieter (leer = Standard-Agent des Anbieters)
+  voiceAgentId       String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -122,8 +133,10 @@ model PhoneNumber {
   tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   e164         String   @unique // Twilio-Nummer, auf die der Kunde umleitet
   label        String?
-  /// Optional eigener Retell-Agent je Nummer (sonst Plattform-Standard-Agent)
+  /// Optional eigener Agent je Nummer (sonst Mandanten- bzw. Plattform-Standard)
   voiceAgentId String?
+  /// Optional anderer Sprach-KI-Anbieter je Nummer (sonst wie Mandant)
+  voiceProvider String?
   /// Weiterleitung, wenn KI nicht verfügbar / Kontingent erschöpft
   fallbackNumber String?
   createdAt    DateTime @default(now())
@@ -139,6 +152,8 @@ model Integration {
   status    String   @default("PENDING") // PENDING, CONNECTED, ERROR, DISCONNECTED
   /// Nicht-geheime Konfiguration (z. B. Microsoft-Tenant-ID, Entwurfs-Postfach)
   config    Json     @default("{}")
+  /// Geheime Zugangsdaten (z. B. Google-Refresh-Token), AES-256-GCM-verschlüsselt
+  secretEnc String?
   lastError String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -257,4 +272,40 @@ model Message {
   createdAt  DateTime    @default(now())
 
   @@index([tenantId, createdAt])
+}
+
+/// Plattform-Einstellungen aus der Oberfläche (überschreiben gleichnamige Umgebungsvariablen).
+/// Geheime Werte sind mit APP_ENCRYPTION_KEY verschlüsselt.
+model PlatformSetting {
+  key       String   @id
+  value     String
+  secret    Boolean  @default(false)
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+}
+
+/// Paket / Tarif. Beträge in Cent (netto).
+model Plan {
+  id                    String   @id @default(cuid())
+  key                   String   @unique
+  name                  String
+  description           String   @default("")
+  active                Boolean  @default(true)
+  monthlyPriceCents     Int
+  setupFeeCents         Int      @default(0)
+  includedMinutes       Int
+  overageCentsPerMinute Int
+  /// CHARGE = Überminuten berechnen, BLOCK = nach Kontingent an Fallback weiterleiten
+  overageMode           String   @default("CHARGE")
+  /// Abrechnungstakt in Sekunden je Gespräch (60 = jede angefangene Minute)
+  billingIncrementSec   Int      @default(60)
+  includedSms           Int      @default(0)
+  smsCents              Int      @default(0)
+  maxNumbers            Int?
+  maxUsers              Int?
+  features              String[] @default([])
+  sortOrder             Int      @default(0)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  tenants               Tenant[]
 }

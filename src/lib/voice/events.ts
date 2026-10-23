@@ -1,3 +1,5 @@
+import { findCallRef } from "./payload";
+
 /**
  * Normalisiert Gesprächs-Events.
  *  Retell: { event: "call_started" | "call_ended" | "call_analyzed", call: { call_id, from_number, to_number, transcript,
@@ -5,7 +7,7 @@
  *  Vapi:   { message: { type: "end-of-call-report", call: { id, customer: { number }, phoneNumber: { number } }, artifact: { transcript, recordingUrl }, analysis: { summary }, durationSeconds } }
  */
 export type CallEvent = {
-  provider: "retell" | "vapi";
+  provider: "retell" | "vapi" | "elevenlabs";
   kind: "started" | "ended" | "analyzed";
   callId: string | null;
   fromNumber: string | null;
@@ -15,12 +17,54 @@ export type CallEvent = {
   durationSec: number | null;
   recordingUrl: string | null;
   endReason: string | null;
+  /** Zusätzliche Zuordnung (Twilio-CallSid, eigene Anruf-Referenz) */
+  twilioCallSid?: string | null;
+  callRef?: string | null;
 };
 
 type Json = Record<string, unknown>;
 const obj = (v: unknown): Json => (v && typeof v === "object" && !Array.isArray(v) ? (v as Json) : {});
 const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v : null);
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+function secondsBetween(a: string | null, b: string | null): number | null {
+  if (!a || !b) return null;
+  const d = (Date.parse(b) - Date.parse(a)) / 1000;
+  return Number.isFinite(d) && d >= 0 ? Math.round(d) : null;
+}
+
+/**
+ * ElevenLabs Post-Call-Webhook „post_call_transcription“:
+ * { type, event_timestamp, data: { conversation_id, transcript: [{ role, message }], analysis: { transcript_summary },
+ *   metadata: { call_duration_secs, termination_reason, phone_call: { call_sid, agent_number, external_number } },
+ *   conversation_initiation_client_data: { dynamic_variables: { call_ref, system__conversation_id } } } }
+ */
+export function parseElevenLabsEvent(body: unknown): CallEvent | null {
+  const b = obj(body);
+  if (b.type !== "post_call_transcription") return null;
+  const d = obj(b.data);
+  const meta = obj(d.metadata);
+  const phone = obj(meta.phone_call);
+  const vars = obj(obj(d.conversation_initiation_client_data).dynamic_variables);
+  const lines = (Array.isArray(d.transcript) ? d.transcript : [])
+    .map(obj)
+    .filter((t) => str(t.message))
+    .map((t) => `${t.role === "agent" ? "Agent" : "Anrufer"}: ${String(t.message).trim()}`);
+  return {
+    provider: "elevenlabs",
+    kind: "analyzed",
+    callId: str(d.conversation_id) ?? str(vars.system__conversation_id),
+    fromNumber: str(phone.external_number) ?? str(vars.system__caller_id),
+    toNumber: str(phone.agent_number) ?? str(vars.system__called_number),
+    transcript: lines.length ? lines.join("\n") : null,
+    summary: str(obj(d.analysis).transcript_summary),
+    durationSec: num(meta.call_duration_secs),
+    recordingUrl: null,
+    endReason: str(meta.termination_reason),
+    twilioCallSid: str(phone.call_sid) ?? str(vars.system__call_sid),
+    callRef: str(vars.call_ref),
+  };
+}
 
 export function parseCallEvent(body: unknown): CallEvent | null {
   const b = obj(body);
@@ -36,9 +80,10 @@ export function parseCallEvent(body: unknown): CallEvent | null {
       toNumber: str(obj(call.phoneNumber).number),
       transcript: str(art.transcript) ?? str(msg.transcript),
       summary: str(obj(msg.analysis).summary) ?? str(msg.summary),
-      durationSec: num(msg.durationSeconds),
+      durationSec: num(msg.durationSeconds) ?? secondsBetween(str(msg.startedAt) ?? str(call.startedAt), str(msg.endedAt) ?? str(call.endedAt)),
       recordingUrl: str(art.recordingUrl) ?? str(msg.recordingUrl),
       endReason: str(msg.endedReason),
+      callRef: findCallRef(call),
     };
   }
   const kinds: Record<string, CallEvent["kind"]> = { call_started: "started", call_ended: "ended", call_analyzed: "analyzed" };

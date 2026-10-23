@@ -5,7 +5,10 @@ import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Eye, Loader2, Trash2, Copy, Download } from "lucide-react";
 import { usePoll } from "@/lib/use-poll";
-import { cn, fmtDateTime, TENANT_STATUS_LABEL, TENANT_STATUS_STYLE } from "@/lib/ui";
+import { centsToInput, cn, eur, fmtDateTime, parseEuro, TENANT_STATUS_LABEL, TENANT_STATUS_STYLE } from "@/lib/ui";
+import { InfoTip } from "@/components/InfoTip";
+import { UsageBar } from "@/components/UsageBar";
+import { VOICE_PROVIDER_OPTIONS } from "@/lib/platform/registry";
 import { USER_ROLE_LABEL, type UserRole } from "@/lib/constants";
 import { Panel, Skeleton } from "@/components/hub/Primitives";
 import { apiDownload, apiFetch, useSession } from "@/components/session";
@@ -13,7 +16,16 @@ import { apiDownload, apiFetch, useSession } from "@/components/session";
 type Detail = {
   id: string; slug: string; name: string; industry: string; status: string; plan: string; monthlyMinuteLimit: number | null; createdAt: string;
   avvVersion: string | null; avvSignedAt: string | null;
-  phoneNumbers: { id: string; e164: string; label: string | null; voiceAgentId: string | null; fallbackNumber: string | null }[];
+  planId: string | null; priceOverrideCents: number | null; includedMinutesOverride: number | null; overageCentsOverride: number | null; billingNote: string | null;
+  voiceProvider: string | null; voiceAgentId: string | null; defaultVoiceProvider: string;
+  plans: { id: string; name: string; monthlyPriceCents: number; includedMinutes: number; overageCentsPerMinute: number }[];
+  billing: {
+    plan: { name: string; monthlyPriceCents: number; includedMinutes: number; overageCentsPerMinute: number; overageMode: string };
+    usage: { calls: number; minutes: number; sms: number; tickets: number };
+    invoice: { lines: { label: string; quantity: number; unit: string; totalCents: number }[]; netCents: number; grossCents: number };
+    cost: { totalCents: number }; marginCents: number;
+  };
+  phoneNumbers: { id: string; e164: string; label: string | null; voiceAgentId: string | null; voiceProvider: string | null; fallbackNumber: string | null }[];
   integrations: { type: string; status: string; lastError: string | null }[];
   users: { id: string; email: string; name: string | null; role: UserRole; disabled: boolean; lastLoginAt: string | null; invitePending: boolean }[];
   auditLogs: { id: string; action: string; createdAt: string }[];
@@ -25,7 +37,7 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { reload: reloadSession } = useSession();
   const { data, reload } = usePoll<Detail>(`/api/admin/tenants/${id}`, 0);
-  const [num, setNum] = useState({ e164: "", label: "", fallbackNumber: "", voiceAgentId: "" });
+  const [num, setNum] = useState({ e164: "", label: "", fallbackNumber: "", voiceAgentId: "", voiceProvider: "" });
   const [invite, setInvite] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string; link?: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -42,7 +54,10 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
     setBusy(null);
   }
   const [confirmSlug, setConfirmSlug] = useState("");
-  const patch = (body: Record<string, unknown>) => run("patch", async () => { await apiFetch(`/api/admin/tenants/${id}`, { method: "PATCH", json: body }); });
+  const patch = (body: Record<string, unknown>) => run("patch", async () => {
+    const r = await apiFetch<{ notice?: string | null }>(`/api/admin/tenants/${id}`, { method: "PATCH", json: body });
+    if (r.notice) setMsg({ ok: true, text: r.notice });
+  });
 
   if (!data) return <div className="mx-auto max-w-5xl"><Skeleton className="h-96" /></div>;
 
@@ -92,22 +107,84 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
         <p className="mt-2 text-xs"><span className={cn("chip", TENANT_STATUS_STYLE[data.status])}>{TENANT_STATUS_LABEL[data.status]}</span>{(!data.avvVersion || !data.avvSignedAt) && <span className="ml-2 text-amber-400">AVV fehlt</span>}</p>
       </Panel>
 
+      <Panel title={<span className="flex items-center gap-1">Sprach-KI<InfoTip title="Sprach-KI je Kunde" steps={["Leer = Plattform-Standard (Verwaltung → Plattform → Allgemein).", "Zugänge der Anbieter werden unter Plattform → Sprach-KI hinterlegt.", "Eigene Agent-ID: z. B. ein Agent mit anderer Stimme nur für diesen Kunden. Leer = Standard-Agent des Anbieters.", "Je Rufnummer kann unten zusätzlich ein anderer Anbieter gewählt werden."]} /></span>}>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block"><span className="mb-1 block text-xs text-zinc-400">Anbieter</span>
+            <select className="input" value={data.voiceProvider ?? ""} onChange={(e) => patch({ voiceProvider: e.target.value || null })}>
+              <option value="">Plattform-Standard ({VOICE_PROVIDER_OPTIONS.find((o) => o.value === data.defaultVoiceProvider)?.label ?? data.defaultVoiceProvider})</option>
+              {VOICE_PROVIDER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}{o.level === "sip" ? " (SIP)" : ""}</option>)}
+            </select>
+          </label>
+          <label className="block"><span className="mb-1 block text-xs text-zinc-400">Eigene Agent-/Assistent-ID (optional)</span>
+            <input className="input font-mono text-[13px]" defaultValue={data.voiceAgentId ?? ""} placeholder="leer = Standard-Agent" onBlur={(e) => e.target.value !== (data.voiceAgentId ?? "") && patch({ voiceAgentId: e.target.value || null })} />
+          </label>
+        </div>
+      </Panel>
+
+      <Panel title={<span className="flex items-center gap-1">Paket & Verbrauch (laufender Monat)<InfoTip title="Paket & Preise" steps={["Pakete legst du unter Verwaltung → Preise & Pakete an.", "Abweichende Werte nur für diesen Kunden: Monatspreis, Freiminuten, Preis je Überminute. Leer = Wert aus dem Paket.", "Die Rechnungsvorschau ist netto; Umsatzsteuer und Einkaufskosten stellst du unter Abrechnung ein."]} /></span>}>
+        <div className="grid gap-3 sm:grid-cols-4">
+          <label className="block sm:col-span-1"><span className="mb-1 block text-xs text-zinc-400">Paket</span>
+            <select className="input" value={data.planId ?? ""} onChange={(e) => patch({ planId: e.target.value || null })}>
+              <option value="">Ohne Paket</option>
+              {data.plans.map((p) => <option key={p.id} value={p.id}>{p.name} – {eur(p.monthlyPriceCents)}</option>)}
+            </select>
+          </label>
+          <label className="block"><span className="mb-1 block text-xs text-zinc-400">Monatspreis abweichend (€)</span>
+            <input className="input" inputMode="decimal" defaultValue={centsToInput(data.priceOverrideCents)} placeholder="laut Paket" onBlur={(e) => patch({ priceOverrideCents: parseEuro(e.target.value) })} />
+          </label>
+          <label className="block"><span className="mb-1 block text-xs text-zinc-400">Freiminuten abweichend</span>
+            <input className="input" type="number" min={0} defaultValue={data.includedMinutesOverride ?? ""} placeholder="laut Paket" onBlur={(e) => patch({ includedMinutesOverride: e.target.value ? Number(e.target.value) : null })} />
+          </label>
+          <label className="block"><span className="mb-1 block text-xs text-zinc-400">Überminute abweichend (€)</span>
+            <input className="input" inputMode="decimal" defaultValue={centsToInput(data.overageCentsOverride)} placeholder="laut Paket" onBlur={(e) => patch({ overageCentsOverride: parseEuro(e.target.value) })} />
+          </label>
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="space-y-3">
+            <UsageBar used={data.billing.usage.minutes} included={data.billing.plan.includedMinutes} />
+            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="rounded-lg border border-zinc-800 p-2"><div className="text-lg font-semibold text-zinc-50">{data.billing.usage.calls}</div>Anrufe</div>
+              <div className="rounded-lg border border-zinc-800 p-2"><div className="text-lg font-semibold text-zinc-50">{data.billing.usage.tickets}</div>Vorgänge</div>
+              <div className="rounded-lg border border-zinc-800 p-2"><div className="text-lg font-semibold text-zinc-50">{data.billing.usage.sms}</div>SMS</div>
+            </div>
+            {data.billing.plan.overageMode === "BLOCK" && <p className="text-[11px] text-zinc-500">Paket mit Minuten-Stopp: Nach Erreichen der Freiminuten gehen Anrufe an die Fallback-Nummer.</p>}
+          </div>
+          <div className="rounded-lg border border-zinc-800 p-3 text-sm">
+            <div className="mb-2 text-xs font-medium text-zinc-400">Rechnungsvorschau (netto)</div>
+            {data.billing.invoice.lines.length === 0 && <p className="text-xs text-zinc-500">Kein Paket zugeordnet – keine Berechnung.</p>}
+            <ul className="space-y-1">
+              {data.billing.invoice.lines.map((l, i) => <li key={i} className="flex justify-between gap-2"><span className="text-zinc-300">{l.label}{l.quantity > 1 ? ` × ${l.quantity}` : ""}</span><span className="tabular-nums text-zinc-100">{eur(l.totalCents)}</span></li>)}
+            </ul>
+            <div className="mt-2 flex justify-between border-t border-zinc-800 pt-2 font-semibold"><span>Summe netto</span><span className="tabular-nums">{eur(data.billing.invoice.netCents)}</span></div>
+            <div className="mt-1 flex justify-between text-xs text-zinc-500"><span>Einkaufskosten (geschätzt)</span><span className="tabular-nums">{eur(data.billing.cost.totalCents)}</span></div>
+            <div className={cn("flex justify-between text-xs", data.billing.marginCents >= 0 ? "text-emerald-300" : "text-rose-300")}><span>Marge</span><span className="tabular-nums">{eur(data.billing.marginCents)}</span></div>
+          </div>
+        </div>
+        <label className="mt-3 block"><span className="mb-1 block text-xs text-zinc-400">Notiz zur Abrechnung</span>
+          <input className="input" defaultValue={data.billingNote ?? ""} placeholder="z. B. 3 Monate 50 % Rabatt" onBlur={(e) => e.target.value !== (data.billingNote ?? "") && patch({ billingNote: e.target.value || null })} />
+        </label>
+      </Panel>
+
       <Panel title="Rufnummern">
         <ul className="mb-3 space-y-2">
           {data.phoneNumbers.map((n) => (
             <li key={n.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-800 px-3 py-2 text-sm">
               <span className="font-mono text-zinc-100">{n.e164}</span>
-              <span className="flex-1 text-xs text-zinc-500">{[n.label, n.fallbackNumber && `Fallback ${n.fallbackNumber}`, n.voiceAgentId && `Agent ${n.voiceAgentId}`].filter(Boolean).join(" · ")}</span>
+              <span className="flex-1 text-xs text-zinc-500">{[n.label, n.fallbackNumber && `Fallback ${n.fallbackNumber}`, n.voiceProvider && `KI ${VOICE_PROVIDER_OPTIONS.find((o) => o.value === n.voiceProvider)?.label ?? n.voiceProvider}`, n.voiceAgentId && `Agent ${n.voiceAgentId}`].filter(Boolean).join(" · ")}</span>
               <button className="btn-ghost p-1.5" aria-label="Entfernen" onClick={() => run("rm", async () => { if (!confirm(`Nummer ${n.e164} entfernen?`)) return; await apiFetch(`/api/admin/tenants/${id}/numbers?e164=${encodeURIComponent(n.e164)}`, { method: "DELETE" }); })}><Trash2 className="h-3.5 w-3.5" /></button>
             </li>
           ))}
           {data.phoneNumbers.length === 0 && <li className="text-sm text-amber-400">Noch keine Nummer – ohne Nummer erreicht kein Anruf diesen Kunden.</li>}
         </ul>
-        <form className="grid gap-2 sm:grid-cols-4" onSubmit={(e) => { e.preventDefault(); run("num", async () => { await apiFetch(`/api/admin/tenants/${id}/numbers`, { method: "POST", json: num }); setNum({ e164: "", label: "", fallbackNumber: "", voiceAgentId: "" }); }); }}>
+        <form className="grid gap-2 sm:grid-cols-4" onSubmit={(e) => { e.preventDefault(); run("num", async () => { const r = await apiFetch<{ notice?: string | null }>(`/api/admin/tenants/${id}/numbers`, { method: "POST", json: num }); setNum({ e164: "", label: "", fallbackNumber: "", voiceAgentId: "", voiceProvider: "" }); if (r.notice) setMsg({ ok: !/meldet|nicht eingerichtet/.test(r.notice), text: r.notice }); }); }}>
           <input className="input" required placeholder="Twilio-Nummer +49…" value={num.e164} onChange={(e) => setNum({ ...num, e164: e.target.value })} />
           <input className="input" placeholder="Bezeichnung" value={num.label} onChange={(e) => setNum({ ...num, label: e.target.value })} />
           <input className="input" placeholder="Fallback-Nummer" value={num.fallbackNumber} onChange={(e) => setNum({ ...num, fallbackNumber: e.target.value })} />
-          <input className="input" placeholder="Eigener Retell-Agent (optional)" value={num.voiceAgentId} onChange={(e) => setNum({ ...num, voiceAgentId: e.target.value })} />
+          <select className="input" value={num.voiceProvider} onChange={(e) => setNum({ ...num, voiceProvider: e.target.value })} aria-label="Sprach-KI dieser Nummer">
+            <option value="">Sprach-KI wie Kunde</option>
+            {VOICE_PROVIDER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <input className="input sm:col-span-2" placeholder="Eigene Agent-ID für diese Nummer (optional)" value={num.voiceAgentId} onChange={(e) => setNum({ ...num, voiceAgentId: e.target.value })} />
           <button className="btn-primary sm:col-span-4 sm:justify-self-end" disabled={busy === "num"}>{busy === "num" && <Loader2 className="h-4 w-4 animate-spin" />}Nummer zuordnen</button>
         </form>
       </Panel>

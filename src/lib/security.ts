@@ -76,3 +76,17 @@ export function verifyRetellSignature(body: string, apiKey: string, signature: s
   const digest = crypto.createHmac("sha256", apiKey).update(body).digest("hex");
   return safeEqual(digest, signature);
 }
+
+/**
+ * ElevenLabs Post-Call-Webhook: Kopfzeile "ElevenLabs-Signature: t=<unix>,v0=<hex>",
+ * v0 = HMAC-SHA256("<t>.<rawBody>", Webhook-Secret). Älter als 30 Minuten → abgelehnt.
+ */
+export function verifyElevenLabsSignature(rawBody: string, header: string | null, secret: string | undefined, nowSec = Math.floor(Date.now() / 1000)): boolean {
+  if (!header || !secret) return false;
+  const t = header.match(/(?:^|,)\s*t=(\d+)/)?.[1];
+  const v0 = header.match(/(?:^|,)\s*v0=([a-f0-9]+)/i)?.[1];
+  if (!t || !v0) return false;
+  if (Math.abs(nowSec - Number(t)) > 30 * 60) return false;
+  const digest = crypto.createHmac("sha256", secret).update(`${t}.${rawBody}`).digest("hex");
+  return safeEqual(digest, v0.toLowerCase());
+}

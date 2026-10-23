@@ -39,7 +39,7 @@ export async function createCallbackTicket(tenant: Tenant, cfg: TenantConfig, ca
 
 /** Verarbeitet Retell/Vapi-Events: Anrufprotokoll, Transkript am Ticket, Rückruf-Ticket bei Abbruch. */
 export async function handleCallEvent(ev: CallEvent) {
-  const ctx = await resolveVoiceContext(ev.callId, ev.toNumber, ev.fromNumber);
+  const ctx = await resolveVoiceContext(ev.callId, ev.toNumber, ev.fromNumber, { twilioCallSid: ev.twilioCallSid, callRef: ev.callRef });
   if (!ctx) {
     logger.warn("voice.event_unknown_call", { callId: ev.callId });
     return null;
@@ -52,6 +52,10 @@ export async function handleCallEvent(ev: CallEvent) {
     });
   }
   if (!call) return null;
+  // Anbieter-ID nachtragen (ElevenLabs/Vapi kennen wir erst jetzt) – nötig für die spätere Löschung beim Anbieter
+  if (ev.callId && !call.providerCallId && !(await prisma.call.findUnique({ where: { providerCallId: ev.callId } }))) {
+    call = await prisma.call.update({ where: { id: call.id }, data: { providerCallId: ev.callId, provider: ev.provider } });
+  }
 
   if (ev.kind === "started") {
     await prisma.call.update({ where: { id: call.id }, data: { status: "IN_PROGRESS" } });

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensurePlatformConfig } from "../platform/config";
 import { logger } from "../logger";
 import { verifyVoiceRequest } from "../security";
 import { formatToolResponse, normalizeToolRequest } from "./payload";
@@ -7,6 +8,7 @@ import { runTool } from "./tools";
 import { clientIp, hit, LIMITS } from "../rate-limit";
 
 export async function handleToolRequest(req: Request, toolNameFromPath?: string) {
+  await ensurePlatformConfig();
   const wait = hit(`webhook:ip:${await clientIp(req)}`, LIMITS.webhookPerIp);
   if (wait) return NextResponse.json({ error: "Too Many Requests" }, { status: 429, headers: { "Retry-After": String(wait) } });
   const raw = await req.text();
@@ -22,13 +24,18 @@ export async function handleToolRequest(req: Request, toolNameFromPath?: string)
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  return NextResponse.json(await processToolBody(body, toolNameFromPath));
+}
+
+/** Führt die Funktionsaufrufe einer (bereits authentifizierten) Anfrage aus. */
+export async function processToolBody(body: unknown, toolNameFromPath?: string) {
   const n = normalizeToolRequest(body, toolNameFromPath);
-  const ctx = await resolveVoiceContext(n.callId, n.calledNumber, n.callerNumber);
+  const ctx = await resolveVoiceContext(n.callId, n.calledNumber, n.callerNumber, { twilioCallSid: n.twilioCallSid, callRef: n.callRef });
   if (!ctx) {
     logger.warn("voice.tools_unknown_tenant", { callId: n.callId });
     const err = { error: "Anruf keinem Kunden zugeordnet. Bitte Anliegen notieren und Rückruf anbieten." };
-    return NextResponse.json(formatToolResponse(n, n.calls.map((c) => ({ id: c.id, result: err }))));
+    return formatToolResponse(n, n.calls.map((c) => ({ id: c.id, name: c.name, result: err })));
   }
-  const results = await Promise.all(n.calls.map(async (c) => ({ id: c.id, result: await runTool(c.name || toolNameFromPath || "", c.args, ctx) })));
-  return NextResponse.json(formatToolResponse(n, results));
+  const results = await Promise.all(n.calls.map(async (c) => ({ id: c.id, name: c.name, result: await runTool(c.name || toolNameFromPath || "", c.args, ctx) })));
+  return formatToolResponse(n, results);
 }

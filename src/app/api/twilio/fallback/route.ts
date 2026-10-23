@@ -1,4 +1,5 @@
 import { publicUrl, validateTwilioRequest } from "@/lib/security";
+import { ensurePlatformConfig } from "@/lib/platform/config";
 import { fallbackTwiml } from "@/lib/voice/fallback";
 import { tenantForCalledNumber, twilioParams } from "@/lib/voice/inbound";
 
@@ -6,6 +7,7 @@ export const dynamic = "force-dynamic";
 
 /** Twilio "Primary handler fails" – greift, wenn unsere App selbst nicht antwortet. */
 export async function POST(req: Request) {
+  await ensurePlatformConfig();
   const params = await twilioParams(req);
   if (!validateTwilioRequest(req.headers.get("x-twilio-signature"), publicUrl(req), params)) return new Response("Forbidden", { status: 403 });
   const number = await tenantForCalledNumber(params.To).catch(() => null);

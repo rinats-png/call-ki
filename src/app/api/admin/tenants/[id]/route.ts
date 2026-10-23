@@ -7,6 +7,11 @@ import { TENANT_STATUS } from "@/lib/constants";
 import { TEMPLATES } from "@/lib/tenant/templates";
 import { avvMissing, deleteTenant, tenantUsage } from "@/lib/services/tenants";
 import { audit } from "@/lib/audit";
+import { billingReport } from "@/lib/services/billing-report";
+import { currentMonth } from "@/lib/billing";
+import { setting } from "@/lib/platform/config";
+import { isVoiceProvider } from "@/lib/platform/voice-options";
+import { ensureVapiSipNumber } from "@/lib/voice/vapi";
 
 export const dynamic = "force-dynamic";
 type P = { id: string };
@@ -25,7 +30,10 @@ export const GET = api<P>(async (_req, { params }) => {
   });
   if (!tenant) throw notFound("Mandant");
   const usage = (await tenantUsage([id]))[id];
-  return NextResponse.json({ ...tenant, users: tenant.users.map(({ passwordHash, ...u }) => ({ ...u, invitePending: !passwordHash })), usage });
+  const { year, month } = currentMonth(tenant.timezone);
+  const [billing] = await billingReport(year, month, id);
+  const plans = await prisma.plan.findMany({ where: { OR: [{ active: true }, { id: tenant.planId ?? "" }] }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true, monthlyPriceCents: true, includedMinutes: true, overageCentsPerMinute: true } });
+  return NextResponse.json({ ...tenant, users: tenant.users.map(({ passwordHash, ...u }) => ({ ...u, invitePending: !passwordHash })), usage, billing, plans, defaultVoiceProvider: setting("VOICE_PROVIDER") || "retell" });
 });
 
 const schema = z.object({
@@ -35,6 +43,13 @@ const schema = z.object({
   plan: z.string().max(40).optional(),
   monthlyMinuteLimit: z.number().int().min(0).nullable().optional(),
   avvVersion: z.string().trim().max(40).nullable().optional(),
+  planId: z.string().max(40).nullable().optional(),
+  priceOverrideCents: z.number().int().min(0).max(10_000_000).nullable().optional(),
+  includedMinutesOverride: z.number().int().min(0).max(1_000_000).nullable().optional(),
+  overageCentsOverride: z.number().int().min(0).max(100_000).nullable().optional(),
+  billingNote: z.string().max(500).nullable().optional(),
+  voiceProvider: z.string().max(40).refine((v) => v === "" || isVoiceProvider(v), "Unbekannter Anbieter").nullable().optional(),
+  voiceAgentId: z.string().trim().max(80).nullable().optional(),
   avvSignedAt: z.coerce.date().nullable().optional(),
 });
 
@@ -50,9 +65,17 @@ export const PATCH = api<P>(async (req, { params }) => {
   if (next.status === "ACTIVE" && avvMissing(next) && touchesAvv) {
     throw new HttpError(409, "Bitte zuerst AVV-Version und Abschlussdatum eintragen – ohne Auftragsverarbeitungsvertrag kein Produktivbetrieb.");
   }
-  const t = await prisma.tenant.update({ where: { id }, data: { ...d, avvVersion: next.avvVersion } });
+  if (d.planId && !(await prisma.plan.findUnique({ where: { id: d.planId } }))) throw new HttpError(400, "Paket nicht gefunden.");
+  const t = await prisma.tenant.update({ where: { id }, data: { ...d, voiceProvider: d.voiceProvider === "" ? null : d.voiceProvider, voiceAgentId: d.voiceAgentId === "" ? null : d.voiceAgentId, avvVersion: next.avvVersion } });
+  // Wechsel auf Vapi: SIP-Nummern für alle Rufnummern ohne eigenen Anbieter anlegen
+  let notice: string | null = null;
+  if (d.voiceProvider === "vapi") {
+    const nums = await prisma.phoneNumber.findMany({ where: { tenantId: id, voiceProvider: null } });
+    const results = await Promise.all(nums.map((n) => ensureVapiSipNumber(n.e164)));
+    notice = results.map((r) => r.message).join(" ") || null;
+  }
   await audit({ tenantId: id, userId: auth.user.id, action: "tenant.update", meta: d });
-  return NextResponse.json(t);
+  return NextResponse.json({ ...t, notice });
 });
 
 const deleteSchema = z.object({ confirmSlug: z.string(), force: z.boolean().optional() });

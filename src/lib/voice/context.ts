@@ -3,6 +3,7 @@ import { prisma } from "../db";
 import { normalizePhone } from "../phone";
 import { fromZoned, zonedParts } from "../time";
 import { resolveConfig, type TenantConfig } from "../tenant/settings";
+import { setting } from "../platform/config";
 import type { CustomerType } from "../constants";
 
 const DAY = ["", "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
@@ -84,7 +85,7 @@ export function buildDynamicVariables(
  */
 export function selectAgent(numberAgentId: string | null, cfg: TenantConfig): { agentId: string | null; recorded: boolean } {
   if (numberAgentId) return { agentId: numberAgentId, recorded: true };
-  const noStorage = process.env.RETELL_AGENT_ID_NO_STORAGE;
+  const noStorage = setting("RETELL_AGENT_ID_NO_STORAGE");
   if (!cfg.settings.announceRecording && noStorage) return { agentId: noStorage, recorded: false };
   return { agentId: null, recorded: true };
 }
@@ -104,17 +105,38 @@ export type VoiceCallContext = {
   callerNumber: string | null;
 };
 
+/** Zusätzliche, vertrauenswürdige Zuordnungsmerkmale eines Anrufs */
+export type CallRefs = { twilioCallSid?: string | null; callRef?: string | null };
+
+/** SIP-Benutzer „ck4930123456“ (Vapi-SIP-Nummer der Plattform) → +4930123456 */
+export function numberFromSipUser(v: string | null | undefined): string | null {
+  const m = v?.match(/(?:sip:)?ck(\d{6,15})@/i) ?? v?.match(/^ck(\d{6,15})$/i);
+  return m ? `+${m[1]}` : null;
+}
+
 /**
  * Ermittelt den Mandanten eines laufenden KI-Gesprächs. Vertrauensquelle ist
  * ausschließlich unsere eigene Call-Tabelle (beim Twilio-Eingang angelegt) bzw.
  * die angerufene Nummer – niemals ein Parameter, den die KI selbst setzt.
  */
-export async function resolveVoiceContext(providerCallId: string | null, toNumber: string | null, fromNumber: string | null): Promise<VoiceCallContext | null> {
+export async function resolveVoiceContext(providerCallId: string | null, toNumber: string | null, fromNumber: string | null, refs: CallRefs = {}): Promise<VoiceCallContext | null> {
+  const fromCall = (call: { id: string; fromNumber: string; tenant: Tenant } | null) =>
+    call ? { tenant: call.tenant, cfg: resolveConfig(call.tenant), callRowId: call.id, callerNumber: call.fromNumber } : null;
   if (providerCallId) {
-    const call = await prisma.call.findUnique({ where: { providerCallId }, include: { tenant: true } });
-    if (call) return { tenant: call.tenant, cfg: resolveConfig(call.tenant), callRowId: call.id, callerNumber: call.fromNumber };
+    const hit = fromCall(await prisma.call.findUnique({ where: { providerCallId }, include: { tenant: true } }));
+    if (hit) return hit;
   }
-  const to = normalizePhone(toNumber);
+  if (refs.twilioCallSid) {
+    const hit = fromCall(await prisma.call.findUnique({ where: { twilioCallSid: refs.twilioCallSid }, include: { tenant: true } }));
+    if (hit) return hit;
+  }
+  const to = normalizePhone(toNumber) ?? numberFromSipUser(toNumber);
+  if (refs.callRef) {
+    // Referenz aus unserer eigenen SIP-Weiterleitung: nur frische Anrufe, passende Zielnummer
+    const call = await prisma.call.findFirst({ where: { id: refs.callRef, startedAt: { gte: new Date(Date.now() - 3 * 3600_000) }, ...(to ? { toNumber: to } : {}) }, include: { tenant: true } });
+    const hit = fromCall(call);
+    if (hit) return hit;
+  }
   if (to) {
     const num = await prisma.phoneNumber.findUnique({ where: { e164: to }, include: { tenant: true } });
     if (num) return { tenant: num.tenant, cfg: resolveConfig(num.tenant), callRowId: null, callerNumber: normalizePhone(fromNumber) };

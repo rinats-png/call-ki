@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { ensurePlatformConfig } from "@/lib/platform/config";
 import { logger } from "@/lib/logger";
 import { publicUrl, validateTwilioRequest } from "@/lib/security";
 import { say, twimlResponse } from "@/lib/twiml";
@@ -10,6 +11,7 @@ export const dynamic = "force-dynamic";
 
 /** Mailbox-Aufnahme → Rückruf-Ticket beim richtigen Mandanten. */
 export async function POST(req: Request) {
+  await ensurePlatformConfig();
   const params = await twilioParams(req);
   if (!validateTwilioRequest(req.headers.get("x-twilio-signature"), publicUrl(req), params)) return new Response("Forbidden", { status: 403 });
 

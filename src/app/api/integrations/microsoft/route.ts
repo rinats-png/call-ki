@@ -8,6 +8,7 @@ import { microsoftConfigured } from "@/lib/env";
 import { adminConsentUrl, testMailbox } from "@/lib/graph";
 import { randomToken } from "@/lib/auth/crypto";
 import { audit } from "@/lib/audit";
+import { hasFeature, planForTenant } from "@/lib/billing";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ const getCfg = (c: unknown) => (c ?? {}) as { msTenantId?: string; draftMailbox?
 export const POST = api(async () => {
   const auth = await requireTenant({ adminOnly: true });
   if (!microsoftConfigured()) throw new HttpError(503, "Microsoft-Integration ist auf der Plattform noch nicht eingerichtet (MS_CLIENT_ID/MS_CLIENT_SECRET).");
+  if (!hasFeature((await planForTenant(auth.tenantId)).plan, "calendar_external")) throw new HttpError(403, "Outlook-/Google-Kalender ist in Ihrem Paket nicht enthalten.");
   const nonce = randomToken(18);
   const existing = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId: auth.tenantId, type: "MICROSOFT_365" } } });
   const config = { ...getCfg(existing?.config), pendingState: nonce } as Prisma.InputJsonValue;

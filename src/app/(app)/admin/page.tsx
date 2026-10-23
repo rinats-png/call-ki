@@ -30,7 +30,10 @@ export default function AdminPage() {
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">Mandanten</h1>
           <p className="text-sm text-zinc-500">{data ? `${data.length} Kunden · ${totals?.calls ?? 0} Anrufe · ${totals?.minutes ?? 0} Minuten diesen Monat` : "Lade…"}</p>
         </div>
-        <button className="btn-primary" onClick={() => setCreate(true)}><Plus className="h-4 w-4" />Neuer Kunde</button>
+        <div className="flex gap-2">
+          <button className="btn-ghost" title="Test-Kunde mit Beispieldaten (Anrufe, Vorgänge, Verbrauch)" onClick={async () => { const r = await apiFetch<{ id: string }>("/api/admin/demo", { method: "POST" }); location.href = `/admin/tenants/${r.id}`; }}>Test-Kunden anlegen</button>
+          <button className="btn-primary" onClick={() => setCreate(true)}><Plus className="h-4 w-4" />Neuer Kunde</button>
+        </div>
       </header>
       <Panel>
         <div className="overflow-x-auto">

@@ -60,6 +60,7 @@ export const LIMITS = {
   mfaPerSession: { limit: 5, windowMs: 10 * 60_000 },
   mfaPerIp: { limit: 20, windowMs: 15 * 60_000 },
   reauthPerUser: { limit: 5, windowMs: 15 * 60_000 },
+  settingsTestPerUser: { limit: 30, windowMs: 10 * 60_000 },
   apiPerUser: { limit: 120, windowMs: 60_000 },
   webhookPerIp: { limit: 600, windowMs: 60_000 },
   /** Gleicher Anrufer an dieselbe Nummer (Spam/Kostenschutz) */

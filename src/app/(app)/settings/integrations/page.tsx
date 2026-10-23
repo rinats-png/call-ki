@@ -6,9 +6,12 @@ import { Loader2, CheckCircle2, AlertTriangle, Phone, Mail, MessageSquare, Bot, 
 import { cn } from "@/lib/ui";
 import { Panel, Skeleton } from "@/components/hub/Primitives";
 import { apiFetch, useSession } from "@/components/session";
+import { InfoTip } from "@/components/InfoTip";
 
 type Integrations = {
-  platform: { microsoftAvailable: boolean; email: boolean; sms: boolean; voice: boolean };
+  platform: { microsoftAvailable: boolean; googleAvailable: boolean; email: boolean; sms: boolean; voice: boolean };
+  planAllowsCalendar: boolean;
+  google: { status: string; account?: string | null; lastError?: string | null };
   microsoft: { status: string; msTenantId?: string | null; draftMailbox?: string; lastError?: string | null };
   numbers: { e164: string; label: string | null; fallbackNumber: string | null }[];
 };
@@ -28,7 +31,7 @@ function IntegrationsInner() {
   const [mailbox, setMailbox] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(
-    q.get("ms") === "connected" ? { ok: true, text: "Microsoft 365 ist verbunden." } : q.get("ms") === "error" ? { ok: false, text: `Verbindung fehlgeschlagen: ${q.get("reason") ?? ""}` } : null,
+    q.get("ms") === "connected" ? { ok: true, text: "Microsoft 365 ist verbunden." } : q.get("google") === "connected" ? { ok: true, text: "Google Kalender ist verbunden." } : q.get("ms") === "error" || q.get("google") === "error" ? { ok: false, text: `Verbindung fehlgeschlagen: ${q.get("reason") ?? ""}` } : null,
   );
 
   const load = useCallback(async () => {
@@ -57,7 +60,7 @@ function IntegrationsInner() {
 
   return (
     <div className="space-y-5">
-      <Panel title={<h2 className="flex items-center gap-2 text-sm font-semibold text-zinc-200"><Phone className="h-4 w-4 text-cyan-300" />Rufnummer</h2>}>
+      <Panel title={<h2 className="flex items-center gap-2 text-sm font-semibold text-zinc-200"><Phone className="h-4 w-4 text-cyan-300" />Rufnummer<InfoTip title="Rufumleitung einrichten" steps={["Ihre bisherige Nummer bleibt. Sie leiten Anrufe auf die unten stehende Nummer um.", "Telekom-Festnetz: *21*Zielnummer# (immer), *61*Zielnummer# (nach ca. 20 s), *67*Zielnummer# (bei besetzt). Abschalten: #21#, #61#, #67#.", "Fritz!Box: Telefonie → Rufbehandlung → Rufumleitung → Neue Rufumleitung → Ziel = unten stehende Nummer.", "sipgate / Placetel / easybell: im Kundenportal unter Rufnummer → Weiterleitung bzw. Rufumleitung.", "Mobilfunk: **21*Zielnummer# (alle), **61*Zielnummer# (bei Nichtannahme).", "Tipp: Zunächst nur „bei besetzt / nach 20 s“ umleiten, um die KI kennenzulernen."]} /></h2>}>
         {d.numbers.length ? (
           <ul className="space-y-2 text-sm">
             {d.numbers.map((n) => (
@@ -103,6 +106,25 @@ function IntegrationsInner() {
           </div>
         )}
         {msg && <p className={cn("mt-3 text-xs", msg.ok ? "text-emerald-400" : "text-amber-400")}>{msg.text}</p>}
+      </Panel>
+
+      <Panel title={<h2 className="flex items-center gap-2 text-sm font-semibold text-zinc-200"><CalendarDays className="h-4 w-4 text-cyan-300" />Google Kalender<InfoTip title="Google Kalender verbinden" steps={["Als Administrator auf „Mit Google verbinden“ klicken und mit dem Google-Konto anmelden, das Zugriff auf die Kalender Ihrer Mitarbeiter hat.", "Die KI prüft Belegungen im Kalender jedes Mitarbeiters (Kalender-ID = dessen E-Mail-Adresse unter Team) und trägt Termine dort ein.", "Google Workspace: Kalender der Mitarbeiter für das verbindende Konto mit „Änderungen an Terminen vornehmen“ freigeben.", "Trennen jederzeit möglich – der Zugriff wird dabei auch bei Google widerrufen."]} /></h2>} action={<Status ok={d.google.status === "CONNECTED"} label={d.google.status === "CONNECTED" ? "Verbunden" : "Nicht verbunden"} />}>
+        <p className="mb-3 text-sm text-zinc-400">Alternative zu Outlook. Es wird immer nur ein externer Kalender genutzt – ist Microsoft 365 verbunden, hat er Vorrang.</p>
+        {!d.platform.googleAvailable && <p className="text-xs text-amber-400">Auf der Plattform noch nicht freigeschaltet – bitte Ihren Anbieter kontaktieren.</p>}
+        {d.platform.googleAvailable && !d.planAllowsCalendar && <p className="text-xs text-amber-400">In Ihrem Paket nicht enthalten.</p>}
+        {d.google.lastError && <p className="mb-2 text-xs text-amber-400">Letzter Fehler: {d.google.lastError}</p>}
+        {isTenantAdmin && d.platform.googleAvailable && d.planAllowsCalendar && (
+          d.google.status !== "CONNECTED" ? (
+            <button className="btn-primary" disabled={busy === "g"} onClick={() => act("g", async () => { const r = await apiFetch<{ url: string }>("/api/integrations/google", { method: "POST" }); location.href = r.url; })}>
+              {busy === "g" && <Loader2 className="h-4 w-4 animate-spin" />}Mit Google verbinden
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-zinc-500">Verbunden als <span className="font-mono">{d.google.account ?? "Google-Konto"}</span>.</p>
+              <button className="btn-ghost text-xs text-amber-300" onClick={() => act("gdc", async () => { if (!confirm("Google Kalender trennen?")) return; await apiFetch("/api/integrations/google", { method: "DELETE" }); await load(); })}>Verbindung trennen</button>
+            </div>
+          )
+        )}
       </Panel>
 
       <Panel title="Dienste der Plattform">

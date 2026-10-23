@@ -2,6 +2,7 @@ import nodemailer, { type Transporter } from "nodemailer";
 import { prisma } from "../db";
 import { env, smsConfigured, smtpConfigured } from "../env";
 import { logger } from "../logger";
+import { overlayVersion } from "../platform/overlay";
 
 /**
  * Ausgehende Benachrichtigungen. Jede Nachricht wird im Protokoll (Message)
@@ -11,8 +12,11 @@ import { logger } from "../logger";
 export type Purpose = "CUSTOMER_CONFIRMATION" | "TECHNICIAN_BRIEFING" | "EMERGENCY_ALERT" | "INVITE" | "PASSWORD_RESET" | "BACKOFFICE_COPY";
 
 let transport: Transporter | null = null;
-function mailer() {
-  if (!transport) {
+let transportVersion = -1;
+/** SMTP-Verbindung; wird neu aufgebaut, sobald sich Einstellungen in der Oberfläche ändern. */
+export function mailer() {
+  if (!transport || transportVersion !== overlayVersion()) {
+    transportVersion = overlayVersion();
     const e = env();
     transport = nodemailer.createTransport({
       host: e.SMTP_HOST,

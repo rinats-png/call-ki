@@ -2,6 +2,7 @@ import type { Employee, Tenant } from "@prisma/client";
 import { prisma } from "./db";
 import { microsoftConfigured } from "./env";
 import { getBusyIntervals } from "./graph";
+import { googleBusy, googleLinked } from "./google";
 import { logger } from "./logger";
 import { computeFreeSlots, overlaps, type Interval } from "./time";
 import type { TenantConfig } from "./tenant/settings";
@@ -10,7 +11,7 @@ import type { TenantConfig } from "./tenant/settings";
  * Kalender je Mandant:
  *  - Intern (immer aktiv): Termine aus den Tickets – funktioniert für jeden Kunden.
  *  - Microsoft 365 (optional): zusätzliche Belegung aus dem Outlook-Kalender des Mitarbeiters.
- * Erweiterung: Google Calendar als weiterer Provider in busyFromProviders().
+ *  - Google Kalender (optional): Belegung aus dem Google-Kalender des Mitarbeiters (Kalender-ID = E-Mail).
  */
 export type MicrosoftLink = { msTenantId: string; draftMailbox: string | null };
 
@@ -38,7 +39,15 @@ async function internalBusy(tenantId: string, employeeId: string, from: Date, to
 
 async function busyFromProviders(tenantId: string, employee: Pick<Employee, "email">, from: Date, to: Date): Promise<{ busy: Interval[]; error: string | null }> {
   const ms = employee.email ? await getMicrosoftLink(tenantId) : null;
-  if (!ms) return { busy: [], error: null };
+  if (!ms) {
+    if (!employee.email || !(await googleLinked(tenantId))) return { busy: [], error: null };
+    try {
+      return { busy: await googleBusy(tenantId, employee.email, from, to), error: null };
+    } catch (err) {
+      logger.error("calendar.google_busy_failed", { tenantId, error: (err as Error).message });
+      return { busy: [], error: "Google-Kalender nicht erreichbar" };
+    }
+  }
   try {
     return { busy: await getBusyIntervals(ms.msTenantId, employee.email!, from, to), error: null };
   } catch (err) {

@@ -5,6 +5,8 @@ import { assessUrgency } from "../urgency";
 import { routeTechnician, type RoutingResult } from "../routing";
 import { createCalendarEvent, createMailDraft } from "../graph";
 import { getMicrosoftLink, isSlotFree } from "../calendar";
+import { googleCreateEvent, googleLinked } from "../google";
+import { hasFeature, planForTenant } from "../billing";
 import { sendEmail, sendSms } from "../notify";
 import { buildIcs } from "../notify/ics";
 import { URGENCIES, type Urgency } from "../constants";
@@ -160,6 +162,23 @@ export async function notifyForTicket(
     }
   }
 
+  // 1b) Google-Termin beim Mitarbeiter (wenn kein Outlook verbunden)
+  if (!ms && employee?.email && appointment && !ticket.calendarEventId && !update.calendarEventId && (await googleLinked(tenant.id))) {
+    try {
+      const ev = await googleCreateEvent(tenant.id, employee.email, {
+        subject: `${urgent ? "⚠ " : ""}${ctx.category} – ${ticket.customer.companyName ?? ticket.customer.name ?? ticket.customer.phone}`,
+        bodyText: [ticket.summary, `Kunde: ${ticket.customer.name ?? ""} ${ticket.customer.phone}`, location].filter(Boolean).join("\n"),
+        start: appointment.start, end: appointment.end, location, timeZone: tenant.timezone,
+      });
+      update.calendarEventId = `google:${ev.id}`;
+      res.calendarEvent = true;
+    } catch (err) {
+      res.errors.push(`Google-Termin: ${(err as Error).message}`);
+    }
+  }
+
+  // SMS nur, wenn im Paket enthalten (ohne Paket: erlaubt)
+  const smsAllowed = hasFeature((await planForTenant(tenant.id)).plan, "sms");
   const shouldSend = opts.force || !opts.isUpdate || !!appointment;
   if (shouldSend) {
     // 2) Mitarbeiter informieren (bei Notfall gemäß emergencyAlert, sonst technicianAlert)
@@ -173,7 +192,7 @@ export async function notifyForTicket(
         const r = await sendEmail({ tenantId: tenant.id, ticketId: ticket.id, to: employee.email, subject: mail.subject, html: mail.html, purpose: critical ? "EMERGENCY_ALERT" : "TECHNICIAN_BRIEFING", fromName: tenant.name, ics });
         res.technician.push(`E-Mail ${r.status}`);
       }
-      if ((mode === "sms" || mode === "both") && employee.directPhone) {
+      if ((mode === "sms" || mode === "both") && employee.directPhone && (smsAllowed || critical)) {
         const r = await sendSms({ tenantId: tenant.id, ticketId: ticket.id, to: employee.directPhone, body: technicianSms(ctx), purpose: critical ? "EMERGENCY_ALERT" : "TECHNICIAN_BRIEFING" });
         res.technician.push(`SMS ${r.status}`);
       }
@@ -199,7 +218,7 @@ export async function notifyForTicket(
           res.customer.push(`E-Mail ${r.status}`);
         }
       }
-      if (cMode === "sms" || cMode === "both") {
+      if ((cMode === "sms" || cMode === "both") && smsAllowed) {
         const r = await sendSms({ tenantId: tenant.id, ticketId: ticket.id, to: ticket.customer.phone, body: customerSms(ctx), purpose: "CUSTOMER_CONFIRMATION" });
         res.customer.push(`SMS ${r.status}`);
       }

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { api, readJson, HttpError } from "@/lib/http";
 import { requirePlatformAdmin } from "@/lib/auth/session";
+import { autoSeedDemo } from "@/lib/services/demo";
 import { smtpConfigured } from "@/lib/env";
 import { normalizePhone } from "@/lib/phone";
 import { TEMPLATES } from "@/lib/tenant/templates";
@@ -13,6 +14,7 @@ export const dynamic = "force-dynamic";
 
 export const GET = api(async () => {
   await requirePlatformAdmin();
+  await autoSeedDemo();
   const tenants = await prisma.tenant.findMany({
     orderBy: { createdAt: "desc" },
     include: {

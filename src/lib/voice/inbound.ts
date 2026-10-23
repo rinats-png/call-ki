@@ -5,7 +5,7 @@ import { normalizePhone } from "../phone";
 export async function tenantForCalledNumber(to: string | undefined) {
   const e164 = normalizePhone(to);
   if (!e164) return null;
-  return prisma.phoneNumber.findUnique({ where: { e164 }, include: { tenant: true } });
+  return prisma.phoneNumber.findUnique({ where: { e164 }, include: { tenant: { include: { planRef: true } } } });
 }
 
 export async function twilioParams(req: Request): Promise<Record<string, string>> {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensurePlatformConfig } from "@/lib/platform/config";
 import { logger } from "@/lib/logger";
 import { verifyVoiceRequest } from "@/lib/security";
 import { handleCallEvent } from "@/lib/services/calls";
@@ -9,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 /** Retell Agent-Webhook (call_started/ended/analyzed) bzw. Vapi end-of-call-report. */
 export async function POST(req: Request) {
+  await ensurePlatformConfig();
   const wait = hit(`webhook:ip:${await clientIp(req)}`, LIMITS.webhookPerIp);
   if (wait) return NextResponse.json({ error: "Too Many Requests" }, { status: 429, headers: { "Retry-After": String(wait) } });
   const raw = await req.text();

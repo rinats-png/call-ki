@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensurePlatformConfig } from "@/lib/platform/config";
 import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
 import { getAuth } from "@/lib/auth/session";
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
  * ?admin_consent=True&tenant=<MS-Tenant-ID>&state=<tenantId>.<nonce>  bzw. ?error=…&error_description=…
  */
 export async function GET(req: Request) {
+  await ensurePlatformConfig();
   const u = new URL(req.url).searchParams;
   const back = (q: string) => NextResponse.redirect(`${env().PUBLIC_BASE_URL.replace(/\/$/, "")}/settings/integrations?${q}`);
   const auth = await getAuth();

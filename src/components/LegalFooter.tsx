@@ -1,11 +1,13 @@
 import { connection } from "next/server";
+import { ensurePlatformConfig, setting } from "@/lib/platform/config";
 
 /** Impressum- und Datenschutz-Links des Plattformbetreibers (URLs zur Laufzeit aus der Umgebung). */
 export async function LegalFooter() {
-  await connection(); // nicht beim Build einfrieren – URLs kommen aus der .env des Servers
+  await connection(); // nicht beim Build einfrieren – URLs kommen aus Einstellungen bzw. .env
+  await ensurePlatformConfig();
   const links = [
-    { href: process.env.LEGAL_IMPRINT_URL, label: "Impressum" },
-    { href: process.env.LEGAL_PRIVACY_URL, label: "Datenschutz" },
+    { href: setting("LEGAL_IMPRINT_URL"), label: "Impressum" },
+    { href: setting("LEGAL_PRIVACY_URL"), label: "Datenschutz" },
   ].filter((l): l is { href: string; label: string } => !!l.href);
   if (!links.length) return null;
   return (

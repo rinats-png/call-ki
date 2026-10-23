@@ -60,3 +60,19 @@ export const TENANT_STATUS_STYLE: Record<string, string> = {
   PAUSED: "border-amber-500/40 bg-amber-500/15 text-amber-300",
 };
 export const TENANT_STATUS_LABEL: Record<string, string> = { ACTIVE: "Aktiv", ONBOARDING: "Einrichtung", PAUSED: "Pausiert" };
+
+/** Cent → „12,90 €“ */
+export function eur(cents: number | null | undefined, opts: { decimals?: number } = {}) {
+  const d = opts.decimals ?? 2;
+  return new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR", minimumFractionDigits: d, maximumFractionDigits: d }).format((cents ?? 0) / 100);
+}
+
+/** „12,90“ (Eingabe in Euro) → 1290 Cent; leer → null */
+export function parseEuro(v: string): number | null {
+  const t = v.trim().replace(/\s|€/g, "").replace(/\.(?=\d{3}(\D|$))/g, "").replace(",", ".");
+  if (!t) return null;
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : null;
+}
+
+export const centsToInput = (c: number | null | undefined) => (c == null ? "" : (c / 100).toFixed(2).replace(".", ","));

@@ -4,6 +4,7 @@ import { api } from "@/lib/http";
 import { requirePlatformAdmin } from "@/lib/auth/session";
 import { env, microsoftConfigured, retellConfigured, smsConfigured, smtpConfigured } from "@/lib/env";
 import { TEMPLATE_OPTIONS } from "@/lib/tenant/templates";
+import { webhookUrls } from "@/lib/platform/webhooks";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,6 @@ export const dynamic = "force-dynamic";
 export const GET = api(async () => {
   await requirePlatformAdmin();
   const e = env();
-  const base = e.PUBLIC_BASE_URL.replace(/\/$/, "");
   const [tenants, failedMessages] = await Promise.all([
     prisma.tenant.groupBy({ by: ["status"], _count: { _all: true } }),
     prisma.message.count({ where: { status: "FAILED", createdAt: { gte: new Date(Date.now() - 7 * 86400000) } } }),
@@ -30,13 +30,7 @@ export const GET = api(async () => {
     },
     tenants: Object.fromEntries(tenants.map((t) => [t.status, t._count._all])),
     failedMessages7d: failedMessages,
-    webhooks: {
-      twilioVoice: `${base}/api/twilio/voice`,
-      twilioFallback: `${base}/api/twilio/fallback`,
-      retellTools: `${base}/api/voice/tools/{name}`,
-      retellEvents: `${base}/api/voice/events`,
-      microsoftRedirect: `${base}/api/integrations/microsoft/callback`,
-    },
+    webhooks: webhookUrls(),
     templates: TEMPLATE_OPTIONS,
   });
 });

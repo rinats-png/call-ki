@@ -10,9 +10,13 @@
 | 2 | **Twilio Inc.** (Vertragspartner für EU-Kunden ggf. Twilio Ireland Ltd. **[PRÜFEN]**) | Telefonnummern, Anrufannahme/-weiterleitung (SIP), SMS, optional Aufnahme | Rufnummern, Verbindungsdaten, Audio-Strom, SMS-Inhalt, ggf. Aufnahme | USA/global | Binding Corporate Rules (seit 2018) + DPA mit SCC **[PRÜFEN: zusätzlich DPF?]** | ☐ `<Datum>` |
 | 3 | **Retell AI, Inc.**, Delaware, USA | KI-Sprachagent: Spracherkennung, Gesprächsführung (LLM), Sprachsynthese, Gesprächsprotokoll | Audio-Strom, Transkript, Zusammenfassung, dynamische Variablen (Name, Adresse bekannter Kunden), Funktionsaufrufe | USA (laut Retell kein Betrieb in der EU) | DPA mit SCC (Retell DPA, Stand 08.07.2026); **keine DPF-Zertifizierung gefunden** → Transfer Impact Assessment nötig **[PRÜFEN]** | ☐ `<Datum>` |
 | 3a | Unterauftragnehmer von Retell (LLM-, STT-, TTS-Anbieter, Cloud) | wie 3 | wie 3 | USA **[PRÜFEN]** | über Retell-DPA | Liste bei Retell anfordern ☐ |
+| 3b | **Vapi, Inc.**, USA (nur Kunden mit Sprach-KI „Vapi“) | KI-Sprachagent | wie 3 | USA; EU-Region nur mit Vapi Premier | DPA/SCC **[PRÜFEN]**; Zero Data Retention aktivierbar | ☐ `<Datum>` |
+| 3c | **ElevenLabs** (Eleven Labs Inc. / ElevenLabs Sp. z o.o.) (nur Kunden mit „ElevenLabs“) | KI-Sprachagent, Sprachsynthese | wie 3 | USA/EU; EU-Datenresidenz vertraglich **[PRÜFEN]** | DPA/SCC **[PRÜFEN]**; Zero Retention Mode aktivierbar | ☐ `<Datum>` |
+| 3d | Weitere Sprach-KI über SIP (Bland, Synthflow, PolyAI, …) | nur wenn für einen Kunden gewählt | wie 3 | je Anbieter | vor Aktivierung AVV/DPA abschließen und hier eintragen | ☐ |
 | 4 | **`<SMTP-Anbieter>`** (z. B. IONOS Mail, Brevo, Postmark) | Versand von Bestätigungen, Technikerinfos, Einladungen | E-Mail-Adresse, Name, Termin, Anliegen (Kurzfassung) | `<Ort>` | `<Grundlage>` | ☐ `<Datum>` |
 
 **Nicht** in der Liste, weil kein Unterauftragsverarbeiter des Betreibers:
+- **Google Kalender** – der Kunde verbindet sein eigenes Google-Konto; Google ist insoweit Auftragsverarbeiter des Kunden. Die Plattform speichert nur den (verschlüsselten) Refresh-Token.
 - **Microsoft 365** – der Kunde verbindet seinen eigenen Tenant per Administratorzustimmung; Microsoft ist Auftragsverarbeiter des Kunden. Die Plattform ruft Graph mit App-Berechtigungen auf und speichert keine Microsoft-Tokens.
 - **Have I Been Pwned** – erhält nur die ersten 5 Zeichen eines SHA-1-Hashes eines neuen Passworts (k-Anonymität), keinen Personenbezug.
 - **GitHub** – enthält Quellcode, keine Produktionsdaten (Geheimnis-Scan in CI).

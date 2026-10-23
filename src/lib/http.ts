@@ -13,12 +13,15 @@ export const forbidden = () => new HttpError(403, "Keine Berechtigung");
 export const notFound = (what = "Eintrag") => new HttpError(404, `${what} nicht gefunden`);
 export const badRequest = (msg: string, details?: unknown) => new HttpError(400, msg, details);
 
+import { ensurePlatformConfig } from "./platform/config";
+
 type Handler<P> = (req: Request, ctx: { params: Promise<P> }) => Promise<Response>;
 
 /** Einheitliche Fehlerbehandlung für API-Routen. */
 export function api<P = Record<string, string>>(fn: Handler<P>): Handler<P> {
   return async (req, ctx) => {
     try {
+      await ensurePlatformConfig();
       return await fn(req, ctx);
     } catch (err) {
       if (err instanceof HttpError) {
