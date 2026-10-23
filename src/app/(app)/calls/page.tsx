@@ -38,14 +38,12 @@ const clock = (iso: string) => new Date(iso).toLocaleTimeString("de-DE", { hour:
 export default function CallsPage() {
   const [status, setStatus] = useState("");
   const { data } = usePoll<{ calls: CallRow[] }>(`/api/calls${status ? `?status=${status}` : ""}`, 8000);
-  const { data: bill } = usePoll<{ usage: { calls: number; minutes: number } }>("/api/billing", 60_000);
+  const { data: stats } = usePoll<{ calls: number; minutes: number; avgDurationSec: number | null; withTicketPercent: number | null; live: number }>("/api/calls/stats", 15_000);
   const [open, setOpen] = useState<string | null>(null);
 
   const calls = data?.calls;
-  const live = calls?.filter((c) => c.status === "IN_PROGRESS" || c.status === "RINGING").length ?? 0;
-  const done = calls?.filter((c) => c.durationSec != null) ?? [];
-  const avg = done.length ? Math.round(done.reduce((n, c) => n + (c.durationSec ?? 0), 0) / done.length) : null;
-  const withTicket = calls?.length ? Math.round((calls.filter((c) => c.tickets.length > 0).length / calls.length) * 100) : null;
+  const live = stats?.live ?? 0;
+  const avg = stats?.avgDurationSec ?? null;
   const groups: [string, CallRow[]][] = [];
   for (const c of calls ?? []) {
     const k = dayKey(c.startedAt);
@@ -58,12 +56,12 @@ export default function CallsPage() {
       <PageHero
         eyebrow="Alle Gespräche der KI, auch ohne Vorgang"
         title="Anrufe"
-        value={bill ? bill.usage.calls : "–"}
+        value={stats ? stats.calls : "–"}
         valueLabel="Anrufe diesen Monat"
         stats={[
-          { label: "Minuten (Monat)", value: bill ? Math.round(bill.usage.minutes) : "–" },
-          { label: "Ø Gesprächsdauer", value: avg == null ? "–" : fmtDuration(avg).replace(" min", "") },
-          { label: "mit Vorgang", value: withTicket == null ? "–" : `${withTicket} %` },
+          { label: "Gesprächsminuten", value: stats ? Math.round(stats.minutes) : "–" },
+          { label: "Ø Gesprächsdauer", value: avg == null ? "–" : fmtDuration(avg) },
+          { label: "mit Vorgang", value: stats?.withTicketPercent == null ? "–" : `${stats.withTicketPercent} %` },
         ]}
         action={
           <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-sm font-semibold">
