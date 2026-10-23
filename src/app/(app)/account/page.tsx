@@ -167,9 +167,9 @@ function PasswordChange() {
         <input className="input" name="currentPassword" type="password" placeholder="Aktuelles Passwort" aria-label="Aktuelles Passwort" autoComplete="current-password" required />
         <input className="input" name="newPassword" type="password" placeholder="Neues Passwort (min. 12 Zeichen)" aria-label="Neues Passwort" autoComplete="new-password" required minLength={12} />
         <input className="input" name="newPassword2" type="password" placeholder="Neues Passwort wiederholen" aria-label="Neues Passwort wiederholen" autoComplete="new-password" required />
-        <div className="flex items-center justify-between gap-2 sm:col-span-3">
+        <div className="flex items-center justify-between gap-2">
           <span className={cn("text-xs", msg?.ok ? "text-emerald-400" : "text-amber-400")}>{msg?.text}</span>
-          <button className="btn-primary justify-self-end" disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />}Speichern</button>
+          <button className="btn-primary" disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />}Speichern</button>
         </div>
       </form>
     </Panel>
