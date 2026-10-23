@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { databaseUrl } from "./database-url";
 
 /** Plattformweite Konfiguration (VPS). Mandanten-spezifisches liegt in der Datenbank. */
 const schema = z.object({
@@ -52,7 +53,7 @@ export type Env = z.infer<typeof schema>;
 
 let cached: Env | null = null;
 export function env(): Env {
-  if (!cached) cached = schema.parse(process.env);
+  if (!cached) cached = schema.parse({ ...process.env, DATABASE_URL: databaseUrl() });
   return cached;
 }
 export function resetEnvCache() {

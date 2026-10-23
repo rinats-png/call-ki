@@ -1,0 +1,9 @@
+# Test-/Demo-Umgebung auf Netlify. Produktion läuft auf dem IONOS-VPS (docker-compose.yml).
+# Datenbank: Netlify Database. Netlify wendet netlify/database/migrations vor dem Publish an –
+# diese Dateien sind Kopien von prisma/migrations (Gleichheit prüft tests/netlify-migrations.test.ts).
+[build]
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NEXT_TELEMETRY_DISABLED = "1"
