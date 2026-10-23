@@ -126,7 +126,7 @@ function CustomerDrawer({ id, onClose, onChanged }: { id: string; onClose: () =>
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div className="fixed inset-0 z-50 !m-0 flex justify-end">
       <div className="absolute inset-0 bg-scrim/50 backdrop-blur-sm" onClick={onClose} />
       <aside className="relative flex h-full w-full max-w-xl flex-col border-l border-zinc-800 bg-zinc-950/95 backdrop-blur-md animate-slidein">
         <header className="flex items-start justify-between border-b border-zinc-800 p-5">

@@ -29,8 +29,8 @@ export default function Page() {
       <Panel title="KI-Assistent">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Name der Assistenz"><input className="input" value={st.assistantName} onChange={(e) => setS("assistantName", e.target.value)} /></Field>
-          <Field label="Aufzeichnungshinweis">
-            <label className="flex h-[38px] items-center gap-2 text-sm text-zinc-300"><input type="checkbox" checked={st.announceRecording} onChange={(e) => setS("announceRecording", e.target.checked)} />In der Begrüßung auf Aufzeichnung hinweisen</label>
+          <Field label="Gesprächsaufzeichnung" hint="Aus: keine Aufnahme und kein Transkript beim Anbieter (nur Basisdaten). Ist das auf der Plattform noch nicht eingerichtet, wird weiter aufgezeichnet – und dann immer angesagt.">
+            <label className="flex h-[38px] items-center gap-2 text-sm text-zinc-300"><input type="checkbox" checked={st.announceRecording} onChange={(e) => setS("announceRecording", e.target.checked)} />Gespräche aufzeichnen und transkribieren (mit Hinweis)</label>
           </Field>
           <div className="sm:col-span-2">
             <Field label="Eigene Begrüßung (optional)" hint="Leer = Standard. Die KI stellt sich immer als digitale Assistenz vor (Transparenzpflicht).">

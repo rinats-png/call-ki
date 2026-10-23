@@ -3,71 +3,122 @@
 @tailwind utilities;
 
 /*
- * Farbkonzept (Inspiration: Mobbin – Mixpanel, Resend, Whop, Plain, Gorgias):
- *  Hell:   kühles Soft-Grau als Fläche, helle Karten mit feinen Linien, ruhiger Blau-Akzent
- *  Dunkel: Schiefer-Anthrazit statt Schwarz, Karten heller als der Grund, gedämpfte Statusfarben
+ * Farbkonzept „Graphit & Mint“ (abgeleitet aus dem ki-telef-Hub):
+ *  Dunkel: Graphit-Grund (#2b2f36) mit grünlichem Radial-Glow, Flächen leicht heller,
+ *          sehr feine Linien, Mint als Akzent, Bernstein ausschließlich für Notfall/Warnung.
+ *  Hell:   sanftes Grau statt Weiß, gedämpfte Flächen, dunkleres Mint (#187c5c) für AA-Kontrast.
  * Werte sind RGB-Tripel, damit Tailwind-Alpha (bg-zinc-900/80) funktioniert.
+ * Tailwind-Namen bleiben (zinc = Neutral, cyan = Akzent/Mint, emerald = Erfolg/Live, amber = Notfall).
  */
 :root {
   color-scheme: light;
-  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
 
-  --page: 238 240 244;
-  --scrim: 36 42 54;
-  --glow-1: 59 111 224;
-  --glow-2: 16 150 105;
-  --glow-alpha: 0.07;
-  --shadow-card: 0 1px 2px rgb(24 32 48 / 0.05), 0 4px 16px -6px rgb(24 32 48 / 0.08);
+  --page: 233 237 241;          /* #e9edf1 */
+  --scrim: 35 50 68;
+  --glow-1: 120 196 166;        /* Mint-Schimmer oben */
+  --glow-alpha: 0.28;
+  --header: 244 247 249;        /* Kopfleiste, mit Blur */
+  --header-alpha: 0.86;
+  --hairline: 36 53 73;         /* feine Linien als Alpha-Basis */
+  --hairline-alpha: 0.09;
+  --on-accent: 255 255 255;     /* Text auf Mint-Button */
+  --accent-hover: 17 104 76;    /* #11684c */
+  --shadow-card: 0 1px 2px rgb(36 53 73 / 0.05), 0 6px 18px -10px rgb(36 53 73 / 0.12);
+  --shadow-accent: none;
+  --mark-from: 217 238 229;     /* Brand-Mark-Verlauf */
+  --mark-to: 238 247 243;
+  --mark-ring: 191 220 207;
 
-  /* Neutrals: 50 = stärkster Text … 950 = hellste Fläche */
-  --z-50: 24 29 38;  --z-100: 33 39 50;  --z-200: 51 58 71;  --z-300: 71 79 94;
-  --z-400: 98 107 123; --z-500: 107 116 132; --z-600: 160 168 181; --z-700: 205 211 221;
-  --z-800: 224 228 235; --z-900: 252 252 253; --z-950: 247 248 250;
-  /* Akzent (Blau) */
-  --a-50: 30 58 138; --a-200: 30 64 160; --a-300: 37 82 190; --a-400: 59 111 224; --a-500: 47 95 208;
-  /* Live / Erfolg */
-  --g-200: 10 90 62; --g-300: 16 120 84; --g-400: 20 150 105; --g-500: 16 130 90;
-  /* Notfall / Warnung */
-  --w-200: 110 62 4; --w-300: 150 85 6; --w-400: 192 120 10; --w-500: 180 105 0;
+  /* Neutrals: 50 = stärkster Text … 950 = Einlage-Fläche */
+  --z-50: 29 42 58;   --z-100: 38 52 69;   --z-200: 47 62 80;   --z-300: 66 83 102;
+  --z-400: 79 96 116; --z-500: 90 107 126; --z-600: 154 167 181; --z-700: 207 216 226;
+  --z-800: 220 227 235; --z-900: 248 250 251; --z-950: 241 244 247;
+  /* Akzent (Mint, hell abgedunkelt) */
+  --a-50: 13 63 48; --a-200: 17 94 69; --a-300: 20 110 81; --a-400: 23 128 93; --a-500: 24 124 92;
+  /* Live / Erfolg (Salbeigrün, vom Mint unterscheidbar) */
+  --g-200: 30 85 48; --g-300: 38 105 58; --g-400: 46 128 72; --g-500: 42 122 67;
+  /* Notfall / Warnung (Bernstein) */
+  --w-200: 110 74 12; --w-300: 138 90 10; --w-400: 160 104 10; --w-500: 184 120 14;
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --page: 30 34 41;
-  --scrim: 8 10 14;
-  --glow-1: 111 153 250;
-  --glow-2: 70 200 150;
-  --glow-alpha: 0.08;
-  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 8px 24px -12px rgb(0 0 0 / 0.5);
+  --page: 43 47 54;             /* #2b2f36 Graphit */
+  --scrim: 2 6 5;
+  --glow-1: 86 150 124;
+  --glow-alpha: 0.16;
+  --header: 30 33 39;
+  --header-alpha: 0.82;
+  --hairline: 255 255 255;
+  --hairline-alpha: 0.07;
+  --on-accent: 43 48 56;        /* #2b3038 */
+  --accent-hover: 130 235 194;  /* #82ebc2 */
+  --shadow-card: inset 0 1px 0 rgb(255 255 255 / 0.025), 0 1px 2px rgb(0 0 0 / 0.08), 0 10px 28px -16px rgb(0 0 0 / 0.45);
+  --shadow-accent: 0 0 20px rgb(102 223 177 / 0.05), inset 0 1px 0 rgb(196 255 229 / 0.25);
+  --mark-from: 25 83 61;
+  --mark-to: 50 55 64;
+  --mark-ring: 57 211 161;
 
-  --z-50: 244 246 249; --z-100: 232 235 240; --z-200: 214 219 227; --z-300: 187 194 205;
-  --z-400: 150 159 173; --z-500: 124 133 148; --z-600: 93 102 117; --z-700: 66 74 88;
-  --z-800: 52 59 71; --z-900: 39 44 53; --z-950: 33 37 45;
-  --a-50: 235 241 255; --a-200: 190 210 255; --a-300: 150 180 255; --a-400: 111 153 250; --a-500: 72 112 224;
-  --g-200: 167 235 205; --g-300: 120 220 175; --g-400: 70 200 150; --g-500: 40 170 120;
-  --w-200: 247 218 160; --w-300: 242 196 110; --w-400: 235 175 70; --w-500: 222 150 35;
+  --z-50: 242 244 247; --z-100: 230 234 238; --z-200: 211 217 224; --z-300: 189 198 208;
+  --z-400: 170 180 192; --z-500: 154 164 176; --z-600: 107 116 128; --z-700: 72 79 89;
+  --z-800: 61 67 77;   --z-900: 51 57 65;    --z-950: 46 51 59;
+  --a-50: 230 251 242; --a-200: 184 243 215; --a-300: 112 220 179; --a-400: 99 232 183; --a-500: 102 223 177;
+  --g-200: 196 236 201; --g-300: 147 214 160; --g-400: 108 197 131; --g-500: 79 174 106;
+  --w-200: 240 207 148; --w-300: 232 180 92; --w-400: 229 173 77; --w-500: 200 146 58;
 }
 
 html, body { background: rgb(var(--page)); color: rgb(var(--z-200)); }
 
 body {
-  background-image:
-    radial-gradient(60rem 30rem at 10% -10%, rgb(var(--glow-1) / var(--glow-alpha)), transparent 60%),
-    radial-gradient(50rem 30rem at 100% 0%, rgb(var(--glow-2) / calc(var(--glow-alpha) * 0.7)), transparent 60%);
+  background-image: radial-gradient(ellipse 90rem 38rem at 50% -14rem, rgb(var(--glow-1) / var(--glow-alpha)), transparent 62%);
+  background-repeat: no-repeat;
   background-attachment: fixed;
+  font-feature-settings: "cv11", "ss01";
   transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+@layer base {
+  :focus-visible { outline: 2px solid rgb(var(--a-400) / 0.8); outline-offset: 2px; }
+  ::selection { background: rgb(var(--a-400) / 0.25); }
+  table thead { background: rgb(var(--z-950) / 0.6); }
+  table th { font-weight: 600; letter-spacing: 0.12em; }
+  select option { background: rgb(var(--z-900)); color: rgb(var(--z-100)); }
+}
+
 @layer components {
-  .glass { @apply bg-zinc-900/80 backdrop-blur-md border border-zinc-800 rounded-2xl; box-shadow: var(--shadow-card); }
-  .glass-soft { @apply bg-zinc-950/60 backdrop-blur-md border border-zinc-800 rounded-xl; }
-  .label { @apply text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-500; }
-  .input { @apply w-full rounded-lg border border-zinc-700 bg-zinc-950/70 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500/80 outline-none transition focus:border-cyan-500/70 focus:ring-2 focus:ring-cyan-500/20; }
-  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed; }
-  .btn-primary { @apply btn bg-cyan-500 text-white hover:bg-cyan-400 shadow-sm; }
-  .btn-ghost { @apply btn border border-zinc-700 bg-zinc-900/60 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100; }
-  .chip { @apply inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium; }
+  /* Flächen: Karte (Radius 10 px, feine Linie) und Einlage */
+  .glass { @apply rounded-[10px] border bg-zinc-900/90 backdrop-blur-md; border-color: rgb(var(--hairline) / calc(var(--hairline-alpha) + 0.03)); box-shadow: var(--shadow-card); }
+  .glass-soft { @apply rounded-lg border bg-zinc-950/70; border-color: rgb(var(--hairline) / var(--hairline-alpha)); }
+  /* Kleine Großbuchstaben-Labels mit Letterspacing */
+  .label { @apply text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-500; }
+  .input { @apply w-full rounded-[7px] border border-zinc-700 bg-zinc-950/80 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500/80 outline-none transition focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-400/20; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-[7px] border border-transparent px-3.5 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary { @apply btn border-cyan-400/40 bg-cyan-500 font-semibold; color: rgb(var(--on-accent)); box-shadow: var(--shadow-accent); }
+  .btn-primary:not(:disabled):hover { background-color: rgb(var(--accent-hover)); }
+  .btn-ghost { @apply btn border-zinc-700/80 bg-zinc-900/70 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-50; }
+  .chip { @apply inline-flex items-center gap-1.5 rounded-[5px] border px-1.5 py-0.5 text-[11px] font-medium; }
+
+  /* Kopfleiste + horizontale Navigation (App-Shell) */
+  .app-header { background: rgb(var(--header) / var(--header-alpha)); border-bottom: 1px solid rgb(var(--hairline) / var(--hairline-alpha)); @apply backdrop-blur-xl; }
+  .app-nav { border-bottom: 1px solid rgb(var(--hairline) / var(--hairline-alpha)); }
+  .brand-mark {
+    @apply grid place-items-center overflow-hidden rounded-[10px] border text-cyan-400;
+    border-color: rgb(var(--mark-ring) / 0.3);
+    background: linear-gradient(145deg, rgb(var(--mark-from) / 0.85), rgb(var(--mark-to)));
+    box-shadow: inset 0 1px 0 rgb(116 246 196 / 0.07), 0 0 22px rgb(41 189 143 / 0.06);
+  }
+  .nav-item { @apply flex shrink-0 items-center gap-2 whitespace-nowrap rounded-[7px] border border-transparent px-3 py-2 text-[13px] font-medium text-zinc-400 transition hover:bg-zinc-800/50 hover:text-zinc-100; }
+  .nav-item-active { @apply border-cyan-400/15 bg-cyan-400/10 text-cyan-300 hover:bg-cyan-400/10 hover:text-cyan-300; }
+  .header-btn { @apply inline-flex h-9 items-center justify-center gap-2 rounded-[7px] border border-zinc-700/70 bg-zinc-900/60 px-2.5 text-xs font-medium text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-50; }
+  .divider-v { @apply h-6 w-px bg-zinc-700/70; }
+  /* Punktraster-Hintergrund wie in der ki-telef-Steuerkarte */
+  .dot-grid { background-image: radial-gradient(rgb(var(--a-400) / 0.16) 0.7px, transparent 0.7px); background-size: 14px 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }

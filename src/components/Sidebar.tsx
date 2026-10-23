@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutGrid, Users, Wrench, Settings, PhoneCall, Building2, LogOut, Zap, Server } from "lucide-react";
+import { UserRound, LayoutGrid, Users, Wrench, Settings, PhoneCall, Building2, LogOut, Zap, Server } from "lucide-react";
 import { cn } from "@/lib/ui";
 import { ThemeToggle } from "./ThemeToggle";
 import { useSession } from "./session";
@@ -14,13 +14,18 @@ const TENANT_NAV: Item[] = [
   { href: "/calls", label: "Anrufe", icon: PhoneCall },
   { href: "/customers", label: "Kunden", icon: Users },
   { href: "/team", label: "Team", icon: Wrench },
-  { href: "/settings", label: "Konto", icon: Settings },
+  { href: "/settings", label: "Einstellungen", icon: Settings },
 ];
 const ADMIN_NAV: Item[] = [
   { href: "/admin", label: "Mandanten", icon: Building2 },
   { href: "/admin/platform", label: "Plattform", icon: Server },
 ];
 
+/**
+ * App-Navigation im Stil „Kopfleiste + horizontale Navigation“:
+ * oben Marke und Konto-Aktionen, darunter die Menüpunkte (mobil horizontal scrollbar).
+ * Der Komponentenname bleibt aus Kompatibilitätsgründen „Sidebar“.
+ */
 export function Sidebar() {
   const path = usePathname();
   const router = useRouter();
@@ -36,45 +41,61 @@ export function Sidebar() {
   const initials = (me?.tenant?.name ?? "KI").split(/\s+/).map((p) => p[0]).join("").slice(0, 2).toUpperCase();
 
   return (
-    <>
-      <aside className="sticky top-0 hidden h-screen w-20 shrink-0 flex-col items-center gap-2 border-r border-zinc-800/80 bg-zinc-950/70 py-5 backdrop-blur-md md:flex">
-        <Link href={me?.isPlatformAdmin && !me.tenant ? "/admin" : "/"} title={me?.tenant?.name ?? "KI-Telefonzentrale"} className="mb-6 grid h-11 w-11 place-items-center overflow-hidden rounded-xl bg-gradient-to-br from-cyan-400/20 to-emerald-400/10 ring-1 ring-cyan-400/30">
-          {me?.tenant?.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={me.tenant.logoUrl} alt="" className="h-full w-full object-cover" />
-          ) : me?.tenant ? (
-            <span className="text-xs font-bold text-cyan-200">{initials}</span>
-          ) : (
-            <Zap className="h-5 w-5 text-cyan-300" />
-          )}
-        </Link>
-        {nav.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className={cn("flex w-16 flex-col items-center gap-1 rounded-xl py-2.5 text-[10px] font-medium transition", isActive(href) ? "bg-zinc-800/80 text-cyan-300" : "text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-200")}
-          >
-            <Icon className="h-5 w-5" />
-            <span className="max-w-full truncate px-1">{label}</span>
+    <div className="sticky top-0 z-40">
+      <header className="app-header">
+        <div className="mx-auto flex h-16 max-w-[1580px] items-center justify-between gap-3 px-4 md:h-20 md:px-8 lg:px-10">
+          <Link href={me?.isPlatformAdmin && !me.tenant ? "/admin" : "/"} title={me?.tenant?.name ?? "KI-Telefonzentrale"} className="flex min-w-0 items-center gap-3">
+            <span className="brand-mark h-9 w-9 shrink-0">
+              {me?.tenant?.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={me.tenant.logoUrl} alt="" className="h-full w-full object-cover" />
+              ) : me?.tenant ? (
+                <span className="text-[11px] font-bold tracking-wide">{initials}</span>
+              ) : (
+                <Zap className="h-[18px] w-[18px]" />
+              )}
+            </span>
+            <span className="flex min-w-0 items-center text-[13px]">
+              <span className="hidden font-extrabold uppercase tracking-[0.13em] text-zinc-50 sm:inline">KI-Telefonzentrale</span>
+              {me?.tenant && (
+                <>
+                  <span className="mx-3 hidden font-light text-zinc-600 sm:inline">/</span>
+                  <span className="truncate font-medium text-zinc-300">{me.tenant.name}</span>
+                </>
+              )}
+              {!me?.tenant && <span className="font-extrabold uppercase tracking-[0.13em] text-zinc-50 sm:hidden">KI-Telefonzentrale</span>}
+            </span>
           </Link>
-        ))}
-        <div className="mt-auto flex flex-col items-center gap-1">
-          <ThemeToggle />
-          <button onClick={logout} title={me ? `Abmelden (${me.user.email})` : "Abmelden"} className="flex w-16 flex-col items-center gap-1 rounded-xl py-2.5 text-[10px] font-medium text-zinc-500 transition hover:bg-zinc-800/50 hover:text-zinc-200">
-            <LogOut className="h-5 w-5" />
-            Abmelden
-          </button>
+          <div className="flex shrink-0 items-center gap-2 md:gap-3">
+            {me && (
+              <Link href="/account" title="Mein Konto (Passwort, Zwei-Faktor-Anmeldung, Geräte)" className="hidden max-w-[220px] truncate text-xs text-zinc-500 transition hover:text-cyan-300 lg:inline">
+                {me.user.email}
+              </Link>
+            )}
+            <Link href="/account" aria-label="Mein Konto" title="Mein Konto" className={cn("header-btn lg:hidden", path === "/account" && "text-cyan-300")}>
+              <UserRound className="h-4 w-4" />
+            </Link>
+            {me && <span className="divider-v hidden lg:block" />}
+            <ThemeToggle />
+            <button onClick={logout} title={me ? `Abmelden (${me.user.email})` : "Abmelden"} aria-label="Abmelden" className="header-btn">
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Abmelden</span>
+            </button>
+          </div>
         </div>
-      </aside>
-      <nav className="fixed inset-x-3 bottom-3 z-40 flex justify-around rounded-2xl border border-zinc-800 bg-zinc-900/95 p-1.5 shadow-lg backdrop-blur-md md:hidden">
-        {nav.slice(0, 5).map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} className={cn("flex flex-1 flex-col items-center gap-0.5 rounded-xl py-2 text-[10px]", isActive(href) ? "bg-zinc-800 text-cyan-300" : "text-zinc-500")}>
-            <Icon className="h-5 w-5" />
-            <span className="max-w-full truncate px-0.5">{label}</span>
-          </Link>
-        ))}
-        <ThemeToggle compact />
-      </nav>
-    </>
+      </header>
+      {nav.length > 0 && (
+        <nav aria-label="Hauptnavigation" className="app-nav bg-[rgb(var(--page)/0.88)] backdrop-blur-md">
+          <div className="mx-auto flex max-w-[1580px] items-center gap-1.5 overflow-x-auto px-4 py-2.5 md:px-8 md:py-3 lg:px-10">
+            {nav.map(({ href, label, icon: Icon }) => (
+              <Link key={href} href={href} aria-current={isActive(href) ? "page" : undefined} className={cn("nav-item", isActive(href) && "nav-item-active")}>
+                <Icon className="h-4 w-4" />
+                {label}
+              </Link>
+            ))}
+          </div>
+        </nav>
+      )}
+    </div>
   );
 }
