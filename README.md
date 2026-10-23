@@ -44,9 +44,10 @@ Voraussetzung: VPS mit Ubuntu 24.04, min. 2 vCPU / 4 GB RAM, eine (Sub-)Domain.
 sudo apt update && sudo apt install -y docker.io docker-compose-v2 git ufw
 sudo ufw allow 22 && sudo ufw allow 80 && sudo ufw allow 443 && sudo ufw enable
 git clone https://github.com/rinats-png/call-ki.git && cd call-ki
-cp .env.example .env && nano .env      # DOMAIN, POSTGRES_PASSWORD, SETUP_TOKEN, CRON_SECRET, VOICE_TOOL_SECRET, SMTP, Twilio, Retell
+cp .env.example .env && nano .env      # DOMAIN, POSTGRES_PASSWORD, APP_ENCRYPTION_KEY, SETUP_TOKEN, CRON_SECRET, VOICE_TOOL_SECRET, SMTP, Twilio, Retell
 docker compose up -d --build
 # 3. https://app.deine-domain.de/setup öffnen → Setup-Token eingeben → Plattform-Admin anlegen
+#    → danach wird die Zwei-Faktor-Anmeldung (Authenticator-App) eingerichtet – Wiederherstellungscodes sicher aufbewahren!
 ```
 Secrets erzeugen: `openssl rand -hex 24`. Updates: `git pull && docker compose up -d --build` (Migrationen laufen beim Start automatisch).
 
@@ -79,6 +80,7 @@ docker compose -f docker-compose.dev.yml up -d   # Postgres auf localhost:5432
 cp .env.example .env                              # DATABASE_URL zeigt auf die Dev-DB
 npm install && npx prisma migrate dev && npx prisma db seed
 npm run dev   # http://localhost:3000 – admin@example.com / storm@example.com, Passwort demo-passwort-123
+              # Plattform-Admin muss beim ersten Login 2FA einrichten (lokal abschaltbar: REQUIRE_PLATFORM_ADMIN_2FA=false)
 ```
 | Befehl | Zweck |
 |---|---|
@@ -87,6 +89,8 @@ npm run dev   # http://localhost:3000 – admin@example.com / storm@example.com,
 | `npx prisma migrate dev --name <name>` | Schemaänderung als Migration |
 
 ## Sicherheit
+Alle Werte und akzeptierten Restrisiken: [`docs/sicherheit.md`](docs/sicherheit.md). Ist-Analyse und offene Punkte: [`docs/idea-to-app/B1-ist-analyse.md`](docs/idea-to-app/B1-ist-analyse.md).
+- Zwei-Faktor-Anmeldung (Pflicht für Plattform-Admins), Rate-Limits, erneute Bestätigung für sensible Aktionen, Prüfung gegen geleakte Passwörter
 - Login mit scrypt-Hashes, httpOnly-Sitzungscookies (SameSite=Lax), Sperre nach 5 Fehlversuchen, CSRF-Prüfung der Herkunft, Sicherheits-Header (CSP, HSTS via Caddy).
 - Mandantentrennung in jeder Abfrage (`tenantId`), Mandant bei Sprachanrufen nur aus eigener Call-Tabelle/angerufener Nummer – nie aus KI-Parametern. Integrationstests prüfen das.
 - Webhooks: Twilio-Signatur (HMAC-SHA1), Retell-Signatur (HMAC-SHA256) bzw. Shared Secret.

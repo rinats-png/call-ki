@@ -1,0 +1,82 @@
+# Prüft jeden Push und Pull Request: Lint, Typen, Tests (inkl. Postgres-Integration),
+# Abhängigkeiten, Secret-Scan und Docker-Build. Aktionen sind auf Commit-SHAs gepinnt (Regel 9.6).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: callki
+          POSTGRES_PASSWORD: callki
+          POSTGRES_DB: callki_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U callki" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://callki:callki@localhost:5432/callki_test
+      TEST_DATABASE_URL: postgresql://callki:callki@localhost:5432/callki_test
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: Installation aus Lockfile
+        run: npm ci
+      - name: Migrationen
+        run: npx prisma migrate deploy
+      - name: Lint
+        run: npm run lint
+      - name: Typprüfung
+        run: npm run typecheck
+      - name: Tests (inkl. Mandantentrennung gegen Postgres)
+        run: npm test
+      - name: Abhängigkeiten prüfen
+        # Schwelle "critical": bekannte "high"-Befunde (prisma 6, next 15) sind in docs/sicherheit.md als E-003 dokumentiert
+        run: npm audit --omit=dev --audit-level=critical
+      - name: Build
+        run: npm run build
+
+  secrets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Secret-Scan (gitleaks)
+        run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 detect --source /repo --redact --no-banner
+
+  docker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    needs: test
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Docker-Image bauen
+        run: docker build -t callki:ci .
+      - name: Compose-Datei prüfen
+        run: |
+          printf 'DOMAIN=ci.example.de\nPOSTGRES_PASSWORD=x\nCRON_SECRET=y\n' > /tmp/ci.env
+          docker compose --env-file /tmp/ci.env -f docker-compose.yml config --quiet

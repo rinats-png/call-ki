@@ -77,6 +77,21 @@
 | BF-22 | niedrig | Betrieb | – | Keine Staging-Umgebung. Rollback (vorheriges Image) nicht dokumentiert und nicht geübt. | Image-Tags je Release, Rollback-Ablauf in `docs/betrieb.md`. |
 | BF-23 | niedrig | KI / Missbrauch | `src/app/api/twilio/voice/route.ts` | Kein Schutz gegen Spam- oder Massenanrufe (Kosten). Anrufer könnten der KI Zusagen entlocken, die nicht im FAQ stehen. | Anrufe je Rufnummer und Stunde begrenzen. Prompt-Regeln (keine Zusagen außerhalb FAQ) mit Testanrufen prüfen. |
 
+## Stand nach Sicherheitsblock (2026-10-23, Commits `06143d0`, `d4a3c1f`)
+| Befund | Status | Nachweis |
+|---|---|---|
+| BF-01 2FA | ✅ behoben – TOTP, Pflicht für Plattform-Admin | `tests/totp.test.ts` (RFC-6238-Vektoren), Browser-Durchlauf |
+| BF-02 / BF-21 Rate-Limits, Retry-After | ✅ behoben | `tests/rate-limit.test.ts`, Browser-Durchlauf (429 nach 20 Versuchen) |
+| BF-03 Löschung bei Anbietern, Aufnahmen-Endpunkt | ✅ behoben (Echtbetrieb mit Anbieter-Konten noch zu belegen) | `src/lib/voice/providers.ts`, SSRF-Test |
+| BF-04 stille Aufzeichnung | ✅ technisch behoben; rechtliche Klärung bleibt offen | `tests/urgency.test.ts` („Keine stille Aufzeichnung“) |
+| BF-06 CI | ✅ eingerichtet (Lauf auf GitHub steht aus) | `.github/workflows/ci.yml`, `.github/dependabot.yml` |
+| BF-12 Sitzungen/Re-Auth | ✅ behoben | Browser-Durchlauf (Bestätigungsdialog) |
+| BF-14 Leak-Prüfung | ✅ behoben | `tests/pwned.test.ts` |
+| BF-19 CSP | akzeptiert als E-001 | `docs/sicherheit.md` |
+| BF-20 Größenlimit | ✅ behoben | `src/lib/http.ts` |
+| BF-23 Mehrfachanrufe | ✅ behoben (Limit je Anrufer) | `src/lib/rate-limit.ts` |
+| BF-05 Major-Updates | offen (E-003) | – |
+
 ## Bereits behoben (Commit `5515082`)
 - Eigene Begrüßung konnte den KI-Hinweis (Art. 50 KI-VO) und den Aufzeichnungshinweis entfernen → werden jetzt erzwungen (Test vorhanden).
 - Externe Aufrufe ohne Timeout (Microsoft Graph, Twilio-SMS, SMTP) → die KI hätte im Gespräch hängen können.

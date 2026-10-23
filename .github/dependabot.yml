@@ -1,0 +1,16 @@
+# Wöchentliche Update-Vorschläge für npm-Pakete, GitHub Actions und Docker-Basis-Images.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    groups:
+      minor-und-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly, day: monday }
+  - package-ecosystem: docker
+    directory: /
+    schedule: { interval: weekly, day: monday }
