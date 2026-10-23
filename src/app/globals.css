@@ -2,32 +2,74 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Farbkonzept (Inspiration: Mobbin – Mixpanel, Resend, Whop, Plain, Gorgias):
+ *  Hell:   kühles Soft-Grau als Fläche, helle Karten mit feinen Linien, ruhiger Blau-Akzent
+ *  Dunkel: Schiefer-Anthrazit statt Schwarz, Karten heller als der Grund, gedämpfte Statusfarben
+ * Werte sind RGB-Tripel, damit Tailwind-Alpha (bg-zinc-900/80) funktioniert.
+ */
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+
+  --page: 238 240 244;
+  --scrim: 36 42 54;
+  --glow-1: 59 111 224;
+  --glow-2: 16 150 105;
+  --glow-alpha: 0.07;
+  --shadow-card: 0 1px 2px rgb(24 32 48 / 0.05), 0 4px 16px -6px rgb(24 32 48 / 0.08);
+
+  /* Neutrals: 50 = stärkster Text … 950 = hellste Fläche */
+  --z-50: 24 29 38;  --z-100: 33 39 50;  --z-200: 51 58 71;  --z-300: 71 79 94;
+  --z-400: 98 107 123; --z-500: 107 116 132; --z-600: 160 168 181; --z-700: 205 211 221;
+  --z-800: 224 228 235; --z-900: 252 252 253; --z-950: 247 248 250;
+  /* Akzent (Blau) */
+  --a-50: 30 58 138; --a-200: 30 64 160; --a-300: 37 82 190; --a-400: 59 111 224; --a-500: 47 95 208;
+  /* Live / Erfolg */
+  --g-200: 10 90 62; --g-300: 16 120 84; --g-400: 20 150 105; --g-500: 16 130 90;
+  /* Notfall / Warnung */
+  --w-200: 110 62 4; --w-300: 150 85 6; --w-400: 192 120 10; --w-500: 180 105 0;
 }
 
-html, body { background: #09090b; color: #e4e4e7; }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: 30 34 41;
+  --scrim: 8 10 14;
+  --glow-1: 111 153 250;
+  --glow-2: 70 200 150;
+  --glow-alpha: 0.08;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 8px 24px -12px rgb(0 0 0 / 0.5);
+
+  --z-50: 244 246 249; --z-100: 232 235 240; --z-200: 214 219 227; --z-300: 187 194 205;
+  --z-400: 150 159 173; --z-500: 124 133 148; --z-600: 93 102 117; --z-700: 66 74 88;
+  --z-800: 52 59 71; --z-900: 39 44 53; --z-950: 33 37 45;
+  --a-50: 235 241 255; --a-200: 190 210 255; --a-300: 150 180 255; --a-400: 111 153 250; --a-500: 72 112 224;
+  --g-200: 167 235 205; --g-300: 120 220 175; --g-400: 70 200 150; --g-500: 40 170 120;
+  --w-200: 247 218 160; --w-300: 242 196 110; --w-400: 235 175 70; --w-500: 222 150 35;
+}
+
+html, body { background: rgb(var(--page)); color: rgb(var(--z-200)); }
 
 body {
   background-image:
-    radial-gradient(60rem 30rem at 10% -10%, rgba(34, 211, 238, 0.07), transparent 60%),
-    radial-gradient(50rem 30rem at 100% 0%, rgba(16, 185, 129, 0.05), transparent 60%);
+    radial-gradient(60rem 30rem at 10% -10%, rgb(var(--glow-1) / var(--glow-alpha)), transparent 60%),
+    radial-gradient(50rem 30rem at 100% 0%, rgb(var(--glow-2) / calc(var(--glow-alpha) * 0.7)), transparent 60%);
   background-attachment: fixed;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 @layer components {
-  .glass { @apply bg-zinc-900/80 backdrop-blur-md border border-zinc-800 rounded-2xl; }
-  .glass-soft { @apply bg-zinc-900/50 backdrop-blur-md border border-zinc-800/80 rounded-xl; }
+  .glass { @apply bg-zinc-900/80 backdrop-blur-md border border-zinc-800 rounded-2xl; box-shadow: var(--shadow-card); }
+  .glass-soft { @apply bg-zinc-950/60 backdrop-blur-md border border-zinc-800 rounded-xl; }
   .label { @apply text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-500; }
-  .input { @apply w-full rounded-lg border border-zinc-800 bg-zinc-950/70 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 outline-none transition focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/15; }
+  .input { @apply w-full rounded-lg border border-zinc-700 bg-zinc-950/70 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500/80 outline-none transition focus:border-cyan-500/70 focus:ring-2 focus:ring-cyan-500/20; }
   .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:opacity-50 disabled:cursor-not-allowed; }
-  .btn-primary { @apply btn bg-cyan-400 text-zinc-950 hover:bg-cyan-300 shadow-[0_0_24px_-6px_rgba(34,211,238,0.6)]; }
-  .btn-ghost { @apply btn border border-zinc-800 bg-zinc-900/60 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100; }
+  .btn-primary { @apply btn bg-cyan-500 text-white hover:bg-cyan-400 shadow-sm; }
+  .btn-ghost { @apply btn border border-zinc-700 bg-zinc-900/60 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100; }
   .chip { @apply inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium; }
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: #27272a; border-radius: 8px; }
+::-webkit-scrollbar-thumb { background: rgb(var(--z-700)); border-radius: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }

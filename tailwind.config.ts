@@ -1,11 +1,19 @@
 import type { Config } from "tailwindcss";
 
+/** Farbskalen kommen aus CSS-Variablen (src/app/globals.css) – so gelten sie für Hell- und Dunkelmodus. */
+const scale = (name: string, steps: number[]) =>
+  Object.fromEntries(steps.map((n) => [n, `rgb(var(--${name}-${n}) / <alpha-value>)`]));
+
 export default {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        hub: { bg: "#09090b", panel: "#121214" },
+        zinc: scale("z", [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
+        cyan: scale("a", [50, 200, 300, 400, 500]), // Akzent (Blau/Indigo)
+        emerald: scale("g", [200, 300, 400, 500]), // Live / Erfolg
+        amber: scale("w", [200, 300, 400, 500]), // Notfall / Warnung
+        scrim: "rgb(var(--scrim) / <alpha-value>)",
       },
       fontFamily: {
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],

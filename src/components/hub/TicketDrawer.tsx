@@ -69,8 +69,8 @@ export function TicketDrawer({ id, employees, onClose, onChanged }: { id: string
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <aside className="relative flex h-full w-full max-w-xl flex-col border-l border-zinc-800 bg-[#0e0e10]/95 shadow-2xl backdrop-blur-md animate-slidein">
+      <div className="absolute inset-0 bg-scrim/50 backdrop-blur-sm" onClick={onClose} />
+      <aside className="relative flex h-full w-full max-w-xl flex-col border-l border-zinc-800 bg-zinc-950/95 shadow-2xl backdrop-blur-md animate-slidein">
         <header className="flex items-start justify-between gap-3 border-b border-zinc-800 p-5">
           {t ? (
             <div className="min-w-0">

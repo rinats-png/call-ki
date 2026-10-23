@@ -80,7 +80,7 @@ export default function TeamPage() {
 
       {form && (
         <div className="fixed inset-0 z-50 grid place-items-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setForm(null)} />
+          <div className="absolute inset-0 bg-scrim/50 backdrop-blur-sm" onClick={() => setForm(null)} />
           <form onSubmit={save} className="glass relative w-full max-w-md space-y-2 p-5 animate-fadein">
             <header className="mb-2 flex items-center justify-between">
               <h3 className="font-semibold text-zinc-100">{form.id ? "Mitarbeiter bearbeiten" : "Neuer Mitarbeiter"}</h3>

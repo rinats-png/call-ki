@@ -6,7 +6,7 @@ export const URGENCY_STYLE: Record<string, { label: string; dot: string; chip: s
   LOW: { label: "Niedrig", dot: "bg-zinc-500", chip: "border-zinc-700 bg-zinc-800/60 text-zinc-300", bar: "bg-zinc-600" },
   MEDIUM: { label: "Mittel", dot: "bg-cyan-400", chip: "border-cyan-500/30 bg-cyan-500/10 text-cyan-300", bar: "bg-cyan-400" },
   HIGH: { label: "Hoch", dot: "bg-amber-400", chip: "border-amber-500/30 bg-amber-500/10 text-amber-300", bar: "bg-amber-400" },
-  CRITICAL: { label: "Notfall", dot: "bg-amber-500", chip: "border-amber-500/50 bg-amber-500/20 text-amber-200 shadow-[0_0_16px_-4px_rgba(245,158,11,0.7)]", bar: "bg-amber-500" },
+  CRITICAL: { label: "Notfall", dot: "bg-amber-500", chip: "border-amber-500/50 bg-amber-500/20 text-amber-200 shadow-sm", bar: "bg-amber-500" },
 };
 
 export const STATUS_STYLE: Record<string, { label: string; chip: string }> = {

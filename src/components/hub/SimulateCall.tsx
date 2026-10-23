@@ -33,7 +33,7 @@ export function SimulateCall({ onClose, onCreated }: { onClose: () => void; onCr
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-scrim/50 backdrop-blur-sm" onClick={onClose} />
       <form onSubmit={submit} className="glass relative w-full max-w-lg p-5 animate-fadein">
         <header className="mb-4 flex items-center justify-between">
           <h3 className="flex items-center gap-2 font-semibold text-zinc-100"><PhoneCall className="h-4 w-4 text-cyan-300" />Anruf erfassen / simulieren</h3>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutGrid, Users, Wrench, PlugZap, Zap } from "lucide-react";
 import { cn } from "@/lib/ui";
+import { ThemeToggle } from "./ThemeToggle";
 
 const NAV = [
   { href: "/", label: "Hub", icon: LayoutGrid },
@@ -16,7 +17,7 @@ export function Sidebar() {
   const path = usePathname();
   return (
     <>
-      <aside className="sticky top-0 hidden h-screen w-20 shrink-0 flex-col items-center gap-2 border-r border-zinc-800/80 bg-[#0c0c0e]/80 py-5 backdrop-blur-md md:flex">
+      <aside className="sticky top-0 hidden h-screen w-20 shrink-0 flex-col items-center gap-2 border-r border-zinc-800/80 bg-zinc-950/70 py-5 backdrop-blur-md md:flex">
         <Link href="/" className="mb-6 grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-cyan-400/20 to-emerald-400/10 ring-1 ring-cyan-400/30">
           <Zap className="h-5 w-5 text-cyan-300" />
         </Link>
@@ -36,8 +37,9 @@ export function Sidebar() {
             </Link>
           );
         })}
+        <ThemeToggle className="mt-auto" />
       </aside>
-      <nav className="fixed inset-x-3 bottom-3 z-40 flex justify-around rounded-2xl border border-zinc-800 bg-zinc-900/90 p-1.5 backdrop-blur-md md:hidden">
+      <nav className="fixed inset-x-3 bottom-3 z-40 flex justify-around rounded-2xl border border-zinc-800 bg-zinc-900/95 p-1.5 shadow-lg backdrop-blur-md md:hidden">
         {NAV.map(({ href, label, icon: Icon }) => {
           const active = href === "/" ? path === "/" : path.startsWith(href);
           return (
@@ -47,6 +49,7 @@ export function Sidebar() {
             </Link>
           );
         })}
+        <ThemeToggle compact />
       </nav>
     </>
   );
