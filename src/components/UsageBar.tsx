@@ -11,7 +11,7 @@ export function UsageBar({ used, included, unit = "Min.", className }: { used: n
         <span className="text-zinc-300"><b className="text-zinc-50">{fmt(used)}</b> von {included > 0 ? fmt(included) : "–"} {unit}</span>
         <span className={cn(over ? "text-rose-300" : pct >= 80 ? "text-amber-300" : "text-zinc-500")}>{included > 0 ? `${Math.round((used / included) * 100)} %` : ""}</span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-zinc-800" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
+      <div className="h-2.5 overflow-hidden rounded-full bg-zinc-800" role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
         <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${pct}%` }} />
       </div>
       {over && <div className="mt-1 text-[11px] text-rose-300">{fmt(used - included)} {unit} über dem Kontingent</div>}

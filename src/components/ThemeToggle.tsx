@@ -17,7 +17,7 @@ export function ThemeToggle({ className, compact }: { className?: string; compac
   function toggle() {
     const next: Theme = theme === "dark" ? "light" : "dark";
     document.documentElement.dataset.theme = next;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", next === "dark" ? "#2b2f36" : "#e9edf1");
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", next === "dark" ? "#13262a" : "#eaf1ee");
     try {
       localStorage.setItem("theme", next);
     } catch {

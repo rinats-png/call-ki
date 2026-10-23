@@ -10,9 +10,10 @@ export default {
     extend: {
       colors: {
         zinc: scale("z", [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
-        cyan: scale("a", [50, 200, 300, 400, 500]), // Akzent (Mint-Grün)
-        emerald: scale("g", [200, 300, 400, 500]), // Live / Erfolg (Salbeigrün)
-        amber: scale("w", [200, 300, 400, 500]), // Notfall / Warnung (Bernstein)
+        cyan: scale("a", [50, 200, 300, 400, 500]), // Akzent (Teal)
+        emerald: scale("g", [200, 300, 400, 500]), // Live / Erfolg
+        amber: scale("w", [200, 300, 400, 500]), // Notfall / Warnung
+        rose: scale("r", [300, 400, 500]), // Fehler / überschritten
         scrim: "rgb(var(--scrim) / <alpha-value>)",
       },
       fontFamily: {

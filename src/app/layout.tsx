@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import "@fontsource-variable/figtree";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -9,8 +10,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#e9edf1" },
-    { media: "(prefers-color-scheme: dark)", color: "#2b2f36" },
+    { media: "(prefers-color-scheme: light)", color: "#eaf1ee" },
+    { media: "(prefers-color-scheme: dark)", color: "#13262a" },
   ],
 };
 

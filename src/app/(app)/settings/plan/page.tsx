@@ -6,6 +6,7 @@ import { cn, eur } from "@/lib/ui";
 import { Panel, Skeleton } from "@/components/hub/Primitives";
 import { InfoTip } from "@/components/InfoTip";
 import { UsageBar } from "@/components/UsageBar";
+import { AreaChart } from "@/components/AreaChart";
 import { BarChart } from "@/components/BarChart";
 
 type Data = {
@@ -53,7 +54,7 @@ export default function Page() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="Minuten pro Tag">
-          <BarChart ariaLabel="Gesprächsminuten pro Tag im laufenden Monat" unit="Min." data={data.daily.map((d) => ({ label: `${d.day}.`, value: d.minutes }))} />
+          <AreaChart ariaLabel="Gesprächsminuten pro Tag im laufenden Monat" unit="Min." height={150} data={data.daily.map((d) => ({ label: `${d.day}.`, value: d.minutes }))} />
         </Panel>
         <Panel title="Minuten der letzten 6 Monate">
           <BarChart ariaLabel="Gesprächsminuten der letzten sechs Monate" unit="Min." highlightLast data={data.history.map((h) => ({ label: monthName(h.period), value: h.minutes }))} />

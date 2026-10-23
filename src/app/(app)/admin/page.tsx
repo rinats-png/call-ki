@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Plus, X, Loader2, Copy, ArrowRight } from "lucide-react";
 import { usePoll } from "@/lib/use-poll";
-import { cn, TENANT_STATUS_LABEL, TENANT_STATUS_STYLE } from "@/lib/ui";
+import { cn, eur, TENANT_STATUS_LABEL, TENANT_STATUS_STYLE } from "@/lib/ui";
 import { Panel, Skeleton } from "@/components/hub/Primitives";
 import { apiFetch } from "@/components/session";
 
@@ -14,10 +14,12 @@ type TenantRow = {
   _count: { users: number; employees: number; customers: number };
   usage: { calls: number; minutes: number; tickets: number };
 };
+type Totals = { totals: { netCents: number; costCents: number; marginCents: number; minutes: number; calls: number }; rows: { usage: { minutes: number }; usagePercent: number | null }[] };
 type Overview = { templates: { key: string; label: string }[] };
 
 export default function AdminPage() {
   const { data, reload } = usePoll<TenantRow[]>("/api/admin/tenants", 30000);
+  const { data: bill } = usePoll<Totals>("/api/admin/billing", 60_000);
   const { data: ov } = usePoll<Overview>("/api/admin/overview", 0);
   const [create, setCreate] = useState(false);
   const label = (k: string) => ov?.templates.find((t) => t.key === k)?.label ?? k;
@@ -27,7 +29,7 @@ export default function AdminPage() {
     <div className="mx-auto max-w-[1500px] space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">Mandanten</h1>
+          <h1 className="text-3xl font-extrabold tracking-tight text-zinc-50">Leitstand</h1>
           <p className="text-sm text-zinc-500">{data ? `${data.length} Kunden · ${totals?.calls ?? 0} Anrufe · ${totals?.minutes ?? 0} Minuten diesen Monat` : "Lade…"}</p>
         </div>
         <div className="flex gap-2">
@@ -35,6 +37,18 @@ export default function AdminPage() {
           <button className="btn-primary" onClick={() => setCreate(true)}><Plus className="h-4 w-4" />Neuer Kunde</button>
         </div>
       </header>
+      <section className="hero grid gap-4 p-5 md:grid-cols-[1fr_1.3fr] md:items-center md:px-8 md:py-6">
+        <div>
+          <div className="text-sm opacity-90">Umsatz netto · laufender Monat</div>
+          <div className="text-5xl font-extrabold leading-tight tracking-tight tabular-nums">{bill ? eur(bill.totals.netCents, { decimals: 0 }) : "–"}</div>
+          <div className="text-sm opacity-95">{bill ? `Kosten ${eur(bill.totals.costCents, { decimals: 0 })} · Marge ${bill.totals.netCents > 0 ? Math.round((bill.totals.marginCents / bill.totals.netCents) * 100) : 0} %` : ""}</div>
+        </div>
+        <div className="grid grid-cols-3 gap-3 text-center">
+          {[["Minuten", bill?.totals.minutes], ["Anrufe", bill?.totals.calls], ["Über Kontingent", bill?.rows.filter((r) => (r.usagePercent ?? 0) > 100).length]].map(([l, v]) => (
+            <div key={String(l)} className="rounded-2xl bg-white/15 px-3 py-3"><div className="text-3xl font-extrabold tabular-nums">{v ?? "–"}</div><div className="text-xs opacity-90">{l}</div></div>
+          ))}
+        </div>
+      </section>
       <Panel>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[820px] text-left text-sm">

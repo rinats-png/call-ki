@@ -13,7 +13,7 @@ import { RoutingSimulator } from "./RoutingSimulator";
 import { TicketDrawer } from "./TicketDrawer";
 import { SimulateCall } from "./SimulateCall";
 import { LiveDot } from "./Primitives";
-import { useSession } from "../session";
+import { UsageHero } from "./UsageHero";
 
 export function Hub() {
   const [status, setStatus] = useState("");
@@ -35,27 +35,18 @@ export function Hub() {
   const qs = new URLSearchParams({ ...(status && { status }), ...(debounced && { q: debounced }) }).toString();
   const { data, error, reload } = usePoll<DashboardData>(`/api/dashboard${qs ? `?${qs}` : ""}`, 5000);
   const i = data?.integrations;
-  const { me } = useSession();
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-5">
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div className="flex items-center gap-2 text-xs font-medium text-emerald-300">
-            <LiveDot color={error ? "amber" : "emerald"} />
-            {error ? "Verbindung unterbrochen" : "Live · Aktualisierung alle 5 s"}
-          </div>
-          <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-zinc-50 md:text-3xl">{me?.tenant?.name ?? "KI-Telefonzentrale"}</h1>
-          <p className="text-sm text-zinc-500">KI-Telefonzentrale · {me?.user.name ?? me?.user.email ?? ""}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Integration label="Rufnummer" ok={i?.phone} />
-          <Integration label="KI-Agent" ok={i?.voice} ai />
-          <Integration label="Outlook" ok={i?.outlook} optional />
-          <Integration label="E-Mail" ok={i?.email} />
-          <button className="btn-primary ml-1" onClick={() => setSimulate(true)}><Plus className="h-4 w-4" />Anruf erfassen</button>
-        </div>
-      </header>
+      <UsageHero error={!!error} />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Integration label="Rufnummer" ok={i?.phone} />
+        <Integration label="KI-Agent" ok={i?.voice} ai />
+        <Integration label="Outlook" ok={i?.outlook} optional />
+        <Integration label="E-Mail" ok={i?.email} />
+        <button className="btn-primary ml-auto" onClick={() => setSimulate(true)}><Plus className="h-4 w-4" />Anruf erfassen</button>
+      </div>
 
       <KpiCards data={data} />
 

@@ -28,11 +28,11 @@ export function KpiCards({ data }: { data: DashboardData | null }) {
         <div key={c.label} className={cn("glass relative overflow-hidden p-4 animate-fadein", c.tone === "amber" && "border-amber-500/30")} style={{ animationDelay: `${i * 40}ms` }}>
           <div className="flex items-start justify-between gap-2">
             <span className="label">{c.label}</span>
-            <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg ring-1", tones[c.tone])}>
+            <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full ring-1", tones[c.tone])}>
               <c.icon className="h-4 w-4" />
             </span>
           </div>
-          <div className="mt-3 text-3xl font-semibold tabular-nums tracking-tight text-zinc-50">
+          <div className="mt-3 text-4xl font-extrabold tabular-nums tracking-tight text-zinc-50">
             {c.value === undefined ? <Skeleton className="h-8 w-14" /> : c.value}
           </div>
           <div className="mt-1 truncate text-xs text-zinc-500">{c.sub}</div>
