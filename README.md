@@ -53,6 +53,10 @@ Secrets erzeugen: `openssl rand -hex 24`. Updates: `git pull && docker compose u
 
 **Backups**: Der Dienst `backup` legt täglich einen Dump nach `./backups` (14 Tage). Zusätzlich extern sichern, z. B. per `rclone` auf IONOS S3 Object Storage oder das IONOS-Server-Backup aktivieren. Wiederherstellen: `gunzip -c backups/<datei>.sql.gz | docker compose exec -T db psql -U callki -d callki`.
 
+## Testumgebung auf Netlify
+
+Zum Ausprobieren der Oberfläche (ohne echte Anrufe) baut Netlify jeden Push dieses Branches (`netlify.toml`). Datenbank ist die Netlify Database; ihre Migrationen in `netlify/database/migrations` sind Kopien von `prisma/migrations` (Test `tests/netlify-migrations.test.ts`). Nötige Umgebungsvariablen bei Netlify: `APP_ENCRYPTION_KEY`, `SETUP_TOKEN`, `CRON_SECRET`, `PUBLIC_BASE_URL`. Als „geheim“ markierte Variablen brauchen bei Netlify einen eigenen Kontext (z. B. Production) – mit „alle Kontexte“ werden sie nicht angelegt.
+
 ## Recht & Datenschutz
 
 Vorlagen und Einordnung (AVV, TOM, VVT, Löschkonzept, DSFA, Anrufer-Information, KI-Verordnung, Incident-Plan, Datenschutzerklärung, Impressum) liegen in [`docs/recht/`](docs/recht/README.md) – **keine Rechtsberatung, [PRÜFEN]-Stellen vor dem ersten Kunden klären lassen.** Im Produkt umgesetzt:
