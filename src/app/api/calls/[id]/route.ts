@@ -13,5 +13,5 @@ export const GET = api<{ id: string }>(async (_req, { params }) => {
     include: { customer: true, tickets: { select: { id: true, category: true, urgency: true, status: true, summary: true } } },
   });
   if (!call) throw notFound("Anruf");
-  return NextResponse.json(call);
+  return NextResponse.json({ ...call, recordingUrl: call.recordingUrl ? `/api/calls/${call.id}/recording` : null });
 });

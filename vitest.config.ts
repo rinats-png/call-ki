@@ -6,6 +6,6 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
-    env: { DATABASE_URL: process.env.TEST_DATABASE_URL ?? "postgresql://localhost/unused" },
+    env: { DATABASE_URL: process.env.TEST_DATABASE_URL ?? "postgresql://localhost/unused", PWNED_CHECK: "false", REQUIRE_PLATFORM_ADMIN_2FA: "true" },
   },
 });

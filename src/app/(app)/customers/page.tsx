@@ -6,7 +6,7 @@ import { usePoll } from "@/lib/use-poll";
 import { CUSTOMER_TYPES, type CustomerType } from "@/lib/constants";
 import { fmtDateTime } from "@/lib/ui";
 import { Panel, Skeleton, StatusChip, UrgencyChip } from "@/components/hub/Primitives";
-import { apiFetch, useSession } from "@/components/session";
+import { apiDownload, apiFetch, useSession } from "@/components/session";
 
 type Row = {
   id: string; name: string | null; companyName: string | null; phone: string; email: string | null;
@@ -114,9 +114,13 @@ function CustomerDrawer({ id, onClose, onChanged }: { id: string; onClose: () =>
 
   async function erase() {
     if (!confirm("Kunde mit allen Vorgängen, Anrufen und Nachrichten endgültig löschen (DSGVO)? Das kann nicht rückgängig gemacht werden.")) return;
-    await apiFetch(`/api/customers/${id}`, { method: "DELETE" });
-    onChanged();
-    onClose();
+    try {
+      await apiFetch(`/api/customers/${id}`, { method: "DELETE" });
+      onChanged();
+      onClose();
+    } catch (e) {
+      setMsg((e as Error).message);
+    }
   }
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => setF({ ...f, [k]: e.target.value });
@@ -160,7 +164,7 @@ function CustomerDrawer({ id, onClose, onChanged }: { id: string; onClose: () =>
               ))}
             </section>
             <section className="flex flex-wrap gap-2 border-t border-zinc-800 pt-4">
-              <a className="btn-ghost text-xs" href={`/api/customers/${id}/export`}><Download className="h-3.5 w-3.5" />Datenauskunft (DSGVO)</a>
+              <button className="btn-ghost text-xs" onClick={() => apiDownload(`/api/customers/${id}/export`, `auskunft-${id}.json`).catch((e) => setMsg((e as Error).message))}><Download className="h-3.5 w-3.5" />Datenauskunft (DSGVO)</button>
               {isTenantAdmin && <button className="btn-ghost text-xs text-amber-300" onClick={erase}><Trash2 className="h-3.5 w-3.5" />Endgültig löschen</button>}
             </section>
           </div>

@@ -21,5 +21,7 @@ export const GET = api(async (req) => {
       tickets: { select: { id: true, category: true, urgency: true, status: true } },
     },
   });
-  return NextResponse.json({ calls: calls.slice(0, 50), nextCursor: calls.length > 50 ? calls[49].id : null });
+  // Anbieter-URL nicht herausgeben – Abspielen nur über /api/calls/[id]/recording
+  const out = calls.slice(0, 50).map(({ recordingUrl, ...c }) => ({ ...c, recordingUrl: recordingUrl ? `/api/calls/${c.id}/recording` : null }));
+  return NextResponse.json({ calls: out, nextCursor: calls.length > 50 ? calls[49].id : null });
 });

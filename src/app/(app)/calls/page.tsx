@@ -84,7 +84,7 @@ function CallDrawer({ id, onClose }: { id: string; onClose: () => void }) {
         {data && (
           <div className="flex-1 space-y-5 overflow-y-auto p-5">
             {data.summary && <section><h4 className="label mb-2">Zusammenfassung</h4><p className="text-sm text-zinc-300">{data.summary}</p></section>}
-            {data.recordingUrl && <a href={data.recordingUrl} target="_blank" rel="noreferrer" className="btn-ghost text-xs">Aufnahme anhören</a>}
+            {data.recordingUrl && <section><h4 className="label mb-2">Aufnahme</h4><audio controls preload="none" src={`/api/calls/${data.id}/recording`} className="w-full" /></section>}
             {data.tickets.length > 0 && (
               <section>
                 <h4 className="label mb-2">Vorgänge</h4>

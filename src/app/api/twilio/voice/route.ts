@@ -7,8 +7,9 @@ import { resolveConfig } from "@/lib/tenant/settings";
 import { findCustomerByPhone } from "@/lib/services/customers";
 import { registerRetellCall } from "@/lib/voice/retell";
 import { fallbackTwiml } from "@/lib/voice/fallback";
-import { buildDynamicVariables, minutesThisMonth } from "@/lib/voice/context";
+import { buildDynamicVariables, minutesThisMonth, selectAgent } from "@/lib/voice/context";
 import { tenantForCalledNumber, twilioParams } from "@/lib/voice/inbound";
+import { hit, LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,11 @@ export async function POST(req: Request) {
     );
 
   if (tenant.status === "PAUSED") return fallback("FALLBACK");
+  // Spam-/Kostenschutz: derselbe Anrufer sehr oft hintereinander → keine KI-Minuten verbrauchen
+  if (from !== "anonymous" && hit(`calls:${number.e164}:${from}`, LIMITS.callsPerCaller) > 0) {
+    logger.warn("twilio.caller_rate_limited", { tenantId: tenant.id, from: maskPhone(from) });
+    return fallback("FALLBACK");
+  }
   if (tenant.monthlyMinuteLimit != null && (await minutesThisMonth(tenant)) >= tenant.monthlyMinuteLimit) {
     logger.warn("tenant.minute_limit_reached", { tenantId: tenant.id });
     return fallback("FALLBACK");
@@ -50,12 +56,13 @@ export async function POST(req: Request) {
   try {
     const cfg = resolveConfig(tenant);
     const customer = from !== "anonymous" ? await findCustomerByPhone(tenant.id, from) : null;
+    const agent = selectAgent(number.voiceAgentId, cfg);
     const { callId, sipUri } = await registerRetellCall({
-      agentId: number.voiceAgentId,
+      agentId: agent.agentId,
       fromNumber: from,
       toNumber: number.e164,
       metadata: { tenant_id: tenant.id, call_row_id: call.id, twilio_call_sid: params.CallSid },
-      dynamicVariables: buildDynamicVariables(tenant, cfg, { number: from, customer }),
+      dynamicVariables: buildDynamicVariables(tenant, cfg, { number: from, customer }, agent.recorded),
     });
     await prisma.call.update({ where: { id: call.id }, data: { providerCallId: callId, status: "IN_PROGRESS", customerId: customer?.id } });
     logger.info("twilio.inbound", { tenantId: tenant.id, from: maskPhone(from), callId });

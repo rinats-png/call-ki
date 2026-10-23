@@ -66,3 +66,24 @@ describe("Begrüßung (KI-Transparenz, Art. 50 KI-VO)", () => {
     expect(g).toBe("Hallo, hier ist die digitale Assistentin von X.");
   });
 });
+
+import { selectAgent } from "@/lib/voice/context";
+
+describe("Keine stille Aufzeichnung", () => {
+  const off = resolveConfig({ industry: "general", settings: { announceRecording: false } });
+  const on = resolveConfig({ industry: "general", settings: {} });
+  it("nutzt den Agenten ohne Speicherung, wenn vorhanden", () => {
+    process.env.RETELL_AGENT_ID_NO_STORAGE = "agent_nostore";
+    expect(selectAgent(null, off)).toEqual({ agentId: "agent_nostore", recorded: false });
+    expect(selectAgent(null, on)).toEqual({ agentId: null, recorded: true });
+  });
+  it("kündigt die Aufzeichnung an, wenn kein Agent ohne Speicherung existiert", () => {
+    delete process.env.RETELL_AGENT_ID_NO_STORAGE;
+    const a = selectAgent(null, off);
+    expect(a.recorded).toBe(true);
+    expect(buildGreeting("X", off.settings, a.recorded)).toMatch(/aufgezeichnet/);
+  });
+  it("behandelt eigene Agenten je Nummer als aufzeichnend", () => {
+    expect(selectAgent("agent_custom", off)).toEqual({ agentId: "agent_custom", recorded: true });
+  });
+});

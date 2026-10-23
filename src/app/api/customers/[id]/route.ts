@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { api, notFound, readJson, badRequest } from "@/lib/http";
-import { requireTenant } from "@/lib/auth/session";
+import { requireRecentAuth, requireTenant } from "@/lib/auth/session";
 import { CUSTOMER_TYPES } from "@/lib/constants";
 import { normalizePostalCode } from "@/lib/postal";
 import { cleanEmail, eraseCustomer } from "@/lib/services/customers";
@@ -52,8 +52,10 @@ export const PATCH = api<P>(async (req, { params }) => {
 /** DSGVO-Löschung (nur Admins) */
 export const DELETE = api<P>(async (_req, { params }) => {
   const auth = await requireTenant({ adminOnly: true });
+  requireRecentAuth(auth);
   const { id } = await params;
-  if (!(await eraseCustomer(auth.tenantId, id))) throw notFound("Kunde");
-  await audit({ tenantId: auth.tenantId, userId: auth.user.id, action: "customer.erase", target: id });
-  return NextResponse.json({ ok: true });
+  const r = await eraseCustomer(auth.tenantId, id);
+  if (!r) throw notFound("Kunde");
+  await audit({ tenantId: auth.tenantId, userId: auth.user.id, action: "customer.erase", target: id, meta: { providerComplete: r.providerComplete } });
+  return NextResponse.json({ ok: true, providerComplete: r.providerComplete });
 });

@@ -3,7 +3,9 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { env } from "@/lib/env";
 import { api, HttpError, readJson } from "@/lib/http";
-import { hashPassword, passwordProblem } from "@/lib/auth/crypto";
+import { hashPassword } from "@/lib/auth/crypto";
+import { checkNewPassword } from "@/lib/auth/pwned";
+import { clientIp, enforce, LIMITS } from "@/lib/rate-limit";
 import { safeEqual } from "@/lib/security";
 import { createSession } from "@/lib/auth/session";
 import { audit } from "@/lib/audit";
@@ -24,18 +26,19 @@ const schema = z.object({
 });
 
 export const POST = api(async (req) => {
+  enforce(`setup:ip:${await clientIp(req)}`, LIMITS.setupPerIp);
   const data = schema.parse(await readJson(req));
   const expected = env().SETUP_TOKEN;
   if (!expected) throw new HttpError(503, "SETUP_TOKEN ist auf dem Server nicht gesetzt.");
   if (!safeEqual(data.setupToken, expected)) throw new HttpError(403, "Setup-Token ist falsch.");
-  const problem = passwordProblem(data.password);
+  const problem = await checkNewPassword(data.password);
   if (problem) throw new HttpError(400, problem);
 
   const user = await prisma.$transaction(async (tx) => {
     if ((await tx.user.count({ where: { role: "PLATFORM_ADMIN" } })) > 0) throw new HttpError(409, "Die Einrichtung ist bereits abgeschlossen.");
     return tx.user.create({ data: { email: data.email, name: data.name, role: "PLATFORM_ADMIN", passwordHash: await hashPassword(data.password) } });
   });
-  await createSession(user.id);
+  await createSession(user.id); // 2FA-Einrichtung wird danach erzwungen
   await audit({ userId: user.id, action: "platform.setup" });
   return NextResponse.json({ ok: true }, { status: 201 });
 });

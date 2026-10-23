@@ -14,13 +14,13 @@ export function SetPasswordPage({ token, type }: { token: string; type: "INVITE"
       submitLabel={invite ? "Zugang aktivieren" : "Passwort speichern"}
       fields={[
         ...(invite ? [{ name: "name", label: "Ihr Name", autoComplete: "name", required: false }] : []),
-        { name: "password", label: "Passwort", type: "password", autoComplete: "new-password", hint: "Mindestens 12 Zeichen – ein Satz ist sicherer als Sonderzeichen." },
+        { name: "password", label: "Passwort", type: "password", autoComplete: "new-password", hint: "Mindestens 12 Zeichen – ein Satz ist sicherer als Sonderzeichen. Aus Datenlecks bekannte Passwörter werden abgelehnt." },
         { name: "password2", label: "Passwort wiederholen", type: "password", autoComplete: "new-password" },
       ]}
       onSubmit={async (v) => {
         if (v.password !== v.password2) throw new Error("Die Passwörter stimmen nicht überein.");
-        await apiFetch("/api/auth/reset", { method: "POST", json: { token, type, password: v.password, ...(v.name ? { name: v.name } : {}) } });
-        router.replace("/");
+        const r = await apiFetch<{ mfaRequired?: boolean }>("/api/auth/reset", { method: "POST", json: { token, type, password: v.password, ...(v.name ? { name: v.name } : {}) } });
+        router.replace(r.mfaRequired ? "/login?mfa=1" : "/");
       }}
     />
   );

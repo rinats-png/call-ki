@@ -10,3 +10,4 @@ prisma/*.db-journal
 coverage/
 .DS_Store
 backups/
+.claude/worktrees/

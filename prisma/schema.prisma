@@ -52,6 +52,13 @@ model User {
   lockedUntil    DateTime?
   lastLoginAt    DateTime?
   disabled       Boolean   @default(false)
+  /// TOTP-Secret, AES-256-GCM-verschlüsselt (APP_ENCRYPTION_KEY)
+  totpSecretEnc  String?
+  totpEnabledAt  DateTime?
+  /// Zuletzt akzeptierter TOTP-Zeitschritt (Schutz gegen Wiederverwendung)
+  totpLastStep   Int?
+  /// SHA-256-Hashes der Wiederherstellungscodes
+  recoveryCodes  String[]  @default([])
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   sessions       Session[]
@@ -66,6 +73,10 @@ model Session {
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Plattform-Admins können in einen Mandanten wechseln ("Als Kunde öffnen")
   activeTenantId String?
+  /// false, solange der zweite Faktor noch aussteht
+  mfaVerified    Boolean  @default(true)
+  /// Zeitpunkt der letzten Passwort-/2FA-Bestätigung (Re-Auth für sensible Aktionen)
+  authAt         DateTime @default(now())
   expiresAt      DateTime
   createdAt      DateTime @default(now())
   lastSeenAt     DateTime @default(now())
@@ -189,6 +200,8 @@ model Call {
   summary        String?
   recordingUrl   String?
   endReason      String?
+  /// Zeitpunkt, zu dem Aufnahme/Transkript beim Anbieter (Retell/Twilio) gelöscht wurden
+  providerPurgedAt DateTime?
   tickets        CallTicket[]
 
   @@index([tenantId, startedAt])

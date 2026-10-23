@@ -25,6 +25,8 @@ export const GET = api(async () => {
       sms: smsConfigured(),
       toolSecret: !!e.VOICE_TOOL_SECRET,
       cron: !!e.CRON_SECRET,
+      encryption: !!process.env.APP_ENCRYPTION_KEY,
+      noStorageAgent: !!e.RETELL_AGENT_ID_NO_STORAGE,
     },
     tenants: Object.fromEntries(tenants.map((t) => [t.status, t._count._all])),
     failedMessages7d: failedMessages,

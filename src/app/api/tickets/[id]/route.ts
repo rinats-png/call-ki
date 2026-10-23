@@ -9,6 +9,11 @@ import { audit } from "@/lib/audit";
 export const dynamic = "force-dynamic";
 type P = { id: string };
 
+/** Anbieter-URL der Aufnahme nicht an den Browser geben (Abspielen über eigenen Endpunkt). */
+function hideProviderUrls<T extends { call: { id: string; recordingUrl: string | null } | null }>(t: T): T {
+  return t.call ? { ...t, call: { ...t.call, recordingUrl: t.call.recordingUrl ? `/api/calls/${t.call.id}/recording` : null } } : t;
+}
+
 const include = {
   customer: true,
   assignedEmployee: true,
@@ -21,7 +26,7 @@ export const GET = api<P>(async (_req, { params }) => {
   const { id } = await params;
   const ticket = await prisma.callTicket.findFirst({ where: { id, tenantId: auth.tenantId }, include });
   if (!ticket) throw notFound("Vorgang");
-  return NextResponse.json(ticket);
+  return NextResponse.json(hideProviderUrls(ticket));
 });
 
 const patchSchema = z.object({
@@ -43,7 +48,7 @@ export const PATCH = api<P>(async (req, { params }) => {
     const ok = await prisma.employee.count({ where: { id: data.assignedEmployeeId, tenantId: auth.tenantId } });
     if (!ok) throw badRequest("Mitarbeiter gehört nicht zu diesem Konto");
   }
-  const updated = await prisma.callTicket.update({ where: { id }, data, include });
+  const updated = hideProviderUrls(await prisma.callTicket.update({ where: { id }, data, include }));
   await audit({ tenantId: auth.tenantId, userId: auth.user.id, action: "ticket.update", target: id, meta: Object.keys(data) });
   return NextResponse.json(updated);
 });

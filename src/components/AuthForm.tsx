@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
-export type Field = { name: string; label: string; type?: string; autoComplete?: string; required?: boolean; defaultValue?: string; hint?: string };
+export type Field = { name: string; label: string; type?: string; autoComplete?: string; required?: boolean; defaultValue?: string; hint?: string; inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"] };
 
 /** Schlankes Formular für die Anmeldeseiten. */
 export function AuthForm({ title, subtitle, fields, submitLabel, onSubmit, footer }: {
@@ -43,7 +43,7 @@ export function AuthForm({ title, subtitle, fields, submitLabel, onSubmit, foote
       {fields.map((f) => (
         <label key={f.name} className="block">
           <span className="mb-1 block text-xs font-medium text-zinc-400">{f.label}</span>
-          <input className="input" name={f.name} type={f.type ?? "text"} autoComplete={f.autoComplete} required={f.required ?? true} defaultValue={f.defaultValue} />
+          <input className="input" name={f.name} type={f.type ?? "text"} autoComplete={f.autoComplete} inputMode={f.inputMode} required={f.required ?? true} defaultValue={f.defaultValue} maxLength={200} />
           {f.hint && <span className="mt-1 block text-[11px] text-zinc-500">{f.hint}</span>}
         </label>
       ))}

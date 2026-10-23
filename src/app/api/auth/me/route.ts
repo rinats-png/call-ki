@@ -8,12 +8,13 @@ export const dynamic = "force-dynamic";
 
 /** Aktueller Nutzer + aktiver Mandant (für Navigation, Labels, Branding). */
 export const GET = api(async () => {
-  const auth = await requireAuth();
+  const auth = await requireAuth({ allowMfaSetup: true });
   const tenant = auth.tenantId ? await prisma.tenant.findUnique({ where: { id: auth.tenantId } }) : null;
   const cfg = tenant ? resolveConfig(tenant) : null;
   return NextResponse.json({
     user: auth.user,
     isPlatformAdmin: auth.isPlatformAdmin,
+    mfa: { enabled: auth.mfaEnabled, setupRequired: auth.mfaSetupRequired },
     tenant: tenant
       ? {
           id: tenant.id, name: tenant.name, slug: tenant.slug, industry: tenant.industry, status: tenant.status, logoUrl: tenant.logoUrl, timezone: tenant.timezone,

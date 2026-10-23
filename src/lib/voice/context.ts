@@ -14,8 +14,8 @@ const AI_DISCLOSURE = /\b(KI|künstliche[nr]?\s+Intelligenz|digitale[nr]?\s+Assi
  * Begrüßung mit Pflichthinweisen: Offenlegung der KI (Art. 50 KI-Verordnung) und – falls
  * aktiviert – Aufzeichnungshinweis. Eine eigene Begrüßung des Kunden wird ergänzt, nie ersetzt.
  */
-export function buildGreeting(companyName: string, s: TenantConfig["settings"]): string {
-  const recording = s.announceRecording ? " Das Gespräch wird zur Bearbeitung Ihres Anliegens aufgezeichnet." : "";
+export function buildGreeting(companyName: string, s: TenantConfig["settings"], recorded = s.announceRecording): string {
+  const recording = recorded ? " Das Gespräch wird zur Bearbeitung Ihres Anliegens aufgezeichnet." : "";
   if (!s.greeting) {
     return `${companyName}, guten Tag! Hier spricht ${s.assistantName}, die digitale Assistentin.${recording} Wie kann ich Ihnen helfen?`;
   }
@@ -29,7 +29,13 @@ export function buildGreeting(companyName: string, s: TenantConfig["settings"]):
  * Dynamic Variables für den gemeinsamen Retell-Agenten. Ein Prompt-Template
  * (voice-agent/system-prompt.md) bedient so alle Mandanten.
  */
-export function buildDynamicVariables(tenant: Tenant, cfg: TenantConfig, caller: { number: string; customer: Customer | null }): Record<string, string> {
+export function buildDynamicVariables(
+  tenant: Tenant,
+  cfg: TenantConfig,
+  caller: { number: string; customer: Customer | null },
+  /** Wird dieses Gespräch tatsächlich aufgezeichnet? (bestimmt den Hinweis in der Begrüßung) */
+  recorded = cfg.settings.announceRecording,
+): Record<string, string> {
   const s = cfg.settings;
   const t = cfg.template;
   const c = caller.customer;
@@ -38,7 +44,7 @@ export function buildDynamicVariables(tenant: Tenant, cfg: TenantConfig, caller:
   return {
     company_name: tenant.name,
     assistant_name: s.assistantName,
-    greeting: buildGreeting(tenant.name, s),
+    greeting: buildGreeting(tenant.name, s, recorded),
     company_description: s.companyDescription || t.description,
     industry_context: t.promptContext,
     intake_questions: t.intakeQuestions.join(" "),
@@ -59,6 +65,19 @@ export function buildDynamicVariables(tenant: Tenant, cfg: TenantConfig, caller:
     customer_address: c?.address ?? "",
     customer_postal_code: c?.postalCode ?? "",
   };
+}
+
+/**
+ * Wählt den Retell-Agenten so, dass NIE ohne Hinweis aufgezeichnet wird:
+ *  - eigener Agent der Nummer → gilt als aufzeichnend (Hinweis an)
+ *  - Kunde will keine Aufzeichnung + Plattform-Agent ohne Speicherung vorhanden → dieser, kein Hinweis
+ *  - sonst Standard-Agent mit Hinweis
+ */
+export function selectAgent(numberAgentId: string | null, cfg: TenantConfig): { agentId: string | null; recorded: boolean } {
+  if (numberAgentId) return { agentId: numberAgentId, recorded: true };
+  const noStorage = process.env.RETELL_AGENT_ID_NO_STORAGE;
+  if (!cfg.settings.announceRecording && noStorage) return { agentId: noStorage, recorded: false };
+  return { agentId: null, recorded: true };
 }
 
 /** Anrufminuten des laufenden Monats (Mandanten-Zeitzone) – Grundlage für Kontingent & Abrechnung. */

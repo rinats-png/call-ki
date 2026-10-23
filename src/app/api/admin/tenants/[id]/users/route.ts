@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { api, readJson, HttpError, notFound } from "@/lib/http";
-import { requirePlatformAdmin } from "@/lib/auth/session";
+import { requirePlatformAdmin, requireRecentAuth } from "@/lib/auth/session";
 import { smtpConfigured } from "@/lib/env";
 import { sendInviteEmail, sendPasswordResetEmail } from "@/lib/services/users";
 import { audit } from "@/lib/audit";
@@ -27,6 +27,7 @@ export const POST = api<P>(async (req, { params }) => {
   if (!tenant) throw notFound("Mandant");
 
   if (d.userId) {
+    requireRecentAuth(auth); // Zugangslink für fremdes Konto = Übernahme möglich
     const user = await prisma.user.findFirst({ where: { id: d.userId, tenantId: id } });
     if (!user) throw notFound("Benutzer");
     const link = user.passwordHash ? await sendPasswordResetEmail(user) : await sendInviteEmail(user, tenant.name);

@@ -23,6 +23,9 @@ const schema = z.object({
   /** Standard-Agent (gemeinsamer Prompt mit Mandanten-Variablen); je Nummer überschreibbar */
   RETELL_AGENT_ID: z.string().optional(),
   RETELL_SIP_DOMAIN: z.string().default("sip.retellai.com"),
+  /** Agent ohne Speicherung von Aufnahme/Transkript (Retell: data_storage_setting = basic_attributes_only).
+   *  Wird genutzt, wenn ein Kunde die Aufzeichnung abschaltet. Fehlt er, wird weiter mit Hinweis aufgezeichnet. */
+  RETELL_AGENT_ID_NO_STORAGE: z.string().optional(),
   /** Zusätzliches Shared Secret für Tool-Calls (Header x-tool-secret) */
   VOICE_TOOL_SECRET: z.string().optional(),
 
@@ -38,6 +41,8 @@ const schema = z.object({
   SMTP_FROM: z.string().optional(), // "KI-Telefonzentrale <noreply@deine-domain.de>"
 
   PLATFORM_NAME: z.string().default("KI-Telefonzentrale"),
+  /** Erlaubte Hosts für das Abrufen von Aufnahmen (Suffix-Abgleich, nur HTTPS) – Schutz vor SSRF */
+  RECORDING_HOSTS: z.string().default("api.twilio.com,retellai.com,cloudfront.net,amazonaws.com"),
 });
 
 export type Env = z.infer<typeof schema>;

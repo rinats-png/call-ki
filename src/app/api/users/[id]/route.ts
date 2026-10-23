@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { api, readJson, notFound, HttpError } from "@/lib/http";
-import { requireTenant } from "@/lib/auth/session";
+import { requireRecentAuth, requireTenant } from "@/lib/auth/session";
 import { smtpConfigured } from "@/lib/env";
 import { sendInviteEmail, sendPasswordResetEmail } from "@/lib/services/users";
 import { audit } from "@/lib/audit";
@@ -16,6 +16,7 @@ export const PATCH = api<P>(async (req, { params }) => {
   const auth = await requireTenant({ adminOnly: true });
   const { id } = await params;
   const d = schema.parse(await readJson(req));
+  if (d.role || d.disabled !== undefined) requireRecentAuth(auth);
   const user = await prisma.user.findFirst({ where: { id, tenantId: auth.tenantId } });
   if (!user) throw notFound("Benutzer");
   if (user.id === auth.user.id && (d.disabled || d.role === "TENANT_USER")) throw new HttpError(400, "Sie können sich nicht selbst sperren oder herabstufen.");
