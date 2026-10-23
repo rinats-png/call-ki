@@ -6,6 +6,7 @@ import { Download, Loader2, Save } from "lucide-react";
 import { usePoll } from "@/lib/use-poll";
 import { cn, eur } from "@/lib/ui";
 import { Panel, Skeleton } from "@/components/hub/Primitives";
+import { PageHero, heroBtn } from "@/components/PageHero";
 import { InfoTip } from "@/components/InfoTip";
 import { UsageBar } from "@/components/UsageBar";
 import { apiDownload, apiFetch } from "@/components/session";
@@ -38,69 +39,64 @@ export default function Page() {
   const [month, setMonth] = useState(months[0]);
   const { data, reload } = usePoll<Report>(`/api/admin/billing?month=${month}`, 0);
 
+  const monthLabel = new Date(`${month}-01T12:00:00`).toLocaleDateString("de-DE", { month: "long", year: "numeric" });
+  const t = data?.totals;
+
   return (
-    <div className="mx-auto max-w-6xl space-y-5">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-zinc-50">Abrechnung
-            <InfoTip title="Abrechnung" steps={["Vorschau je Kunde aus Paket und tatsächlichem Verbrauch – es wird keine Rechnung verschickt.", "CSV-Export für deine Buchhaltung oder dein Rechnungsprogramm (lexoffice, sevDesk …).", "Einkaufskosten unten eintragen (was dich Telefonie, KI und SMS pro Minute kosten) – daraus ergibt sich die Marge."]} />
-          </h1>
-          <p className="text-sm text-zinc-500">Verbrauch, Rechnungsvorschau und Marge je Kunde.</p>
-        </div>
-        <div className="flex gap-2">
-          <select className="input w-auto" value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Monat">
-            {months.map((m) => <option key={m} value={m}>{new Date(`${m}-01T12:00:00`).toLocaleDateString("de-DE", { month: "long", year: "numeric" })}</option>)}
-          </select>
-          <button className="btn-ghost" onClick={() => apiDownload(`/api/admin/billing?month=${month}&format=csv`, `abrechnung-${month}.csv`)}><Download className="h-4 w-4" />CSV</button>
-        </div>
-      </header>
-
-      {!data ? <Skeleton className="h-96" /> : (
-        <>
-          <div className="grid gap-3 sm:grid-cols-4">
-            <Kpi label="Umsatz netto" value={eur(data.totals.netCents)} />
-            <Kpi label="Einkaufskosten" value={eur(data.totals.costCents)} hint={data.costs.configured ? undefined : "Schätzwerte – unten anpassen"} />
-            <Kpi label="Marge" value={eur(data.totals.marginCents)} tone={data.totals.marginCents >= 0 ? "good" : "bad"} />
-            <Kpi label="Gesprächsminuten" value={new Intl.NumberFormat("de-DE", { maximumFractionDigits: 0 }).format(data.totals.minutes)} hint={`${data.totals.calls} Anrufe`} />
+    <div className="mx-auto max-w-[1500px] space-y-5">
+      <PageHero
+        eyebrow={`Rechnungsvorschau · ${monthLabel}`}
+        title="Abrechnung"
+        value={t ? eur(t.netCents, { decimals: 0 }) : "–"}
+        valueLabel="Umsatz netto"
+        stats={[
+          { label: data?.costs.configured ? "Einkaufskosten" : "Kosten (geschätzt)", value: t ? eur(t.costCents, { decimals: 0 }) : "–" },
+          { label: "Marge", value: t ? (t.netCents > 0 ? `${Math.round((t.marginCents / t.netCents) * 100)} %` : "–") : "–" },
+          { label: "Gesprächsminuten", value: t ? new Intl.NumberFormat("de-DE", { maximumFractionDigits: 0 }).format(t.minutes) : "–" },
+        ]}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <select className="rounded-full border-0 bg-white/15 px-4 py-2 text-sm font-semibold text-white outline-none [&>option]:text-zinc-900" value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Monat">
+              {months.map((m) => <option key={m} value={m}>{new Date(`${m}-01T12:00:00`).toLocaleDateString("de-DE", { month: "long", year: "numeric" })}</option>)}
+            </select>
+            <button className={heroBtn} onClick={() => apiDownload(`/api/admin/billing?month=${month}&format=csv`, `abrechnung-${month}.csv`)}><Download className="h-4 w-4" />CSV</button>
           </div>
+        }
+      />
 
-          <Panel title="Kunden">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-sm">
-                <thead className="text-left text-xs text-zinc-500">
-                  <tr><th className="py-2">Kunde</th><th>Paket</th><th className="w-56">Minuten</th><th className="text-right">SMS</th><th className="text-right">Netto</th><th className="text-right">Kosten</th><th className="text-right">Marge</th></tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800">
-                  {data.rows.map((r) => (
-                    <tr key={r.tenantId}>
-                      <td className="py-2.5"><Link href={`/admin/tenants/${r.tenantId}`} className="text-zinc-100 hover:text-cyan-300">{r.tenantName}</Link></td>
-                      <td className="text-zinc-400">{r.plan.name}</td>
-                      <td className="pr-4"><UsageBar used={r.usage.minutes} included={r.plan.includedMinutes} /></td>
-                      <td className="text-right tabular-nums text-zinc-300">{r.usage.sms}</td>
-                      <td className="text-right tabular-nums text-zinc-100">{eur(r.invoice.netCents)}</td>
-                      <td className="text-right tabular-nums text-zinc-400">{eur(r.cost.totalCents)}</td>
-                      <td className={cn("text-right tabular-nums", r.marginCents >= 0 ? "text-emerald-300" : "text-rose-300")}>{eur(r.marginCents)}</td>
-                    </tr>
-                  ))}
-                  {data.rows.length === 0 && <tr><td colSpan={7} className="py-6 text-center text-zinc-500">Noch keine Kunden.</td></tr>}
-                </tbody>
-              </table>
+      {!data ? <Skeleton className="h-96 rounded-3xl" /> : (
+        <>
+          <section className="glass p-2 md:p-3">
+            <div className="flex items-center justify-between gap-3 px-3 pb-2 pt-2">
+              <h2 className="flex items-center gap-1 text-sm font-bold text-zinc-100">Kunden<InfoTip title="Abrechnung" steps={["Vorschau je Kunde aus Paket und tatsächlichem Verbrauch – es wird keine Rechnung verschickt.", "CSV-Export für deine Buchhaltung oder dein Rechnungsprogramm (lexoffice, sevDesk …).", "Einkaufskosten unten eintragen (was dich Telefonie, KI und SMS pro Minute kosten) – daraus ergibt sich die Marge."]} /></h2>
+              <span className="text-xs text-zinc-500">{data.rows.length} Kunden · {data.totals.calls} Anrufe</span>
             </div>
-          </Panel>
+            <div className="hidden grid-cols-[minmax(0,1.6fr)_minmax(0,1.6fr)_60px_repeat(3,minmax(0,0.8fr))] gap-4 px-4 pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 lg:grid">
+              <span>Kunde</span><span>Minuten</span><span className="text-right">SMS</span><span className="text-right">Netto</span><span className="text-right">Kosten</span><span className="text-right">Marge</span>
+            </div>
+            <ul className="space-y-1.5">
+              {data.rows.map((r) => (
+                <li key={r.tenantId}>
+                  <Link href={`/admin/tenants/${r.tenantId}`} className="glass-soft grid grid-cols-2 items-center gap-x-4 gap-y-2 px-4 py-3 transition hover:bg-zinc-800/70 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1.6fr)_60px_repeat(3,minmax(0,0.8fr))]">
+                    <span className="col-span-2 min-w-0 lg:col-span-1">
+                      <span className="block truncate font-bold text-zinc-50">{r.tenantName}</span>
+                      <span className="block text-xs text-zinc-500">Paket {r.plan.name}{r.invoice.overageMinutes > 0 ? ` · ${r.invoice.overageMinutes} Überminuten` : ""}</span>
+                    </span>
+                    <UsageBar className="col-span-2 lg:col-span-1" used={r.usage.minutes} included={r.plan.includedMinutes} />
+                    <span className="text-xs text-zinc-500 lg:text-right lg:text-sm lg:text-zinc-300"><span className="lg:hidden">SMS </span><span className="tabular-nums">{r.usage.sms}</span></span>
+                    <span className="text-right text-sm font-bold tabular-nums text-zinc-50"><span className="mr-1 text-xs font-normal text-zinc-500 lg:hidden">Netto</span>{eur(r.invoice.netCents)}</span>
+                    <span className="text-xs tabular-nums text-zinc-400 lg:text-right lg:text-sm"><span className="mr-1 text-zinc-500 lg:hidden">Kosten</span>{eur(r.cost.totalCents)}</span>
+                    <span className={cn("text-right text-sm font-semibold tabular-nums", r.marginCents >= 0 ? "text-emerald-400" : "text-rose-400")}><span className="mr-1 text-xs font-normal text-zinc-500 lg:hidden">Marge</span>{eur(r.marginCents)}</span>
+                  </Link>
+                </li>
+              ))}
+              {data.rows.length === 0 && <li className="py-10 text-center text-sm text-zinc-500">Noch keine Kunden.</li>}
+            </ul>
+          </section>
 
           <CostSettings costs={data.costs} onSaved={reload} />
         </>
       )}
-    </div>
-  );
-}
-
-function Kpi({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: "good" | "bad" }) {
-  return (
-    <div className="glass p-4">
-      <div className="text-xs text-zinc-500">{label}</div>
-      <div className={cn("mt-1 text-2xl font-semibold tabular-nums", tone === "good" ? "text-emerald-300" : tone === "bad" ? "text-rose-300" : "text-zinc-50")}>{value}</div>
-      {hint && <div className="text-[11px] text-zinc-500">{hint}</div>}
     </div>
   );
 }

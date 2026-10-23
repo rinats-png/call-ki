@@ -5,6 +5,7 @@ import { AlertTriangle, Check, CheckCircle2, Copy, ExternalLink, KeyRound, Loade
 import { usePoll } from "@/lib/use-poll";
 import { cn } from "@/lib/ui";
 import { Panel, Skeleton } from "@/components/hub/Primitives";
+import { PageHero } from "@/components/PageHero";
 import { InfoTip } from "@/components/InfoTip";
 import { apiFetch } from "@/components/session";
 import { CATEGORY_LABEL, LEVEL_LABEL, PROVIDERS, type Category, type Provider, type ProviderField } from "@/lib/platform/registry";
@@ -23,37 +24,60 @@ function isConfigured(p: Provider, s: Payload["settings"]) {
 export default function Page() {
   const { data, reload } = usePoll<Payload>("/api/admin/settings", 0);
   const [cat, setCat] = useState<Category>("voice");
-  if (!data) return <div className="mx-auto max-w-5xl"><Skeleton className="h-96" /></div>;
+  const [sel, setSel] = useState<Record<string, string>>({});
+  if (!data) return <div className="mx-auto max-w-[1500px]"><Skeleton className="h-96 rounded-3xl" /></div>;
   const providers = PROVIDERS.filter((p) => p.category === cat);
+  const needs = (c?: Category) => PROVIDERS.filter((p) => (!c || p.category === c) && p.fields.some((f) => f.required));
+  const doneOf = (c?: Category) => needs(c).filter((p) => isConfigured(p, data.settings)).length;
+  const current = providers.find((p) => p.id === sel[cat]) ?? providers.find((p) => isConfigured(p, data.settings)) ?? providers[0];
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">Plattform & Verbindungen</h1>
-        <p className="text-sm text-zinc-500">Zugänge zu Sprach-KI, Telefonie, Kalender und E-Mail – gelten für alle Kunden. Geheimnisse werden verschlüsselt gespeichert und nie wieder angezeigt.</p>
-      </header>
+    <div className="mx-auto max-w-[1500px] space-y-5">
+      <PageHero
+        eyebrow="Gelten für alle Kunden · Geheimnisse werden verschlüsselt gespeichert"
+        title="Plattform & Verbindungen"
+        value={doneOf()}
+        valueLabel={`von ${needs().length} Anbietern eingerichtet`}
+        stats={(["voice", "telephony", "email"] as Category[]).map((c) => ({ label: CATEGORY_LABEL[c].title, value: `${doneOf(c)}/${needs(c).length}` }))}
+      />
       {!data.encryption && (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-          <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />APP_ENCRYPTION_KEY ist auf dem Server nicht gesetzt – Zugangsdaten können erst gespeichert werden, wenn er gesetzt ist.
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-300">
+          <AlertTriangle className="mr-1 inline h-4 w-4" />APP_ENCRYPTION_KEY ist auf dem Server nicht gesetzt – Zugangsdaten können erst gespeichert werden, wenn er gesetzt ist.
         </div>
       )}
 
-      <nav className="flex flex-wrap gap-2" aria-label="Bereiche">
+      <nav className="glass flex w-fit max-w-full gap-1 overflow-x-auto rounded-full p-1" aria-label="Bereiche">
         {CATEGORIES.map((c) => {
-          const list = PROVIDERS.filter((p) => p.category === c && p.fields.some((f) => f.required));
-          const done = list.filter((p) => isConfigured(p, data.settings)).length;
+          const total = needs(c).length;
           return (
-            <button key={c} onClick={() => setCat(c)} className={cn("rounded-lg border px-3 py-1.5 text-sm transition", cat === c ? "border-cyan-500/50 bg-cyan-500/10 text-cyan-200" : "border-zinc-800 text-zinc-400 hover:text-zinc-200")}>
+            <button key={c} type="button" onClick={() => setCat(c)} aria-pressed={cat === c} className={cn("nav-item py-2", cat === c && "nav-item-active")}>
               {CATEGORY_LABEL[c].title}
-              {list.length > 0 && <span className="ml-2 text-[11px] text-zinc-500">{done}/{list.length}</span>}
+              {total > 0 && <span className={cn("rounded-full px-1.5 text-[11px] tabular-nums", cat === c ? "bg-white/20" : "bg-zinc-800 text-zinc-400")}>{doneOf(c)}/{total}</span>}
             </button>
           );
         })}
       </nav>
-      <p className="text-sm text-zinc-400">{CATEGORY_LABEL[cat].description}</p>
 
-      <div className="space-y-4">
-        {providers.map((p) => <ProviderCard key={p.id} provider={p} data={data} onSaved={reload} />)}
+      <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)] lg:items-start">
+        <aside className="glass space-y-1 p-3 lg:sticky lg:top-20">
+          <p className="px-2 pb-2 pt-1 text-xs leading-relaxed text-zinc-500">{CATEGORY_LABEL[cat].description}</p>
+          {providers.map((p) => {
+            const on = p.id === current?.id;
+            const req = p.fields.some((f) => f.required);
+            const ok = isConfigured(p, data.settings);
+            return (
+              <button key={p.id} type="button" onClick={() => setSel((v) => ({ ...v, [cat]: p.id }))} aria-current={on ? "true" : undefined}
+                className={cn("flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition", on ? "rail-item-active" : "text-zinc-200 hover:bg-zinc-950/70")}>
+                <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", !req ? "bg-zinc-600" : ok ? "bg-emerald-400" : "bg-amber-400")} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold">{p.name}</span>
+                  <span className={cn("block truncate text-xs", on ? "opacity-75" : "text-zinc-500")}>{!req ? LEVEL_LABEL[p.level] : ok ? "eingerichtet" : "nicht eingerichtet"}</span>
+                </span>
+              </button>
+            );
+          })}
+        </aside>
+        <div className="min-w-0">{current && <ProviderCard key={current.id} provider={current} data={data} onSaved={reload} />}</div>
       </div>
     </div>
   );
@@ -135,7 +159,7 @@ function ProviderCard({ provider: p, data, onSaved }: { provider: Provider; data
         <div className="mt-4 space-y-2">
           <div className="text-xs font-medium text-zinc-400">Beim Anbieter einzutragen</div>
           {p.webhooks.map((k) => (
-            <div key={k} className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950/60 p-2 pl-3">
+            <div key={k} className="glass-soft flex items-center gap-2 p-2 pl-4">
               <div className="min-w-0 flex-1">
                 <div className="text-[11px] text-zinc-500">{WEBHOOK_LABEL[k] ?? k}</div>
                 <code className="block truncate font-mono text-xs text-cyan-300">{data.webhooks[k]}</code>

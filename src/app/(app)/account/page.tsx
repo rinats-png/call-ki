@@ -21,25 +21,40 @@ function AccountInner() {
   const { me, reload } = useSession();
   const forced = useSearchParams().get("setup") === "2fa" || !!me?.mfa.setupRequired;
 
+  const name = me?.user.name ?? me?.user.email ?? "";
+  const initials = name.split(/[\s@.]+/).filter(Boolean).map((p) => p[0]).join("").slice(0, 2).toUpperCase();
+
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">Mein Konto</h1>
-        <p className="text-sm text-zinc-500">{me ? `${me.user.email} · ${USER_ROLE_LABEL[me.user.role as UserRole] ?? me.user.role}` : ""}</p>
-      </header>
+    <div className="mx-auto max-w-[1500px] space-y-5">
+      <section className="hero flex flex-wrap items-center gap-5 p-5 md:px-8 md:py-6">
+        <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-white/20 text-xl font-extrabold">{initials || "–"}</span>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm opacity-90">Mein Konto</div>
+          <h1 className="truncate text-2xl font-extrabold md:text-3xl">{me?.user.name ?? me?.user.email ?? "…"}</h1>
+          <div className="truncate text-sm opacity-90">{me ? `${me.user.email} · ${USER_ROLE_LABEL[me.user.role as UserRole] ?? me.user.role}` : ""}</div>
+        </div>
+        {me && (
+          <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-semibold">
+            {me.mfa.enabled ? <ShieldCheck className="h-4 w-4" /> : <ShieldAlert className="h-4 w-4" />}
+            {me.mfa.enabled ? "Zwei-Faktor aktiv" : "Zwei-Faktor aus"}
+          </span>
+        )}
+      </section>
       {forced && me?.mfa.setupRequired && (
-        <div className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">
+        <div className="flex items-start gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-200">
           <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
           <span>Für Ihre Rolle ist die Zwei-Faktor-Anmeldung Pflicht. Bitte richten Sie sie jetzt ein – danach steht Ihnen die Plattform vollständig zur Verfügung.</span>
         </div>
       )}
-      {me ? <TwoFactor enabled={me.mfa.enabled} required={me.mfa.setupRequired || me.isPlatformAdmin} onChange={reload} /> : <Skeleton className="h-48" />}
-      {!me?.mfa.setupRequired && (
-        <>
-          <PasswordChange />
-          <Sessions />
-        </>
-      )}
+      <div className="grid gap-5 xl:grid-cols-2 xl:items-start">
+        <div className="space-y-5">{me ? <TwoFactor enabled={me.mfa.enabled} required={me.mfa.setupRequired || me.isPlatformAdmin} onChange={reload} /> : <Skeleton className="h-48 rounded-3xl" />}</div>
+        {!me?.mfa.setupRequired && (
+          <div className="space-y-5">
+            <PasswordChange />
+            <Sessions />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -148,13 +163,13 @@ function PasswordChange() {
   }
   return (
     <Panel title="Passwort ändern">
-      <form onSubmit={submit} className="grid gap-2 sm:grid-cols-3">
+      <form onSubmit={submit} className="grid gap-2">
         <input className="input" name="currentPassword" type="password" placeholder="Aktuelles Passwort" aria-label="Aktuelles Passwort" autoComplete="current-password" required />
         <input className="input" name="newPassword" type="password" placeholder="Neues Passwort (min. 12 Zeichen)" aria-label="Neues Passwort" autoComplete="new-password" required minLength={12} />
         <input className="input" name="newPassword2" type="password" placeholder="Neues Passwort wiederholen" aria-label="Neues Passwort wiederholen" autoComplete="new-password" required />
         <div className="flex items-center justify-between gap-2 sm:col-span-3">
           <span className={cn("text-xs", msg?.ok ? "text-emerald-400" : "text-amber-400")}>{msg?.text}</span>
-          <button className="btn-primary" disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />}Speichern</button>
+          <button className="btn-primary justify-self-end" disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />}Speichern</button>
         </div>
       </form>
     </Panel>

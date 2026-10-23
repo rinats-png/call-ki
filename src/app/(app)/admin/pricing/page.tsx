@@ -5,6 +5,7 @@ import { Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { usePoll } from "@/lib/use-poll";
 import { centsToInput, cn, eur, parseEuro } from "@/lib/ui";
 import { Panel, Skeleton } from "@/components/hub/Primitives";
+import { PageHero, heroBtn } from "@/components/PageHero";
 import { InfoTip } from "@/components/InfoTip";
 import { apiFetch } from "@/components/session";
 import { PLAN_FEATURES } from "@/lib/platform/registry";
@@ -21,45 +22,56 @@ const EMPTY: Plan = { id: "", key: "", name: "", description: "", active: true, 
 export default function Page() {
   const { data, reload } = usePoll<Plan[]>("/api/admin/plans", 0);
   const [creating, setCreating] = useState(false);
-  if (!data) return <div className="mx-auto max-w-6xl"><Skeleton className="h-96" /></div>;
+  if (!data) return <div className="mx-auto max-w-[1500px]"><Skeleton className="h-96 rounded-3xl" /></div>;
+  const active = data.filter((p) => p.active);
+  const customers = data.reduce((n, p) => n + (p.tenantCount ?? 0), 0);
+  const mrr = data.reduce((n, p) => n + (p.tenantCount ?? 0) * p.monthlyPriceCents, 0);
+  const top = Math.max(0, ...data.map((p) => p.tenantCount ?? 0));
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-zinc-50">Preise & Pakete
-            <InfoTip title="So funktionieren Pakete" steps={["Jedes Paket hat einen Monatspreis mit Freiminuten. Darüber hinaus gilt der Preis je Überminute – oder „Stopp“: Anrufe gehen dann an die Fallback-Nummer.", "Abrechnungstakt 60 s = jede angefangene Minute je Gespräch zählt voll; 1 s = sekundengenau.", "Funktionen steuern, was der Kunde nutzen darf (z. B. Outlook/Google, SMS).", "Einzelnen Kunden kannst du Sonderpreise unter Verwaltung → Kunde geben.", "Alle Preise netto; die Umsatzsteuer stellst du unter Abrechnung ein."]} />
-          </h1>
-          <p className="text-sm text-zinc-500">Pakete, Freiminuten, Überminuten und enthaltene Funktionen. Beträge netto.</p>
-        </div>
-        <button className="btn-primary" onClick={() => setCreating(true)}><Plus className="h-4 w-4" />Neues Paket</button>
-      </header>
+    <div className="mx-auto max-w-[1500px] space-y-5">
+      <PageHero
+        eyebrow="Alle Beträge netto"
+        title="Preise & Pakete"
+        value={active.length}
+        valueLabel={`aktive Pakete${data.length > active.length ? ` · ${data.length - active.length} inaktiv` : ""}`}
+        stats={[
+          { label: "Kunden mit Paket", value: customers },
+          { label: "Grundgebühren / Monat", value: eur(mrr, { decimals: 0 }) },
+          { label: "Ab", value: active.length ? eur(Math.min(...active.map((p) => p.monthlyPriceCents)), { decimals: 0 }) : "–" },
+        ]}
+        action={<button className={heroBtn} onClick={() => setCreating(true)}><Plus className="h-4 w-4" />Neues Paket</button>}
+      />
+
+      <h2 className="flex items-center gap-1 px-1 text-sm font-bold text-zinc-100">So funktionieren Pakete
+        <InfoTip title="So funktionieren Pakete" steps={["Jedes Paket hat einen Monatspreis mit Freiminuten. Darüber hinaus gilt der Preis je Überminute – oder „Stopp“: Anrufe gehen dann an die Fallback-Nummer.", "Abrechnungstakt 60 s = jede angefangene Minute je Gespräch zählt voll; 1 s = sekundengenau.", "Funktionen steuern, was der Kunde nutzen darf (z. B. Outlook/Google, SMS).", "Einzelnen Kunden kannst du Sonderpreise unter Verwaltung → Kunde geben.", "Alle Preise netto; die Umsatzsteuer stellst du unter Abrechnung ein."]} />
+      </h2>
 
       {creating && <PlanEditor plan={EMPTY} isNew onDone={() => { setCreating(false); reload(); }} />}
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        {data.map((p) => <PlanCard key={p.id} plan={p} onChanged={reload} />)}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {data.map((p) => <PlanCard key={p.id} plan={p} popular={top > 0 && (p.tenantCount ?? 0) === top} onChanged={reload} />)}
       </div>
     </div>
   );
 }
 
-function PlanCard({ plan, onChanged }: { plan: Plan; onChanged: () => void }) {
+function PlanCard({ plan, popular, onChanged }: { plan: Plan; popular?: boolean; onChanged: () => void }) {
   const [edit, setEdit] = useState(false);
-  if (edit) return <div className="lg:col-span-3"><PlanEditor plan={plan} onDone={() => { setEdit(false); onChanged(); }} /></div>;
+  if (edit) return <div className="md:col-span-2 xl:col-span-3"><PlanEditor plan={plan} onDone={() => { setEdit(false); onChanged(); }} /></div>;
   return (
-    <div className={cn("glass flex flex-col p-5", !plan.active && "opacity-60")}>
+    <div className={cn("glass flex flex-col p-6", popular && "ring-2 ring-cyan-400/60", !plan.active && "opacity-60")}>
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">{plan.key}{!plan.active && " · inaktiv"}</div>
-          <h2 className="text-lg font-semibold text-zinc-50">{plan.name}</h2>
+          <h2 className="text-xl font-extrabold text-zinc-50">{plan.name}</h2>
         </div>
-        <span className="chip border-zinc-700 text-zinc-400">{plan.tenantCount ?? 0} Kunden</span>
+        <span className="flex flex-col items-end gap-1">{popular && <span className="chip border-transparent bg-cyan-500 text-[rgb(var(--on-accent))]">meistgenutzt</span>}<span className="chip border-zinc-700 text-zinc-400">{plan.tenantCount ?? 0} Kunden</span></span>
       </div>
-      <div className="mt-3 text-3xl font-semibold text-zinc-50">{eur(plan.monthlyPriceCents)}<span className="text-sm font-normal text-zinc-500"> / Monat</span></div>
+      <div className="mt-3 text-4xl font-extrabold tracking-tight text-zinc-50">{eur(plan.monthlyPriceCents)}<span className="text-sm font-normal text-zinc-500"> / Monat</span></div>
       {plan.setupFeeCents > 0 && <div className="text-xs text-zinc-500">+ {eur(plan.setupFeeCents)} Einrichtung</div>}
       <p className="mt-2 text-sm text-zinc-400">{plan.description}</p>
-      <ul className="mt-3 space-y-1 text-sm text-zinc-300">
+      <ul className="glass-soft mt-4 space-y-1 p-3 text-sm text-zinc-300">
         <li><b className="text-zinc-50">{plan.includedMinutes}</b> Freiminuten</li>
         <li>{plan.overageMode === "BLOCK" ? "Stopp nach Kontingent (Fallback)" : <>danach <b className="text-zinc-50">{eur(plan.overageCentsPerMinute)}</b> / Min.</>}</li>
         <li>{plan.includedSms} SMS inklusive, danach {eur(plan.smsCents)}</li>
