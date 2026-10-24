@@ -141,3 +141,18 @@ E-Mails und SMS werden bei Fehlern bis zu 5-mal versucht: Notfall-Alarme nach 1,
 3. `docker compose up -d app` – alte Werte bleiben lesbar.
 4. Umschlüsseln: `docker compose exec cron sh -c 'curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" http://app:3000/api/cron/rekey'` (läuft sonst nachts automatisch mit). Erst wenn die Antwort `"remaining":0` und `"failed":0` meldet, `APP_ENCRYPTION_KEYS_OLD` leeren und die App neu starten.
 5. Backups, die vor dem Wechsel entstanden sind, brauchen zum Wiederherstellen den alten Schlüssel – ihn deshalb im Tresor behalten, bis diese Backups abgelaufen sind (30 Tage).
+
+## Auslieferung und Rückweg
+
+`bash deploy/deploy.sh [commit|tag]` liefert eine neue Version aus:
+
+1. Backup (verschlüsselt, extern) – schlägt es fehl, bricht das Skript ab (`FORCE=1` übergeht das bewusst).
+2. Image `callki-app:<commit>` bauen; die laufende Version steht als `APP_VERSION` in der `.env`, die vorherige in `deploy/.previous-version`.
+3. Start; Migrationen laufen dabei automatisch.
+4. Smoke-Test `/api/health` (bis 2 Minuten). Scheitert er, startet automatisch wieder die vorherige Version.
+
+Danach einen Testanruf machen (`docs/testanrufe.md`, Szenarien 1 und 2). Rückweg von Hand: `bash deploy/deploy.sh --rollback` (die letzten 5 Images bleiben auf dem Server).
+
+**Migrationen sind nur vorwärts gerichtet.** Ist eine neue Migration nicht rückwärtskompatibel (Spalte entfernt oder umbenannt), läuft die alte Version danach nicht mehr sauber – dann zusätzlich das Backup vom Beginn der Auslieferung einspielen (Abschnitt „Wiederherstellen“). Deshalb Migrationen möglichst nur ergänzend schreiben und Spalten erst eine Version später entfernen.
+
+**Üben:** Den Rückweg einmal vor dem Launch auf dem Server durchspielen (bewusst eine Version mit kaputtem Health-Check ausliefern) und mit Datum in `docs/idea-to-app/23-launch.md` festhalten.

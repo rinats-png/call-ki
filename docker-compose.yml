@@ -19,6 +19,8 @@ services:
 
   app:
     build: .
+    # Version = Git-Commit (deploy/deploy.sh); ermöglicht den Rückweg auf das vorherige Image
+    image: callki-app:${APP_VERSION:-latest}
     restart: unless-stopped
     env_file: .env
     environment:

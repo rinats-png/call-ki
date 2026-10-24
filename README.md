@@ -51,7 +51,7 @@ docker compose up -d --build
 # 3. https://app.deine-domain.de/setup öffnen → Setup-Token eingeben → Plattform-Admin anlegen
 #    → danach wird die Zwei-Faktor-Anmeldung (Authenticator-App) eingerichtet – Wiederherstellungscodes sicher aufbewahren!
 ```
-Secrets erzeugen: `openssl rand -hex 24`. Updates: `git pull && docker compose up -d --build` (Migrationen laufen beim Start automatisch).
+Secrets erzeugen: `openssl rand -hex 24`. Updates: `bash deploy/deploy.sh` – Backup, Image mit Versions-Tag, Start mit Migrationen, Smoke-Test und bei Fehler automatischer Rückweg; manuell zurück mit `bash deploy/deploy.sh --rollback` (`docs/betrieb.md` → „Auslieferung und Rückweg“).
 
 **Backups**: Der Dienst `backup` sichert täglich, mit age verschlüsselt, nach `./backups` (14 Tage) und auf einen externen S3-Bucket (30 Tage) und prüft monatlich automatisch die Wiederherstellung. Einrichtung, Schlüsselablage und Wiederherstellung: [`docs/betrieb.md`](docs/betrieb.md#backups). Ohne Schlüssel und Bucket meldet die Überwachung einen kritischen Alarm.
 
