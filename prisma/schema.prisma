@@ -315,3 +315,10 @@ model Plan {
   updatedAt             DateTime @updatedAt
   tenants               Tenant[]
 }
+
+/// Betriebszustand: Lebenszeichen von Jobs (z. B. Backup) und zuletzt gesendete Alarme (gegen Alarmfluten).
+model SystemState {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

@@ -1,6 +1,7 @@
 #!/bin/sh
 # Zeitgesteuerte Aufgaben der App (Dienst "cron" in docker-compose.yml):
 #  - jede Minute:   fehlgeschlagene E-Mails/SMS erneut senden (/api/cron/notify)
+#  - alle 5 Minuten: Überwachung und Alarme (/api/cron/monitor)
 #  - täglich 03 Uhr: Löschfristen und Aufräumen (/api/cron/retention)
 set -u
 call() {
@@ -10,6 +11,8 @@ call() {
 last_retention=""
 while true; do
   call notify
+  minute=$(date +%M | sed 's/^0//')
+  [ $((minute % 5)) -eq 0 ] && call monitor
   today=$(date +%Y%m%d)
   if [ "$(date +%H)" = "03" ] && [ "$today" != "$last_retention" ]; then
     call retention

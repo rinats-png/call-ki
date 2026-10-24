@@ -8,6 +8,7 @@ import { resolveVoiceContext } from "@/lib/voice/context";
 import { runTool } from "@/lib/voice/tools";
 import { processToolBody } from "@/lib/voice/handle-tools";
 import { settleDeferred } from "@/lib/defer";
+import { recordHeartbeat, runMonitor } from "@/lib/services/monitor";
 import { retryDueMessages, MAX_ATTEMPTS } from "@/lib/notify";
 import { resetEnvCache } from "@/lib/env";
 import { vi } from "vitest";
@@ -199,6 +200,30 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
       fetchMock.mockRestore();
       for (const k of ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_SMS_FROM"]) delete process.env[k];
       resetEnvCache();
+    }
+  });
+
+  it("alarmiert bei nicht versendeten Notfall-Alarmen, hängenden Anrufen und fehlendem Backup – ohne Wiederholungsflut", async () => {
+    process.env.ALERT_EMAIL = "betrieb@example.org";
+    process.env.BACKUP_EXPECTED = "true";
+    try {
+      await prisma.message.create({ data: { tenantId: A.tenant.id, channel: "SMS", recipient: "+4915000000040", body: "Notfall", purpose: "EMERGENCY_ALERT", status: "SKIPPED" } });
+      await prisma.call.create({ data: { tenantId: A.tenant.id, fromNumber: "+4915000000041", toNumber: A.number, status: "IN_PROGRESS", startedAt: new Date(Date.now() - 3 * 3600_000) } });
+      const first = await runMonitor();
+      const ids = first.findings.map((f) => f.id.split(":")[0]);
+      expect(ids).toEqual(expect.arrayContaining(["emergency-skipped", "calls-hanging", "backup-missing"]));
+      expect(first.alerted).toBe(first.findings.length);
+      const alerts = await prisma.message.findMany({ where: { purpose: "PLATFORM_ALERT", recipient: "betrieb@example.org" } });
+      expect(alerts.length).toBe(first.findings.length);
+      expect(alerts.map((a) => a.body).join()).not.toMatch(/\+49\d{6,}/); // keine Rufnummern im Alarm
+      // gleicher Zustand kurz danach → keine erneuten Alarme
+      expect((await runMonitor()).alerted).toBe(0);
+      // Backup meldet sich → Befund verschwindet
+      await recordHeartbeat("backup", true);
+      expect((await runMonitor()).findings.some((f) => f.id.startsWith("backup"))).toBe(false);
+    } finally {
+      delete process.env.ALERT_EMAIL;
+      delete process.env.BACKUP_EXPECTED;
     }
   });
 

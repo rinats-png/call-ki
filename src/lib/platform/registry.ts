@@ -138,6 +138,25 @@ export const PROVIDERS: Provider[] = [
     setup: ["Je Sprach-KI-Anbieter ein eigenes Webhook-Geheimnis erzeugen (bei Retell, Vapi, ElevenLabs bzw. hier für SIP-Anbieter) – ohne Geheimnis nehmen die Schnittstellen in Produktion keine Anfragen an.", "Standard-Sprach-KI wählen, nachdem du deren Zugang unter „Sprach-KI“ eingetragen hast."],
   },
 
+  {
+    id: "monitoring",
+    category: "general",
+    name: "Überwachung & Alarme",
+    tagline: "Meldet gescheiterte Notfall-Alarme, hängende Anrufe, fehlende Backups und vollen Speicher.",
+    level: "info",
+    fields: [
+      { key: "ALERT_EMAIL", label: "Alarm-E-Mail", type: "text", placeholder: "betrieb@deine-domain.de", hint: "Mehrere Adressen mit Komma trennen. Leer = alle Plattform-Admins.", help: ["Hierhin gehen alle Alarme der Überwachung (alle 5 Minuten).", "Läuft der E-Mail-Versand selbst nicht, kommt die E-Mail nicht an – deshalb zusätzlich einen Webhook oder eine SMS-Nummer eintragen."] },
+      { key: "ALERT_SMS", label: "Alarm-SMS (nur kritisch)", type: "text", placeholder: "+49…", hint: "Bekommt nur kritische Alarme, z. B. nicht zugestellte Notfall-Alarme oder fehlende Backups." },
+      { key: "ALERT_WEBHOOK_URL", label: "Alarm-Webhook (optional)", type: "secret", placeholder: "https://…", help: ["Unabhängig von E-Mail und SMS: z. B. Slack-, Teams- oder ntfy-Webhook.", "Die Plattform sendet JSON { text, level, id } per POST."] },
+      { key: "HEALTHCHECK_PING_URL", label: "Lebenszeichen-URL (empfohlen)", type: "secret", placeholder: "https://hc-ping.com/…", help: ["Bei einem externen Dienst wie healthchecks.io einen Check mit 5 Minuten Intervall anlegen und dessen Ping-URL hier eintragen.", "Die Überwachung pingt alle 5 Minuten. Bleibt der Ping aus – etwa weil der ganze Server ausgefallen ist –, alarmiert der externe Dienst.", "Bei kritischen Befunden wird „/fail“ gemeldet."] },
+    ],
+    setup: [
+      "Alarm-E-Mail und – für kritische Fälle – eine Alarm-SMS-Nummer eintragen.",
+      "Externen Lebenszeichen-Dienst einrichten (z. B. healthchecks.io, kostenlos) und dessen Ping-URL eintragen. Nur so fällt auch ein kompletter Serverausfall auf.",
+      "Zusätzlich einen Uptime-Check auf https://DOMAIN/api/health anlegen (z. B. UptimeRobot oder Better Stack), Intervall 1–5 Minuten.",
+    ],
+  },
+
   // ───────────── Sprach-KI
   {
     id: "retell",

@@ -55,6 +55,8 @@ Secrets erzeugen: `openssl rand -hex 24`. Updates: `git pull && docker compose u
 
 **Zeitgesteuerte Aufgaben** (Dienst `cron`, `deploy/cron.sh`): jede Minute werden fehlgeschlagene E-Mails und SMS erneut gesendet (bis zu 5 Versuche, Notfall-Alarme nach 1, 2, 5, 10 Minuten, sonst nach 2, 10, 30, 120 Minuten), täglich um 3 Uhr laufen die Löschfristen. Die Sprach-KI wartet während des Gesprächs nicht auf den Versand – Kalender, E-Mail und SMS laufen direkt nach der Antwort an den Anbieter.
 
+**Überwachung** (alle 5 Minuten, `/api/cron/monitor`): alarmiert bei Notfall-Alarmen, die nicht zugestellt oder gar nicht versendet wurden, bei endgültig gescheiterten Nachrichten, gestörtem Versand, Anrufen ohne Gesprächsende, fehlendem oder fehlgeschlagenem Backup und knappem Speicherplatz. Alarme gehen per E-Mail, für kritische Fälle per SMS und optional an einen Webhook (Einstellungen → Plattform → „Überwachung & Alarme“). Damit auch ein kompletter Serverausfall auffällt, unbedingt einen externen Lebenszeichen-Dienst (z. B. healthchecks.io, `HEALTHCHECK_PING_URL`) und einen Uptime-Check auf `/api/health` einrichten.
+
 ## Testumgebung auf Netlify
 
 Zum Ausprobieren der Oberfläche (ohne echte Anrufe) baut Netlify jeden Push dieses Branches (`netlify.toml`). Datenbank ist die Netlify Database; ihre Migrationen in `netlify/database/migrations` sind Kopien von `prisma/migrations` (Test `tests/netlify-migrations.test.ts`). Nötige Umgebungsvariablen bei Netlify: `APP_ENCRYPTION_KEY`, `SETUP_TOKEN`, `CRON_SECRET`, `PUBLIC_BASE_URL`. Als „geheim“ markierte Variablen brauchen bei Netlify einen eigenen Kontext (z. B. Production) – mit „alle Kontexte“ werden sie nicht angelegt.

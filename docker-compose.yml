@@ -24,6 +24,8 @@ services:
     environment:
       DATABASE_URL: postgresql://callki:${POSTGRES_PASSWORD}@db:5432/callki
       PUBLIC_BASE_URL: https://${DOMAIN:?DOMAIN fehlt in .env}
+      # Überwachung erwartet tägliche Meldung des Backup-Dienstes
+      BACKUP_EXPECTED: "true"
     depends_on:
       db:
         condition: service_healthy
