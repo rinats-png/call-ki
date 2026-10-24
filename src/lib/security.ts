@@ -20,9 +20,17 @@ export function computeTwilioSignature(authToken: string, url: string, params: R
   return crypto.createHmac("sha1", authToken).update(Buffer.from(data, "utf-8")).digest("base64");
 }
 
+let warnedNoValidation = false;
 export function validateTwilioRequest(signature: string | null, url: string, params: Record<string, string>): boolean {
   const e = env();
-  if (e.TWILIO_VALIDATE_SIGNATURE === "false") return true;
+  // Abschalten nur für lokale Tests – in Produktion wird immer geprüft, egal was eingestellt ist
+  if (e.TWILIO_VALIDATE_SIGNATURE === "false") {
+    if (e.NODE_ENV !== "production") return true;
+    if (!warnedNoValidation) {
+      warnedNoValidation = true;
+      console.error(JSON.stringify({ level: "error", event: "twilio.validate_signature_ignored", note: "TWILIO_VALIDATE_SIGNATURE=false wird in Produktion ignoriert" }));
+    }
+  }
   if (!e.TWILIO_AUTH_TOKEN || !signature) return false;
   return safeEqual(computeTwilioSignature(e.TWILIO_AUTH_TOKEN, url, params), signature);
 }

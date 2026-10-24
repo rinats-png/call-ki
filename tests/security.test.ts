@@ -26,6 +26,22 @@ describe("Twilio-Signatur", () => {
     expect(validateTwilioRequest(sig, "https://x.de/api/twilio/other", params)).toBe(false);
     expect(validateTwilioRequest(null, "https://x.de/api/twilio/voice", params)).toBe(false);
   });
+
+  it("lässt sich nur außerhalb der Produktion abschalten", () => {
+    const old = process.env.NODE_ENV;
+    try {
+      Object.assign(process.env, { TWILIO_AUTH_TOKEN: "secret", TWILIO_VALIDATE_SIGNATURE: "false", NODE_ENV: "development" });
+      resetEnvCache();
+      expect(validateTwilioRequest(null, "https://x.de/api/twilio/voice", {})).toBe(true);
+      Object.assign(process.env, { NODE_ENV: "production" });
+      resetEnvCache();
+      expect(validateTwilioRequest(null, "https://x.de/api/twilio/voice", {})).toBe(false);
+    } finally {
+      Object.assign(process.env, { NODE_ENV: old });
+      delete process.env.TWILIO_VALIDATE_SIGNATURE;
+      resetEnvCache();
+    }
+  });
 });
 
 describe("Retell-Signatur", () => {
