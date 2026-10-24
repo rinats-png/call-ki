@@ -31,7 +31,7 @@ async function main() {
   const t = await prisma.tenant.create({
     data: {
       name: "Storm GmbH", slug: "storm-gmbh", industry: "pest_control", status: "ACTIVE", plan: "PRO", monthlyMinuteLimit: 2000,
-      settings: { assistantName: "Lena", serviceArea: "Hamburg, Köln, München und Umgebung", backofficeEmail: "" },
+      settings: { assistantName: "Eira", serviceArea: "Hamburg, Köln, München und Umgebung", backofficeEmail: "" },
     },
   });
   await prisma.user.create({ data: { email: "storm@example.com", name: "Storm Büro", role: "TENANT_ADMIN", tenantId: t.id, passwordHash: pw } });
@@ -55,7 +55,7 @@ async function main() {
     const c = await prisma.customer.create({ data: { tenantId: t.id, phone: d.phone, name: d.name, companyName: d.company, address: d.address, postalCode: d.postalCode, customerType: d.type, status: "EXISTING" } });
     const call = await prisma.call.create({
       data: { tenantId: t.id, fromNumber: d.phone, toNumber: "+4930123456789", customerId: c.id, status: "ENDED", durationSec: 95 + Math.floor(Math.random() * 120), endedAt: new Date(), summary: d.sum,
-        transcript: `Agent: Storm GmbH, guten Tag! Hier spricht Lena, die digitale Assistentin. Wie kann ich helfen?\nUser: ${d.sum}\nAgent: Ich kümmere mich darum.` },
+        transcript: `Agent: Storm GmbH, guten Tag! Hier spricht Eira, die digitale Assistentin. Wie kann ich helfen?\nUser: ${d.sum}\nAgent: Ich kümmere mich darum.` },
     });
     const start = d.inDays ? new Date(Date.now() + d.inDays * 86400000) : null;
     await prisma.callTicket.create({

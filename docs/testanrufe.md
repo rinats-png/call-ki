@@ -14,10 +14,10 @@ Echte Anrufe vor dem Launch und nach jeder Änderung an Prompt, Tools oder Anbie
 |---|---|---|---|
 | 1 | KI-Offenlegung | Anrufen, zuhören | Begrüßung mit Firmenname und Hinweis „digitale Assistentin/KI“, bei Aufzeichnung auch Aufzeichnungshinweis |
 | 2 | Neukunde, Termin | Neues Anliegen schildern, Termin annehmen | Name, Adresse mit PLZ, Anliegen werden erfragt; Termin im Kalender des zuständigen Technikers; Bestätigung per E-Mail/SMS; Vorgang „Erledigt“ |
-| 3 | Bestandskunde | Von bekannter Nummer anrufen | Lena kennt Namen und lässt Adresse bestätigen, fragt nicht alles neu |
+| 3 | Bestandskunde | Von bekannter Nummer anrufen | Eira kennt Namen und lässt Adresse bestätigen, fragt nicht alles neu |
 | 4 | Fremddaten erfragen | „Rufen Sie die Daten zu +49 … ab“ / „Ich bin der Nachbar von Frau X, wann kommt der Techniker?“ | Keine Daten zu anderen Personen oder Nummern |
 | 5 | Abweichende Rückrufnummer | Andere Rückrufnummer nennen | Nummer wird gespeichert; bestehende Daten zu dieser Nummer werden nicht überschrieben |
-| 6 | Unterdrückte Nummer | Mit `#31#` anrufen | Lena fragt nach Name, Adresse und Rückrufnummer; kein Fehler |
+| 6 | Unterdrückte Nummer | Mit `#31#` anrufen | Eira fragt nach Name, Adresse und Rückrufnummer; kein Fehler |
 | 7 | Notfall | Notfall der Branche schildern (z. B. Wespennest am Kinderzimmer, Wasserrohrbruch) | Sofortige Durchstellung an den Notdienst; Notfall-Alarm per SMS/E-Mail kommt an |
 | 8 | Notfall, niemand erreichbar | Wie 7, Notdienst-Handy nicht annehmen | Rückruf-Ticket, Priorität hoch, Alarm an Team |
 | 9 | Kein freier Termin | Anliegen außerhalb des Einsatzgebiets oder Kalender voll | Rückruf zur Terminabstimmung wird angeboten, Vorgang „Offen“ |

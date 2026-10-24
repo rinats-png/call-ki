@@ -31,7 +31,7 @@ export async function createDemoTenant(): Promise<{ id: string; created: boolean
         avvSignedAt: new Date(),
         planId: plan?.id ?? null,
         settings: {
-          assistantName: "Lena",
+          assistantName: "Eira",
           companyDescription: "Schädlingsbekämpfung für Privat, Gewerbe und Hausverwaltungen in Berlin und Umland. Wespen, Ratten, Mäuse, Bettwanzen, Schaben.",
           serviceArea: "Berlin und 40 km Umkreis",
           faq: "F: Kommen Sie am Wochenende?\nA: Nur im Notdienst mit Zuschlag.\nF: Was kostet eine Wespenentfernung?\nA: Ab 129 € inkl. Anfahrt im Stadtgebiet.",
@@ -71,7 +71,7 @@ export async function createDemoTenant(): Promise<{ id: string; created: boolean
         data: {
           tenantId: t.id, provider: "demo", fromNumber: customers[k.c].phone, toNumber: "+493000000000", customerId: customers[k.c].id,
           status: "ENDED", startedAt, endedAt: new Date(startedAt.getTime() + k.dur * 1000), durationSec: k.dur,
-          summary: k.sum, transcript: `Agent: Demo Schädlingsbekämpfung, guten Tag! Hier spricht Lena, die digitale Assistentin.\nAnrufer: ${k.sum}`,
+          summary: k.sum, transcript: `Agent: Demo Schädlingsbekämpfung, guten Tag! Hier spricht Eira, die digitale Assistentin.\nAnrufer: ${k.sum}`,
         },
       });
       const start = k.appt != null ? new Date(Math.floor((now + (k.appt - k.d) * day) / 3600_000) * 3600_000) : null;

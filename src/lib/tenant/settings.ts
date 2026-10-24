@@ -11,7 +11,7 @@ const keywordList = z.array(z.string().trim().min(2).max(60)).max(100);
  * Einstellungen können so jederzeit ergänzt werden, ohne Migration.
  */
 export const tenantSettingsSchema = z.object({
-  assistantName: z.string().trim().min(1).max(40).default("Lena"),
+  assistantName: z.string().trim().min(1).max(40).default("Eira"),
   /** Eigene Begrüßung; leer = Standard */
   greeting: z.string().trim().max(400).default(""),
   companyDescription: z.string().trim().max(2000).default(""),

@@ -28,7 +28,7 @@ export default function Page() {
 
       <Panel title="KI-Assistent">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Name der Assistenz" help={["Mit diesem Namen stellt sich die KI vor, z. B. „Lena“.", "Die KI sagt immer dazu, dass sie eine digitale Assistenz ist (gesetzliche Pflicht)."]}><input className="input" value={st.assistantName} onChange={(e) => setS("assistantName", e.target.value)} /></Field>
+          <Field label="Name der Assistenz" help={["Mit diesem Namen stellt sich die KI vor, z. B. „Eira“.", "Die KI sagt immer dazu, dass sie eine digitale Assistenz ist (gesetzliche Pflicht)."]}><input className="input" value={st.assistantName} onChange={(e) => setS("assistantName", e.target.value)} /></Field>
           <Field label="Gesprächsaufzeichnung" help={["Aus (empfohlen): Es wird keine Tonaufnahme gespeichert, nur eine Mitschrift für den Vorgang.", "An: Die KI kündigt die Aufzeichnung zu Beginn an. Vorher rechtlich prüfen lassen (Einwilligung, § 201 StGB)."]} hint="Aus: keine Aufnahme und kein Transkript beim Anbieter (nur Basisdaten). Ist das auf der Plattform noch nicht eingerichtet, wird weiter aufgezeichnet – und dann immer angesagt.">
             <label className="flex h-[38px] items-center gap-2 text-sm text-zinc-300"><input type="checkbox" checked={st.announceRecording} onChange={(e) => setS("announceRecording", e.target.checked)} />Gespräche aufzeichnen und transkribieren (mit Hinweis)</label>
           </Field>
