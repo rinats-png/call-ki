@@ -138,4 +138,20 @@ describe.skipIf(!BASE)("HTTP: Zugriffsregeln und Schutzmechanismen", () => {
     expect(j.details?.code).toBe("REAUTH_REQUIRED");
     expect(j.link).toBeUndefined();
   });
+
+  it("T-SEC-HTTP-15: Aufnahmen fremder Mandanten sind nicht abrufbar; Anbieter-URL bleibt verborgen", async () => {
+    const callB = await prisma.call.create({ data: { tenantId: s.B.tenant.id, fromNumber: "+4915000000099", toNumber: "+493022220000", recordingUrl: "https://api.twilio.com/2010-04-01/Accounts/AC/Recordings/RE-geheim" } });
+    const c = await new Client().login("admin@alpha.example");
+    expect((await c.req(`/api/calls/${callB.id}/recording`)).status).toBe(404);
+    expect((await c.req(`/api/calls/${callB.id}`)).status).toBe(404);
+  });
+
+  it("T-SEC-HTTP-16: Abmelden beendet die Sitzung auf dem Server", async () => {
+    const c = await new Client().login("admin@alpha.example");
+    const old = c.cookie;
+    expect((await c.req("/api/auth/logout", { method: "POST", json: {} })).status).toBe(200);
+    const replay = new Client();
+    replay.cookie = old;
+    expect((await replay.req("/api/dashboard")).status).toBe(401);
+  });
 });
