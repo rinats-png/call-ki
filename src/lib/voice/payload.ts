@@ -92,7 +92,8 @@ export function normalizeToolRequest(body: unknown, toolNameFromPath?: string): 
     callRef: pick("call_ref", "x-call-ref"),
     callerNumber: pick("callerNumber", "from_number", "caller_id"),
     calledNumber: pick("calledNumber", "to_number", "called_number"),
-    calls: [{ id: str(b.tool_call_id), name: str(b.tool_name) ?? str(b.name) ?? toolNameFromPath ?? "", args }],
+    // Der Werkzeugname aus der URL hat Vorrang – sonst würde ein Argument „name“ (z. B. Kundenname) ihn überschreiben
+    calls: [{ id: str(b.tool_call_id), name: toolNameFromPath ?? str(b.tool_name) ?? str(b.name) ?? "", args }],
   };
 }
 

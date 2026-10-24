@@ -28,6 +28,13 @@ describe("Tool-Payloads", () => {
     const r = normalizeToolRequest({ args: { a: 1 }, call: {} }, "save_customer");
     expect(r.calls[0].name).toBe("save_customer");
   });
+
+  it("verwechselt bei flachen Webhook-Tools (ElevenLabs/SIP) das Argument „name“ nicht mit dem Werkzeug", () => {
+    const r = normalizeToolRequest({ name: "Erika Muster", postalCode: "10115", call_sid: "CA1" }, "save_customer");
+    expect(r.calls[0].name).toBe("save_customer");
+    expect(r.calls[0].args).toEqual({ name: "Erika Muster", postalCode: "10115" });
+    expect(r.twilioCallSid).toBe("CA1");
+  });
 });
 
 describe("Call-End-Events", () => {
