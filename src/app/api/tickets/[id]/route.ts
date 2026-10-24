@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { emitWebhook, ticketPayload } from "@/lib/services/webhooks";
 import { api, notFound, readJson, badRequest } from "@/lib/http";
 import { requireTenant } from "@/lib/auth/session";
 import { TICKET_STATUS, URGENCIES } from "@/lib/constants";
@@ -50,5 +51,6 @@ export const PATCH = api<P>(async (req, { params }) => {
   }
   const updated = hideProviderUrls(await prisma.callTicket.update({ where: { id }, data, include }));
   await audit({ tenantId: auth.tenantId, userId: auth.user.id, action: "ticket.update", target: id, meta: Object.keys(data) });
+  await emitWebhook(auth.tenantId, "ticket.updated", ticketPayload(await prisma.callTicket.findUniqueOrThrow({ where: { id }, include: { customer: true, assignedEmployee: true } })));
   return NextResponse.json(updated);
 });

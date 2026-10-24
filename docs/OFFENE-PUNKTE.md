@@ -14,7 +14,8 @@ Gemeinsame Merkliste. Erledigtes bitte hier abhaken oder streichen.
 - [ ] **Rufnummern in der Oberfläche kaufen/portieren**; sipgate direkt anbinden.
 - [x] **Terminerinnerungen** per E-Mail/SMS (Einstellungen → Benachrichtigungen).
 - [ ] **Ausgehende Anrufe**: Rückrufe, Kampagnen.
-- [ ] **Weitere Anbindungen**: Apple-/CalDAV-Kalender, CRM (HubSpot, Pipedrive), Webhooks für Kunden.
+- [x] **Webhooks für Kunden** (signiert, Einstellungen → Integrationen) – darüber auch CRM/Zapier/Make.
+- [ ] **Weitere Anbindungen**: Apple-/CalDAV-Kalender, direkte CRM-Anbindung (HubSpot, Pipedrive).
 - [ ] **Stimme und Sprache je Kunde** in der Oberfläche wählen (auch Englisch, Türkisch).
 - [x] **Überwachung & Alarme** (`docs/betrieb.md`) und öffentliche Statusseite `/status` (Hinweis über Plattform → „Hinweis auf der Statusseite“).
 - [x] **Gemeinsamer Speicher für die Anfrage-Begrenzung**: sicherheitsrelevante Limits in PostgreSQL (`RateLimitHit`); API-/Webhook-Zähler bleiben im Prozess (E-002).

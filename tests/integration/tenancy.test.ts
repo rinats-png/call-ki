@@ -34,6 +34,8 @@ import { deleteTenant, exportTenantData } from "@/lib/services/tenants";
 import { bookMinutePack, decidePlanChange, requestPlanChange } from "@/lib/services/billing-requests";
 import { billingCsv, billingReport } from "@/lib/services/billing-report";
 import { minuteGate } from "@/lib/billing";
+import { createWebhook, retryDueWebhooks } from "@/lib/services/webhooks";
+import crypto from "node:crypto";
 
 /**
  * Integrationstests gegen echte PostgreSQL-Datenbank.
@@ -421,6 +423,42 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
     } finally {
       for (const k of ["TWILIO_AUTH_TOKEN", "PUBLIC_BASE_URL"]) delete process.env[k];
       resetEnvCache();
+    }
+  });
+
+  it("sendet neue Vorgänge signiert an Kunden-Webhooks und wiederholt Fehlschläge", async () => {
+    const { secret } = await createWebhook(A.tenant.id, "https://93.184.216.34/hook", ["ticket.created", "bogus"]);
+    const ep = await prisma.webhookEndpoint.findFirstOrThrow({ where: { tenantId: A.tenant.id } });
+    expect(ep.events).toEqual(["ticket.created"]);
+    expect(ep.secretEnc).not.toContain(secret);
+    const got: { body: string; sig: string }[] = [];
+    let fail = true;
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (_u: unknown, init?: RequestInit) => {
+      got.push({ body: String(init?.body), sig: new Headers(init?.headers).get("x-callki-signature") ?? "" });
+      return new Response(null, { status: fail ? 500 : 204 });
+    }) as typeof fetch;
+    try {
+      await processServiceRequest(A.tenant, A.cfg, { customer: { phone: "+4915000000130", name: "Hook Kunde" }, category: "Wespen", description: "Nest am Carport" });
+      await settleDeferred();
+      const d = await prisma.webhookDelivery.findFirstOrThrow({ where: { endpointId: ep.id } });
+      expect(d).toMatchObject({ event: "ticket.created", status: "FAILED", attempts: 1 });
+      expect(d.nextAttemptAt).not.toBeNull();
+      // Signatur nachrechnen
+      const [t, v1] = got[0].sig.split(",").map((x) => x.split("=")[1]);
+      expect(v1).toBe(crypto.createHmac("sha256", secret).update(`${t}.${got[0].body}`).digest("hex"));
+      expect(JSON.parse(got[0].body).data.customer.name).toBe("Hook Kunde");
+      // Wiederholung (Cron) nach Ablauf der Pause
+      fail = false;
+      await retryDueWebhooks(50, new Date(Date.now() + 2 * 60_000));
+      expect((await prisma.webhookDelivery.findUniqueOrThrow({ where: { id: d.id } })).status).toBe("SENT");
+      // Andere Mandanten bekommen nichts
+      await processServiceRequest(B.tenant, B.cfg, { customer: { phone: "+4915000000131" }, category: "Rohrbruch" });
+      await settleDeferred();
+      expect(await prisma.webhookDelivery.count()).toBe(1);
+    } finally {
+      globalThis.fetch = realFetch;
+      await prisma.webhookEndpoint.deleteMany({ where: { tenantId: A.tenant.id } });
     }
   });
 

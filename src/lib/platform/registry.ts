@@ -406,5 +406,6 @@ export const PLAN_FEATURES: { key: string; label: string; help: string }[] = [
   { key: "custom_greeting", label: "Eigene Begrüßung & FAQ", help: "Individueller Begrüßungstext und Wissensbasis." },
   { key: "recording", label: "Gesprächsaufzeichnung", help: "Audioaufnahme mit Hinweis (rechtliche Prüfung erforderlich)." },
   { key: "own_agent", label: "Eigener KI-Agent / Anbieterwahl", help: "Eigener Agent bzw. anderer Sprach-KI-Anbieter für diesen Kunden." },
+  { key: "webhooks", label: "Webhooks für eigene Systeme", help: "Vorgänge und Anrufe automatisch an CRM, Zapier/Make oder Warenwirtschaft senden." },
   { key: "priority_support", label: "Bevorzugter Support", help: "Schnellere Reaktionszeiten." },
 ];

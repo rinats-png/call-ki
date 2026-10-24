@@ -46,10 +46,12 @@ export async function runRetention() {
   const tokens = (await prisma.authToken.deleteMany({ where: { expiresAt: { lt: new Date(now.getTime() - 7 * 86400000) } } })).count;
   const audits = (await prisma.auditLog.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 730 * 86400000) } } })).count;
   const rateLimits = await purgeRateLimitHits(now.getTime());
+  // Webhook-Zustellprotokoll (enthält Kundendaten) nach 30 Tagen löschen
+  const webhookDeliveries = (await prisma.webhookDelivery.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 30 * 86400000) } } })).count;
   // Betreiber-Alarme (ohne Kunde) nach 90 Tagen löschen
   const platformMessages = (await prisma.message.deleteMany({ where: { tenantId: null, createdAt: { lt: new Date(now.getTime() - 90 * 86400000) } } })).count;
   const secrets = await resealAll();
-  const result = { calls, tickets, messages, orphanCalls, providerPurged, providerFailed, sessions, tokens, audits, rateLimits, platformMessages, secrets };
+  const result = { calls, tickets, messages, orphanCalls, providerPurged, providerFailed, sessions, tokens, audits, rateLimits, platformMessages, webhookDeliveries, secrets };
   logger.info("retention.done", result);
   return result;
 }

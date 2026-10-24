@@ -7,6 +7,7 @@ import { cn } from "@/lib/ui";
 import { Panel, Skeleton } from "@/components/hub/Primitives";
 import { apiFetch, useSession } from "@/components/session";
 import { InfoTip } from "@/components/InfoTip";
+import { WebhooksPanel } from "@/components/WebhooksPanel";
 
 type Integrations = {
   platform: { microsoftAvailable: boolean; googleAvailable: boolean; email: boolean; sms: boolean; voice: boolean };
@@ -126,6 +127,8 @@ function IntegrationsInner() {
           )
         )}
       </Panel>
+
+      {isTenantAdmin && <WebhooksPanel />}
 
       <Panel title="Dienste der Plattform">
         <div className="flex flex-wrap gap-2">

@@ -55,6 +55,7 @@ model Tenant {
   auditLogs          AuditLog[]
   minuteTopUps       MinuteTopUp[]
   planChangeRequests PlanChangeRequest[]
+  webhookEndpoints   WebhookEndpoint[]
 }
 
 model User {
@@ -395,4 +396,40 @@ model PlanChangeRequest {
   handledById String?
 
   @@index([status, createdAt])
+}
+
+/// Webhook eines Kunden: Ereignisse (Vorgang angelegt/geändert, Anruf beendet) an eigene Systeme
+model WebhookEndpoint {
+  id         String            @id @default(cuid())
+  tenantId   String
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  url        String
+  /// Signatur-Geheimnis, verschlüsselt (secret-box)
+  secretEnc  String
+  events     String[]
+  active     Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  lastStatus String?
+  lastAt     DateTime?
+  deliveries WebhookDelivery[]
+
+  @@index([tenantId])
+}
+
+/// Zustellung eines Webhook-Ereignisses mit Wiederholung (Cron „notify“)
+model WebhookDelivery {
+  id            String          @id @default(cuid())
+  endpointId    String
+  endpoint      WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  event         String
+  payload       Json
+  /// QUEUED, SENT, FAILED
+  status        String          @default("QUEUED")
+  attempts      Int             @default(0)
+  nextAttemptAt DateTime?
+  lastError     String?
+  createdAt     DateTime        @default(now())
+
+  @@index([status, nextAttemptAt])
+  @@index([endpointId, createdAt])
 }

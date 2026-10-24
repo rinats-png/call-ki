@@ -17,6 +17,7 @@ import { customerConfirmationEmail, customerSms, technicianBriefingEmail, techni
 import { markCustomerExisting, upsertCustomer, type CustomerInput } from "./customers";
 import { runAfterResponse } from "../defer";
 import { env } from "../env";
+import { emitWebhook, ticketPayload } from "./webhooks";
 
 type T = Pick<Tenant, "id" | "name" | "timezone">;
 
@@ -129,6 +130,7 @@ export async function processServiceRequest(tenant: T, cfg: TenantConfig, input:
   await markCustomerExisting(tenant.id, customer.id);
 
   const fresh = await prisma.callTicket.findUniqueOrThrow({ where: { id: ticket.id }, include: { customer: true, assignedEmployee: true } });
+  await emitWebhook(tenant.id, existing ? "ticket.updated" : "ticket.created", ticketPayload(fresh));
   logger.info("ticket.saved", { tenantId: tenant.id, ticketId: ticket.id, urgency, updated: !!existing, slotTaken });
   return { ticket: fresh, routing, appointment, slotTaken, notify };
 }

@@ -197,4 +197,14 @@ describe.skipIf(!BASE)("HTTP: Zugriffsregeln und Schutzmechanismen", () => {
     expect(((await get.json()) as { notes: string }).notes).toBe(evil);
     expect((await c.req(`/api/tickets/${s.A.ticket.id}`, { method: "PATCH", json: { notes: "x".repeat(8001) } })).status).toBe(400);
   });
+
+  it("T-SEC-HTTP-20: Webhooks nur für Kunden-Admins und nie an interne Adressen", async () => {
+    const user = await new Client().login("mitarbeiter@alpha.example");
+    expect((await user.req("/api/webhooks")).status).toBe(403);
+    const admin = await new Client().login("admin@alpha.example");
+    for (const url of ["https://127.0.0.1/x", "https://169.254.169.254/latest/meta-data", "http://93.184.216.34/x", "https://localhost/x"]) {
+      expect((await admin.req("/api/webhooks", { method: "POST", json: { url, events: ["ticket.created"] } })).status).toBe(400);
+    }
+    expect(await prisma.webhookEndpoint.count()).toBe(0);
+  });
 });

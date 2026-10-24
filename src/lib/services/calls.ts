@@ -1,4 +1,5 @@
 import type { Call, Tenant } from "@prisma/client";
+import { callPayload, emitWebhook } from "./webhooks";
 import { prisma } from "../db";
 import { logger } from "../logger";
 import { normalizePhone } from "../phone";
@@ -103,6 +104,7 @@ export async function handleCallEvent(ev: CallEvent) {
     });
   }
 
+  await emitWebhook(ctx.tenant.id, "call.ended", callPayload(call));
   const meaningful = (call.durationSec ?? 0) >= 15 || /(user|kunde|anrufer)\s*:/i.test(call.transcript ?? "");
   if (tickets.length === 0 && meaningful) await createCallbackTicket(ctx.tenant, ctx.cfg, call);
   return call;
