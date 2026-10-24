@@ -51,7 +51,7 @@ jobs:
         run: npm test
       - name: Abhängigkeiten prüfen
         # Schwelle "critical": bekannte "high"-Befunde (prisma 6, next 15) sind in docs/sicherheit.md als E-003 dokumentiert
-        run: npm audit --omit=dev --audit-level=critical
+        run: npm audit --omit=dev --audit-level=high
       - name: Build
         run: npm run build
       - name: Browser für E2E-Tests

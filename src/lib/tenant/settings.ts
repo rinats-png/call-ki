@@ -29,7 +29,7 @@ export const tenantSettingsSchema = z.object({
   /** Eigene Kategorien; leer = Branchenvorlage */
   categories: z.array(z.string().trim().min(1).max(60)).max(50).default([]),
   /** Zusätzliche Stichwörter (ergänzen die Branchenvorlage) */
-  urgencyKeywords: z.object({ critical: keywordList.default([]), high: keywordList.default([]), low: keywordList.default([]) }).default({}),
+  urgencyKeywords: z.object({ critical: keywordList.default([]), high: keywordList.default([]), low: keywordList.default([]) }).prefault({}),
 
   businessHours: z
     .object({
@@ -37,7 +37,7 @@ export const tenantSettingsSchema = z.object({
       start: hhmm.default("08:00"),
       end: hhmm.default("18:00"),
     })
-    .default({}),
+    .prefault({}),
   appointments: z
     .object({
       /** 0 = Dauer aus Branchenvorlage */
@@ -47,7 +47,7 @@ export const tenantSettingsSchema = z.object({
       daysAhead: z.number().int().min(1).max(60).default(10),
       slotsOffered: z.number().int().min(1).max(5).default(3),
     })
-    .default({}),
+    .prefault({}),
   notifications: z
     .object({
       customerConfirmation: z.enum(["off", "email", "sms", "both"]).default("email"),
@@ -63,14 +63,14 @@ export const tenantSettingsSchema = z.object({
       /** Rufnummer in der Erinnerung zum Verschieben/Absagen (die bekannte Firmennummer) */
       contactPhone: z.string().trim().max(30).default(""),
     })
-    .default({}),
+    .prefault({}),
   emergency: z
     .object({
       enabled: z.boolean().default(true),
       /** Fallback-Nummer für Live-Durchstellung, wenn der Notdienst-Techniker keine Direktwahl hat */
       transferNumber: z.string().trim().max(30).default(""),
     })
-    .default({}),
+    .prefault({}),
   /** Datenschutzinformation des Kunden für Anrufer (Art. 13 DSGVO), wird von der KI genannt */
   privacyUrl: z.string().trim().max(300).url().or(z.literal("")).default(""),
   /** Löschfrist für Transkripte/Aufnahmen in Tagen (DSGVO) */

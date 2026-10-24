@@ -22,7 +22,10 @@ const urgencyArg = z.enum(URGENCIES).optional().catch(undefined);
 const customerTypeArg = z.preprocess((v) => (v === "B2B_HACCP" ? "BUSINESS" : v), z.enum(CUSTOMER_TYPES).optional()).catch(undefined);
 // Abwärtskompatibel: frühere Prompt-Version nutzte "pestType"
 const withCategory = <T extends z.ZodRawShape>(shape: T) =>
-  z.object({ ...shape, category: z.string().optional(), pestType: z.string().optional() }).transform(({ pestType, ...r }) => ({ ...r, category: r.category ?? pestType }));
+  z.object({ ...shape, category: z.string().optional(), pestType: z.string().optional() }).transform((v) => {
+    const { pestType, category, ...r } = v as z.infer<z.ZodObject<T>> & { category?: string; pestType?: string };
+    return { ...r, category: category ?? pestType };
+  });
 
 const customerFields = {
   name: z.string().optional(),
