@@ -24,9 +24,12 @@ export type CustomerInput = {
   postalCode?: string | null;
   customerType?: string | null;
   notes?: string | null;
+  /** Rufnummer ist nicht die verifizierte Anrufernummer: bestehende Angaben nicht überschreiben, nur Lücken füllen */
+  onlyFillMissing?: boolean;
 };
 
 function cleanType(t?: string | null): CustomerType | undefined {
+  if (t === "B2B_HACCP") return "BUSINESS"; // frühere Agenten-Konfiguration
   return t && (CUSTOMER_TYPES as readonly string[]).includes(t) ? (t as CustomerType) : undefined;
 }
 
@@ -50,6 +53,15 @@ export async function upsertCustomer(tenantId: string, input: CustomerInput) {
     customerType: cleanType(input.customerType),
     notes: input.notes?.trim() || undefined,
   };
+  if (input.onlyFillMissing) {
+    const existing = await prisma.customer.findUnique({ where: { tenantId_phone: { tenantId, phone } } });
+    if (existing) {
+      const gaps = Object.fromEntries(
+        Object.entries(data).filter(([k, v]) => v !== undefined && k !== "customerType" && !existing[k as keyof typeof existing]),
+      );
+      return Object.keys(gaps).length ? prisma.customer.update({ where: { id: existing.id }, data: gaps }) : existing;
+    }
+  }
   return prisma.customer.upsert({
     where: { tenantId_phone: { tenantId, phone } },
     create: { tenantId, phone, ...data },

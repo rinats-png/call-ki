@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { ensurePlatformConfig, setting } from "@/lib/platform/config";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/db";
-import { verifyVoiceRequest } from "@/lib/security";
+import { verifyVoiceRequest, voiceAuthAllows } from "@/lib/security";
 import { handleCallEvent } from "@/lib/services/calls";
 import { findCustomerByPhone } from "@/lib/services/customers";
 import { parseCallEvent } from "@/lib/voice/events";
@@ -31,7 +31,8 @@ export async function POST(req: Request) {
   if (wait) return NextResponse.json({ error: "Too Many Requests" }, { status: 429, headers: { "Retry-After": String(wait) } });
   const raw = await req.text();
   if (raw.length > 2 * 1024 * 1024) return NextResponse.json({ error: "Payload too large" }, { status: 413 });
-  if (!verifyVoiceRequest(req, raw)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = verifyVoiceRequest(req, raw);
+  if (!auth || !voiceAuthAllows(auth, "vapi")) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   let body: Json;
   try {
     body = obj(JSON.parse(raw));
@@ -43,8 +44,10 @@ export async function POST(req: Request) {
     switch (msg.type) {
       case "assistant-request":
         return NextResponse.json(await assistantRequest(msg));
-      case "tool-calls":
-        return NextResponse.json(await processToolBody(body));
+      case "tool-calls": {
+        const res = await processToolBody(body, auth);
+        return res === null ? NextResponse.json({ error: "Unauthorized" }, { status: 401 }) : NextResponse.json(res);
+      }
       case "end-of-call-report": {
         const ev = parseCallEvent(body);
         const call = ev ? await handleCallEvent(ev) : null;

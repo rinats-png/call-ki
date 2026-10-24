@@ -28,8 +28,13 @@ const schema = z.object({
   /** Agent ohne Speicherung von Aufnahme/Transkript (Retell: data_storage_setting = basic_attributes_only).
    *  Wird genutzt, wenn ein Kunde die Aufzeichnung abschaltet. Fehlt er, wird weiter mit Hinweis aufgezeichnet. */
   RETELL_AGENT_ID_NO_STORAGE: z.string().optional(),
-  /** Zusätzliches Shared Secret für Tool-Calls (Header x-tool-secret) */
+  /** Gemeinsames Secret für Tool-Calls (Header x-tool-secret) – nur Übergang, gilt nicht mehr, sobald ein Anbieter-Secret gesetzt ist */
   VOICE_TOOL_SECRET: z.string().optional(),
+  /** Eigenes Secret je Anbieter für Tool-Calls und Ereignisse */
+  VOICE_TOOL_SECRET_RETELL: z.string().optional(),
+  VOICE_TOOL_SECRET_VAPI: z.string().optional(),
+  VOICE_TOOL_SECRET_ELEVENLABS: z.string().optional(),
+  VOICE_TOOL_SECRET_SIP: z.string().optional(),
 
   // Microsoft 365 – EINE mandantenfähige Entra-App der Plattform; Kunden erteilen Admin-Consent
   MS_CLIENT_ID: z.string().optional(),

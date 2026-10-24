@@ -23,7 +23,7 @@ export const GET = api(async () => {
       microsoft: microsoftConfigured(),
       smtp: smtpConfigured(),
       sms: smsConfigured(),
-      toolSecret: !!e.VOICE_TOOL_SECRET,
+      toolSecret: !!(e.VOICE_TOOL_SECRET || e.VOICE_TOOL_SECRET_RETELL || e.VOICE_TOOL_SECRET_VAPI || e.VOICE_TOOL_SECRET_ELEVENLABS || e.VOICE_TOOL_SECRET_SIP),
       cron: !!e.CRON_SECRET,
       encryption: !!process.env.APP_ENCRYPTION_KEY,
       noStorageAgent: !!e.RETELL_AGENT_ID_NO_STORAGE,

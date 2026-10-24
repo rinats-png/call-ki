@@ -38,7 +38,7 @@
 ## 3. Geheimnisse rotieren (Reihenfolge)
 
 1. `SESSION`: alle Sitzungen löschen (`DELETE FROM "Session";`) – alle Nutzer werden abgemeldet.
-2. `CRON_SECRET`, `VOICE_TOOL_SECRET`, `SETUP_TOKEN`: neu erzeugen (`openssl rand -hex 32`), `.env`, Neustart; `VOICE_TOOL_SECRET` auch in den Retell-Tools ändern.
+2. `CRON_SECRET`, `SETUP_TOKEN` und das Webhook-Geheimnis des betroffenen Sprach-KI-Anbieters (`VOICE_TOOL_SECRET_RETELL` / `_VAPI` / `_ELEVENLABS` / `_SIP`): neu erzeugen (`openssl rand -hex 32`, oder in der Oberfläche „Erzeugen“), Neustart; das neue Geheimnis beim Anbieter in den Tools bzw. der Server-URL eintragen. Die Geheimnisse der anderen Anbieter bleiben gültig.
 3. `TWILIO_AUTH_TOKEN`, `RETELL_API_KEY`, `MS_CLIENT_SECRET`, SMTP-Passwort: beim Anbieter widerrufen und neu erzeugen.
 4. `APP_ENCRYPTION_KEY`: **nur** bei Verdacht auf Abfluss – dann werden alle 2FA-Einrichtungen ungültig; Nutzer müssen 2FA neu einrichten (`totpSecretEnc`/`totpEnabledAt` leeren).
 5. `POSTGRES_PASSWORD`: im Container ändern (`ALTER USER`) und `.env`.

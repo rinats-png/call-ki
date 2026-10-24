@@ -44,7 +44,7 @@ Voraussetzung: VPS mit Ubuntu 24.04, min. 2 vCPU / 4 GB RAM, eine (Sub-)Domain.
 sudo apt update && sudo apt install -y docker.io docker-compose-v2 git ufw
 sudo ufw allow 22 && sudo ufw allow 80 && sudo ufw allow 443 && sudo ufw enable
 git clone https://github.com/rinats-png/call-ki.git && cd call-ki
-cp .env.example .env && nano .env      # DOMAIN, POSTGRES_PASSWORD, APP_ENCRYPTION_KEY, SETUP_TOKEN, CRON_SECRET, VOICE_TOOL_SECRET, SMTP, Twilio, Retell
+cp .env.example .env && nano .env      # DOMAIN, POSTGRES_PASSWORD, APP_ENCRYPTION_KEY, SETUP_TOKEN, CRON_SECRET, VOICE_TOOL_SECRET_<ANBIETER>, SMTP, Twilio, Retell
 docker compose up -d --build
 # 3. https://app.deine-domain.de/setup öffnen → Setup-Token eingeben → Plattform-Admin anlegen
 #    → danach wird die Zwei-Faktor-Anmeldung (Authenticator-App) eingerichtet – Wiederherstellungscodes sicher aufbewahren!
@@ -71,7 +71,7 @@ Alle URLs zum Kopieren stehen nach dem Login unter **Plattform**.
 1. **Twilio**: Konto anlegen, deutsche Nummern kaufen (Regulatory Bundle mit Adressnachweis nötig). Je Nummer unter *Voice Configuration*: „A call comes in“ → `https://DOMAIN/api/twilio/voice` (POST), „Primary handler fails“ → `https://DOMAIN/api/twilio/fallback`. `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN` in `.env`.
 2. **Retell AI**: Einen Agenten anlegen (Sprache Deutsch, deutsche Stimme).
    - General Prompt: Inhalt von `voice-agent/system-prompt.md`, Begin Message: `{{greeting}}`.
-   - Custom Functions aus `voice-agent/tools.json`, URL `https://DOMAIN/api/voice/tools/<name>`, Header `x-tool-secret: <VOICE_TOOL_SECRET>`.
+   - Custom Functions aus `voice-agent/tools.json`, URL `https://DOMAIN/api/voice/tools/<name>`, Header `x-tool-secret: <VOICE_TOOL_SECRET_RETELL>` (je Anbieter ein eigenes Geheimnis).
    - Eingebaute Funktionen „End Call“ und „Transfer Call“ (dynamische Nummer aus `transferNumber`) aktivieren.
    - Agent-Webhook: `https://DOMAIN/api/voice/events`. Post-Call-Analyse (Zusammenfassung) aktivieren.
    - `RETELL_API_KEY` und `RETELL_AGENT_ID` in `.env`. Für Sonderfälle kann je Nummer ein eigener Agent hinterlegt werden.

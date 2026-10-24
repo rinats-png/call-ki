@@ -37,28 +37,56 @@ export function publicUrl(req: Request): string {
   return `${proto}://${host}${u.pathname}${u.search}`;
 }
 
+/** Wer eine Voice-Anfrage nachweislich geschickt hat. "shared"/"dev" = ohne Anbieterbindung. */
+export type VoiceAuth = "retell" | "vapi" | "elevenlabs" | "sip" | "shared" | "dev";
+
+/** Eigenes Geheimnis je Anbieter: ein Leck bei einem Anbieter öffnet nicht die Schnittstellen der anderen. */
+export const VOICE_SECRET_KEYS = {
+  retell: "VOICE_TOOL_SECRET_RETELL",
+  vapi: "VOICE_TOOL_SECRET_VAPI",
+  elevenlabs: "VOICE_TOOL_SECRET_ELEVENLABS",
+  sip: "VOICE_TOOL_SECRET_SIP",
+} as const;
+
 /**
  * Authentifizierung der Voice-AI-Webhooks (Tool Calls & Call Events).
  * Akzeptiert:
- *  - Vapi:   Header `x-vapi-secret`  (Server URL Secret)
  *  - Retell: Header `x-retell-signature` (HMAC-SHA256 über Body, Schlüssel = RETELL_API_KEY)
- *  - Generisch: `Authorization: Bearer <VOICE_TOOL_SECRET>` oder Header `x-tool-secret`
+ *  - Geheimnis des Anbieters (VOICE_TOOL_SECRET_RETELL/_VAPI/_ELEVENLABS/_SIP) als
+ *    `x-tool-secret`, `x-vapi-secret` oder `Authorization: Bearer …`
+ *  - Übergang: gemeinsames VOICE_TOOL_SECRET – nur solange kein Anbieter-Geheimnis gesetzt ist
+ * Gibt zurück, welcher Anbieter sich ausgewiesen hat (null = abgelehnt).
  */
-export function verifyVoiceRequest(req: Request, rawBody: string): boolean {
+export function verifyVoiceRequest(req: Request, rawBody: string): VoiceAuth | null {
   const e = env();
   const provided =
     req.headers.get("x-vapi-secret") ??
     req.headers.get("x-tool-secret") ??
     req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
     null;
-  if (e.VOICE_TOOL_SECRET && provided && safeEqual(provided, e.VOICE_TOOL_SECRET)) return true;
+  const own = Object.entries(VOICE_SECRET_KEYS) as [Exclude<VoiceAuth, "shared" | "dev">, keyof typeof e][];
+  if (provided) {
+    for (const [who, key] of own) {
+      const secret = e[key];
+      if (typeof secret === "string" && secret && safeEqual(provided, secret)) return who;
+    }
+  }
+  const anyOwn = own.some(([, key]) => !!e[key]);
+  if (!anyOwn && e.VOICE_TOOL_SECRET && provided && safeEqual(provided, e.VOICE_TOOL_SECRET)) return "shared";
 
   const retellSig = req.headers.get("x-retell-signature");
-  if (retellSig && e.RETELL_API_KEY && verifyRetellSignature(rawBody, e.RETELL_API_KEY, retellSig)) return true;
+  if (retellSig && e.RETELL_API_KEY && verifyRetellSignature(rawBody, e.RETELL_API_KEY, retellSig)) return "retell";
 
   // Ohne konfiguriertes Secret nur in der Entwicklung offen
-  if (!e.VOICE_TOOL_SECRET && !e.RETELL_API_KEY) return e.NODE_ENV !== "production";
-  return false;
+  if (!anyOwn && !e.VOICE_TOOL_SECRET && !e.RETELL_API_KEY) return e.NODE_ENV !== "production" ? "dev" : null;
+  return null;
+}
+
+/** Darf ein so ausgewiesener Absender Anfragen im Format dieses Anbieters schicken? */
+export function voiceAuthAllows(auth: VoiceAuth, provider: "retell" | "vapi" | "generic"): boolean {
+  if (auth === "shared" || auth === "dev") return true;
+  if (provider === "generic") return auth === "elevenlabs" || auth === "sip";
+  return auth === provider;
 }
 
 /**

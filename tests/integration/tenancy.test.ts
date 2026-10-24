@@ -6,6 +6,7 @@ import { findCustomerByPhone } from "@/lib/services/customers";
 import { handleCallEvent } from "@/lib/services/calls";
 import { resolveVoiceContext } from "@/lib/voice/context";
 import { runTool } from "@/lib/voice/tools";
+import { processToolBody } from "@/lib/voice/handle-tools";
 import { findAvailableSlots } from "@/lib/calendar";
 import { deleteTenant, exportTenantData } from "@/lib/services/tenants";
 
@@ -105,6 +106,47 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
     expect(exp?.customers.every((c) => c.tenantId === A.tenant.id)).toBe(true);
     expect(exp?.tickets.every((t) => t.tenantId === A.tenant.id)).toBe(true);
     expect(JSON.stringify(exp)).not.toContain("passwordHash");
+  });
+
+  it("gibt Kundendaten nur zur verifizierten Anrufernummer heraus", async () => {
+    await prisma.call.create({ data: { tenantId: A.tenant.id, providerCallId: "retell-fremd", fromNumber: "+4915000000009", toNumber: A.number } });
+    const ctx = (await resolveVoiceContext("retell-fremd", null, null))!;
+    // Anrufer nennt die Nummer eines Bestandskunden → keine fremden Daten
+    const id = (await runTool("identify_caller", { phone: SAME_CALLER }, ctx)) as Record<string, unknown>;
+    expect(id.status).toBe("NEW");
+    expect(JSON.stringify(id)).not.toContain("Kunde bei Alpha");
+    // Speichern unter dieser Nummer überschreibt den Bestandskunden nicht und meldet nichts zurück
+    const saved = (await runTool("save_customer", { phone: SAME_CALLER, name: "Angreifer", postalCode: "10115" }, ctx)) as Record<string, unknown>;
+    expect(saved).toEqual({ ok: true });
+    const c = await findCustomerByPhone(A.tenant.id, SAME_CALLER);
+    expect(c?.name).toBe("Kunde bei Alpha");
+    expect(c?.postalCode).toBe("10115"); // Lücke darf gefüllt werden
+  });
+
+  it("speichert Gewerbekunden auch mit dem alten Wert B2B_HACCP als BUSINESS", async () => {
+    const ctx = (await resolveVoiceContext("retell-fremd", null, null))!;
+    await runTool("save_customer", { name: "Restaurant Domblick", customerType: "B2B_HACCP" }, ctx);
+    expect((await findCustomerByPhone(A.tenant.id, "+4915000000009"))?.customerType).toBe("BUSINESS");
+  });
+
+  it("bindet ElevenLabs-/SIP-Funktionen fest an einen laufenden Anruf", async () => {
+    const active = await prisma.call.create({ data: { tenantId: A.tenant.id, twilioCallSid: "CA" + "a".repeat(32), fromNumber: "+4915000000010", toNumber: A.number } });
+    await prisma.call.create({ data: { tenantId: A.tenant.id, twilioCallSid: "CA" + "b".repeat(32), fromNumber: SAME_CALLER, toNumber: A.number, startedAt: new Date(Date.now() - 20 * 60_000), endedAt: new Date(Date.now() - 10 * 60_000) } });
+    const ask = (body: Record<string, unknown>) => processToolBody(body, "elevenlabs", "identify_caller") as Promise<Record<string, unknown>>;
+
+    // Nur angerufene Nummer, kein Anruf → abgelehnt (früher: Mandant über die Nummer)
+    expect(String((await ask({ called_number: A.number, caller_id: SAME_CALLER })).error)).toContain("keinem Kunden");
+    // Beendeter Anruf (auch wenn die KI dessen Kennung kennt) → abgelehnt
+    expect(String((await ask({ call_sid: "CA" + "b".repeat(32) })).error)).toContain("keinem Kunden");
+    // Laufender Anruf → Anrufernummer kommt aus unserer Anrufzeile, nicht aus dem Body
+    const ok = await ask({ call_sid: active.twilioCallSid, caller_id: SAME_CALLER });
+    expect(ok.status).toBe("NEW");
+    expect(ok.phone).toBe("+4915000000010");
+  });
+
+  it("lehnt Funktionsaufrufe im Format eines anderen Anbieters ab", async () => {
+    expect(await processToolBody({ name: "identify_caller", args: {}, call: { call_id: "retell-fremd" } }, "elevenlabs")).toBeNull();
+    expect(await processToolBody({ name: "identify_caller", args: {}, call: { call_id: "retell-fremd" } }, "retell")).not.toBeNull();
   });
 
   it("löscht einen Mandanten nur nach Anbieter-Löschung (oder ausdrücklich erzwungen) und lässt andere unberührt", async () => {

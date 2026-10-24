@@ -17,7 +17,8 @@ import type { VoiceCallContext } from "./context";
  */
 const phoneArg = z.string().optional();
 const urgencyArg = z.enum(URGENCIES).optional().catch(undefined);
-const customerTypeArg = z.enum(CUSTOMER_TYPES).optional().catch(undefined);
+// Alte Agenten-Konfigurationen schicken noch "B2B_HACCP" – gilt als Gewerbekunde
+const customerTypeArg = z.preprocess((v) => (v === "B2B_HACCP" ? "BUSINESS" : v), z.enum(CUSTOMER_TYPES).optional()).catch(undefined);
 // Abwärtskompatibel: frühere Prompt-Version nutzte "pestType"
 const withCategory = <T extends z.ZodRawShape>(shape: T) =>
   z.object({ ...shape, category: z.string().optional(), pestType: z.string().optional() }).transform(({ pestType, ...r }) => ({ ...r, category: r.category ?? pestType }));
@@ -44,18 +45,25 @@ export const TOOL_NAMES = Object.keys(schemas) as ToolName[];
 
 export class ToolError extends Error {}
 
-function resolvePhone(argPhone: string | undefined, ctx: VoiceCallContext): string {
-  const p = normalizePhone(argPhone) ?? normalizePhone(ctx.callerNumber);
+/**
+ * Rückrufnummer des Kunden. Nur die vom Anbieter bzw. von Twilio gemeldete Anrufernummer
+ * ist verifiziert; eine genannte Nummer kann zu einer fremden Person gehören.
+ */
+function resolvePhone(argPhone: string | undefined, ctx: VoiceCallContext): { phone: string; verified: boolean } {
+  const caller = normalizePhone(ctx.callerNumber);
+  const p = normalizePhone(argPhone) ?? caller;
   if (!p) throw new ToolError("Keine gültige Rufnummer vorhanden. Bitte die Rückrufnummer erfragen.");
-  return p;
+  return { phone: p, verified: p === caller };
 }
 
 type Handler<K extends ToolName> = (args: z.infer<(typeof schemas)[K]>, ctx: VoiceCallContext) => Promise<unknown>;
 
 const handlers: { [K in ToolName]: Handler<K> } = {
-  async identify_caller(args, ctx) {
-    const phone = normalizePhone(args.phone) ?? normalizePhone(ctx.callerNumber);
-    if (!phone) return { status: "UNKNOWN", say: "Die Rufnummer ist unterdrückt. Bitte nach Name und Rückrufnummer fragen." };
+  // Kundendaten nur zur verifizierten Anrufernummer – eine genannte Nummer (args.phone) wird ignoriert,
+  // sonst könnte jeder Anrufer Name, Adresse und Aufträge fremder Kunden abfragen.
+  async identify_caller(_args, ctx) {
+    const phone = normalizePhone(ctx.callerNumber);
+    if (!phone) return { status: "UNKNOWN", say: "Die Rufnummer ist unterdrückt. Kundendaten gibt es nur zur Anrufernummer. Bitte Name, Adresse und Rückrufnummer erfragen." };
     const c = await findCustomerByPhone(ctx.tenant.id, phone);
     if (!c) return { status: "NEW", phone, say: "Neukunde. Bitte Name, Adresse mit Postleitzahl und Anliegen erfragen." };
     return {
@@ -67,13 +75,15 @@ const handlers: { [K in ToolName]: Handler<K> } = {
   },
 
   async save_customer(args, ctx) {
-    const c = await upsertCustomer(ctx.tenant.id, { ...args, phone: resolvePhone(args.phone, ctx) });
+    const { phone, verified } = resolvePhone(args.phone, ctx);
+    const c = await upsertCustomer(ctx.tenant.id, { ...args, phone, onlyFillMissing: !verified });
     if (ctx.callRowId) await prisma.call.update({ where: { id: ctx.callRowId }, data: { customerId: c.id } });
-    return { ok: true, status: c.status, postalCode: c.postalCode, emailSaved: !!c.email };
+    // Zu einer nicht verifizierten Nummer keine gespeicherten Angaben zurückmelden
+    return verified ? { ok: true, status: c.status, postalCode: c.postalCode, emailSaved: !!c.email } : { ok: true };
   },
 
   async find_technician(args, ctx) {
-    const phone = normalizePhone(args.phone) ?? normalizePhone(ctx.callerNumber);
+    const phone = normalizePhone(ctx.callerNumber);
     const existing = phone ? await prisma.customer.findUnique({ where: { tenantId_phone: { tenantId: ctx.tenant.id, phone } } }) : null;
     const postalCode = args.postalCode ?? existing?.postalCode ?? null;
     const customerType = args.customerType ?? existing?.customerType ?? "PRIVATE";
@@ -103,9 +113,9 @@ const handlers: { [K in ToolName]: Handler<K> } = {
   },
 
   async book_appointment(args, ctx) {
-    const phone = resolvePhone(args.phone, ctx);
+    const { phone, verified } = resolvePhone(args.phone, ctx);
     const res = await processServiceRequest(ctx.tenant, ctx.cfg, {
-      customer: { phone, name: args.name, companyName: args.companyName, email: args.email, address: args.address, postalCode: args.postalCode, customerType: args.customerType },
+      customer: { phone, onlyFillMissing: !verified, name: args.name, companyName: args.companyName, email: args.email, address: args.address, postalCode: args.postalCode, customerType: args.customerType },
       category: args.category, description: args.description, urgency: args.urgency, appointmentStart: args.appointmentStart, employeeId: args.employeeId, callId: ctx.callRowId,
     });
     const tz = ctx.tenant.timezone;
@@ -126,9 +136,9 @@ const handlers: { [K in ToolName]: Handler<K> } = {
   },
 
   async escalate_emergency(args, ctx) {
-    const phone = resolvePhone(args.phone, ctx);
+    const { phone, verified } = resolvePhone(args.phone, ctx);
     const res = await processServiceRequest(ctx.tenant, ctx.cfg, {
-      customer: { phone, name: args.name, address: args.address, postalCode: args.postalCode },
+      customer: { phone, onlyFillMissing: !verified, name: args.name, address: args.address, postalCode: args.postalCode },
       category: args.category, description: args.description, escalate: true, callId: ctx.callRowId,
     });
     const emp = res.ticket.assignedEmployee;

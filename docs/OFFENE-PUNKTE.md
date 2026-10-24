@@ -4,7 +4,8 @@ Gemeinsame Merkliste. Erledigtes bitte hier abhaken oder streichen.
 
 ## Produkt
 - [ ] **Test mit echten Konten** (Retell, Vapi, ElevenLabs, Twilio, Google). Zu bestätigen mit echten Anrufen:
-  - Wie ElevenLabs Webhook-Tools die Daten genau schicken (Hüllenformat vs. flacher Body; `call_sid`/`called_number`/`caller_id` je Tool als Felder anlegen).
+  - Wie ElevenLabs Webhook-Tools die Daten genau schicken (Hüllenformat vs. flacher Body). `call_sid` muss als Dynamic Variable `system__call_sid` kommen – ohne passenden laufenden Anruf lehnt die Plattform den Aufruf ab.
+  - SIP-Anbieter: Feld `call_ref` aus der Kopfzeile `X-Call-Ref` in jedem Tool-Aufruf mitschicken.
   - Ob bei Vapi die Kopfzeile `x-call_ref` im SIP-URI von Twilio durchgereicht wird.
 - [ ] **Echte Rechnungen**: Rechnungsnummern, PDF, Zahlung (Lastschrift/Karte), Mahnwesen, Anbindung lexoffice/sevDesk. Bisher nur Vorschau + CSV.
 - [ ] **Warnungen** bei 80 % und 100 % des Kontingents (E-Mail an Kunde und Admin).

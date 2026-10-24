@@ -74,8 +74,15 @@ Audit-Log (`AuditLog`, 2 Jahre): Logins und Fehlversuche, 2FA-Änderungen, Passw
 ## Daten bei Anbietern
 Löschfrist je Kunde (Standard 365 Tage): Transkripte/Aufnahmen in der Datenbank **und** bei Retell (`DELETE /v2/delete-call`) und Twilio (Recording + Call) werden gelöscht. DSGVO-Löschung eines Anrufers löscht ebenfalls bei den Anbietern. Aufnahmen werden nur über `/api/calls/[id]/recording` nach Berechtigungsprüfung ausgeliefert (SSRF-Allowlist `RECORDING_HOSTS`). Abschalten der Aufzeichnung → Agent ohne Speicherung (`RETELL_AGENT_ID_NO_STORAGE`); fehlt er, wird aufgezeichnet **und angesagt** – nie still.
 
+## Sprach-KI-Schnittstellen (Tools & Ereignisse)
+
+- **Ein Geheimnis je Anbieter** (`VOICE_TOOL_SECRET_RETELL` / `_VAPI` / `_ELEVENLABS` / `_SIP`, Retell zusätzlich per Signatur). Wer sich mit dem Geheimnis eines Anbieters ausweist, darf nur Anfragen im Format dieses Anbieters schicken (`voiceAuthAllows`). Das gemeinsame `VOICE_TOOL_SECRET` gilt nur als Übergang, solange kein Anbieter-Geheimnis gesetzt ist.
+- **Nur laufende Anrufe:** Funktionen werden nur ausgeführt, wenn sie einem Anruf zugeordnet sind, der höchstens 3 Stunden alt und nicht länger als 2 Minuten beendet ist.
+- **ElevenLabs und SIP-Anbieter:** Ihre Anrufkennungen (`call_sid`, `call_ref`) stehen im selben Body wie die Argumente der KI. Deshalb zählt dort nur eine Anrufzeile, die die Plattform beim Twilio-Eingang selbst angelegt hat; ein Rückgriff auf die angerufene Nummer findet nicht statt. Anrufernummer und Mandant kommen dann aus dieser Zeile, nie aus dem Body.
+- **Kundendaten nur zur verifizierten Anrufernummer:** `identify_caller` und die Zuständigkeitsprüfung nutzen ausschließlich die von Twilio bzw. dem Anbieter gemeldete Nummer. Nennt ein Anrufer eine andere Rückrufnummer, wird sie gespeichert, aber bestehende Angaben zu dieser Nummer werden nicht überschrieben (nur Lücken gefüllt) und nicht zurückgemeldet.
+
 ## Geheimnisse
-Nur serverseitig in `.env` (nicht im Repository, `.env.example` mit Platzhaltern). Pflicht in Produktion: `APP_ENCRYPTION_KEY`, `SETUP_TOKEN` (nur bis zur Einrichtung), `CRON_SECRET`, `VOICE_TOOL_SECRET`, Datenbank-Passwort. Rotation: Twilio-/Retell-/SMTP-/Microsoft-Schlüssel jährlich oder bei Verdacht; `APP_ENCRYPTION_KEY` nicht ändern (sonst müssen alle Nutzer 2FA neu einrichten). Secret-Scan (gitleaks) in der CI.
+Nur serverseitig in `.env` (nicht im Repository, `.env.example` mit Platzhaltern). Pflicht in Produktion: `APP_ENCRYPTION_KEY`, `SETUP_TOKEN` (nur bis zur Einrichtung), `CRON_SECRET`, je genutztem Sprach-KI-Anbieter `VOICE_TOOL_SECRET_RETELL` / `_VAPI` / `_ELEVENLABS` / `_SIP` (das gemeinsame `VOICE_TOOL_SECRET` gilt nur noch, solange keines davon gesetzt ist), Datenbank-Passwort. Rotation: Twilio-/Retell-/SMTP-/Microsoft-Schlüssel jährlich oder bei Verdacht; `APP_ENCRYPTION_KEY` nicht ändern (sonst müssen alle Nutzer 2FA neu einrichten). Secret-Scan (gitleaks) in der CI.
 
 ## Bewusst akzeptierte Risiken
 | ID | Risiko | Begründung | Neu prüfen |

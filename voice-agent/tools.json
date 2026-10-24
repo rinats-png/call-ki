@@ -1,17 +1,12 @@
 {
-  "$comment": "Funktionsdefinitionen für Retell Custom Functions. URL je Funktion: {PUBLIC_BASE_URL}/api/voice/tools/{name}. Header: x-tool-secret: {VOICE_TOOL_SECRET}. Der Kunde (Mandant) und die Rufnummer des Anrufers werden automatisch aus dem Anruf ermittelt; 'phone' nur bei abweichender Rückrufnummer setzen.",
+  "$comment": "Funktionsdefinitionen für Retell Custom Functions. URL je Funktion: {PUBLIC_BASE_URL}/api/voice/tools/{name}. Header: x-tool-secret: {Webhook-Geheimnis des Anbieters, z. B. VOICE_TOOL_SECRET_RETELL}. Der Kunde (Mandant) und die Rufnummer des Anrufers werden automatisch aus dem Anruf ermittelt; 'phone' nur bei abweichender Rückrufnummer setzen. Kundendaten liefert identify_caller ausschließlich zur echten Anrufernummer.",
   "tools": [
     {
       "name": "identify_caller",
-      "description": "Prüft anhand der Rufnummer, ob der Anrufer Neu- oder Bestandskunde ist, und liefert bekannte Stammdaten sowie die letzten Vorgänge.",
+      "description": "Prüft anhand der Anrufernummer (wird automatisch übermittelt), ob der Anrufer Neu- oder Bestandskunde ist, und liefert bekannte Stammdaten sowie die letzten Vorgänge. Bei unterdrückter Nummer gibt es keine Kundendaten – dann Name, Adresse und Rückrufnummer erfragen.",
       "parameters": {
         "type": "object",
-        "properties": {
-          "phone": {
-            "type": "string",
-            "description": "Optional: abweichende Rufnummer"
-          }
-        }
+        "properties": {}
       }
     },
     {
@@ -44,7 +39,7 @@
             "type": "string",
             "enum": [
               "PRIVATE",
-              "B2B_HACCP",
+              "BUSINESS",
               "PROPERTY_MANAGEMENT"
             ]
           }
@@ -81,7 +76,7 @@
             "type": "string",
             "enum": [
               "PRIVATE",
-              "B2B_HACCP",
+              "BUSINESS",
               "PROPERTY_MANAGEMENT"
             ]
           }
@@ -141,7 +136,7 @@
             "type": "string",
             "enum": [
               "PRIVATE",
-              "B2B_HACCP",
+              "BUSINESS",
               "PROPERTY_MANAGEMENT"
             ]
           },
