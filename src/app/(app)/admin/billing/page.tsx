@@ -69,6 +69,21 @@ export default function Page() {
 
       {!data ? <Skeleton className="h-96 rounded-3xl" /> : (
         <>
+          {(() => {
+            // Upgrade-Kandidaten: Kontingent fast ausgeschöpft oder Überminuten/Minutenpakete
+            const cands = data.rows.filter((r) => r.status !== "DELETED" && ((r.usagePercent ?? 0) >= 90 || r.invoice.overageMinutes > 0));
+            if (!cands.length) return null;
+            return (
+              <section className="glass p-4" aria-label="Upgrade-Kandidaten">
+                <h2 className="mb-2 flex items-center gap-1 text-sm font-bold text-zinc-100">Upgrade-Kandidaten ({cands.length})<InfoTip title="Upgrade-Kandidaten" steps={["Kunden, die in diesem Monat mindestens 90 % ihres Kontingents verbrauchen oder Überminuten haben.", "Ein größeres Paket ist für sie meist günstiger – guter Anlass für einen Anruf."]} /></h2>
+                <ul className="flex flex-wrap gap-2">
+                  {cands.map((r) => (
+                    <li key={r.tenantId}><Link href={`/admin/tenants/${r.tenantId}`} className="chip border-amber-500/30 bg-amber-500/10 text-amber-200">{r.tenantName} · {r.usagePercent ?? "–"} %{r.invoice.overageMinutes > 0 ? ` · +${r.invoice.overageMinutes} Min.` : ""}</Link></li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })()}
           <section className="glass p-2 md:p-3">
             <div className="flex items-center justify-between gap-3 px-3 pb-2 pt-2">
               <h2 className="flex items-center gap-1 text-sm font-bold text-zinc-100">Kunden<InfoTip title="Abrechnung" steps={["Abgeschlossene Monate (ab dem 3. des Folgemonats) sind festgeschrieben und ändern sich nicht mehr – auch gelöschte Kunden erscheinen dort mit ihrer Schlussabrechnung. Der laufende Monat ist eine Vorschau. Es wird keine Rechnung verschickt.", "CSV-Export für deine Buchhaltung oder dein Rechnungsprogramm (lexoffice, sevDesk …).", "Einkaufskosten unten eintragen (was dich Telefonie, KI und SMS pro Minute kosten) – daraus ergibt sich die Marge."]} /></h2>
