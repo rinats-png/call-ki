@@ -29,7 +29,9 @@ const FILTERS: [string, string][] = [["", "Alle"], ["ENDED", "Beendet"], ["FALLB
 const dayKey = (iso: string) => new Date(iso).toLocaleDateString("sv-SE", { timeZone: "Europe/Berlin" });
 function dayLabel(key: string) {
   const today = dayKey(new Date().toISOString());
-  const yesterday = dayKey(new Date(Date.now() - 86_400_000).toISOString());
+  // Vortag als Kalenderdatum (nicht „jetzt minus 24 Stunden“ – Tage mit Zeitumstellung haben 23/25 Std.)
+  const [y, m, d] = today.split("-").map(Number);
+  const yesterday = new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10);
   if (key === today) return "Heute";
   if (key === yesterday) return "Gestern";
   return new Date(`${key}T12:00:00`).toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" });

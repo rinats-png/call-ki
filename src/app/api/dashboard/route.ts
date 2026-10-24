@@ -27,7 +27,8 @@ export const GET = api(async (req) => {
 
   const p = zonedParts(new Date(), tz);
   const startOfDay = fromZoned(p.year, p.month, p.day, 0, 0, tz);
-  const since7 = new Date(startOfDay.getTime() - 6 * 86400000);
+  // Kalendertage in Ortszeit (bei Zeitumstellung hat ein Tag 23 oder 25 Stunden)
+  const since7 = fromZoned(p.year, p.month, p.day - 6, 0, 0, tz);
 
   const where: Prisma.CallTicketWhereInput = {
     tenantId,
