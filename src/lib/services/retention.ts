@@ -3,6 +3,7 @@ import { parseSettings } from "../tenant/settings";
 import { logger } from "../logger";
 import { purgeCallAtProviders } from "../voice/providers";
 import { purgeRateLimitHits } from "../rate-limit";
+import { resealAll } from "./rekey";
 
 /**
  * Löschfristen (DSGVO): entfernt Transkripte, Zusammenfassungen und Aufnahme-Links
@@ -39,7 +40,8 @@ export async function runRetention() {
   const tokens = (await prisma.authToken.deleteMany({ where: { expiresAt: { lt: new Date(now.getTime() - 7 * 86400000) } } })).count;
   const audits = (await prisma.auditLog.deleteMany({ where: { createdAt: { lt: new Date(now.getTime() - 730 * 86400000) } } })).count;
   const rateLimits = await purgeRateLimitHits(now.getTime());
-  const result = { calls, tickets, messages, orphanCalls, providerPurged, providerFailed, sessions, tokens, audits, rateLimits };
+  const secrets = await resealAll();
+  const result = { calls, tickets, messages, orphanCalls, providerPurged, providerFailed, sessions, tokens, audits, rateLimits, secrets };
   logger.info("retention.done", result);
   return result;
 }

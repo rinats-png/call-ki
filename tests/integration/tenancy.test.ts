@@ -21,6 +21,8 @@ import { applyPlanToConfig } from "@/lib/voice/context";
 import { effectivePlan } from "@/lib/billing";
 import { runAppointmentReminders } from "@/lib/services/reminders";
 import { hitShared } from "@/lib/rate-limit";
+import { resealAll } from "@/lib/services/rekey";
+import { seal, open as unseal } from "@/lib/secret-box";
 import { retryDueMessages, MAX_ATTEMPTS } from "@/lib/notify";
 import { resetEnvCache } from "@/lib/env";
 import { vi } from "vitest";
@@ -476,6 +478,27 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
     // nächstes Fenster: Vorfenster zählt anteilig weiter
     expect(await hitShared("login:ip:203.0.113.7", l, t0 + 60_000)).toBeGreaterThan(0);
     expect(await hitShared("login:ip:203.0.113.7", l, t0 + 119_000)).toBe(0);
+  });
+
+  it("verschlüsselt nach einem Schlüsselwechsel alle Geheimnisse neu", async () => {
+    const before = { cur: process.env.APP_ENCRYPTION_KEY, old: process.env.APP_ENCRYPTION_KEYS_OLD };
+    process.env.APP_ENCRYPTION_KEY = "1".repeat(64);
+    try {
+      const u = await prisma.user.create({ data: { email: "rekey@example.org", role: "TENANT_USER", tenantId: A.tenant.id, totpSecretEnc: seal("JBSWY3DPEHPK3PXP") } });
+      await prisma.platformSetting.upsert({ where: { key: "SMTP_PASS" }, create: { key: "SMTP_PASS", value: seal("smtp-geheim"), secret: true }, update: { value: seal("smtp-geheim"), secret: true } });
+      process.env.APP_ENCRYPTION_KEY = "2".repeat(64);
+      process.env.APP_ENCRYPTION_KEYS_OLD = "1".repeat(64);
+      const r = await resealAll();
+      expect(r).toMatchObject({ failed: 0, remaining: 0 });
+      expect(r.resealed).toBeGreaterThanOrEqual(2);
+      delete process.env.APP_ENCRYPTION_KEYS_OLD; // alter Schlüssel kann weg
+      expect(unseal((await prisma.user.findUnique({ where: { id: u.id } }))!.totpSecretEnc!)).toBe("JBSWY3DPEHPK3PXP");
+      expect(unseal((await prisma.platformSetting.findUnique({ where: { key: "SMTP_PASS" } }))!.value)).toBe("smtp-geheim");
+    } finally {
+      await prisma.platformSetting.deleteMany({ where: { key: "SMTP_PASS" } });
+      if (before.cur) process.env.APP_ENCRYPTION_KEY = before.cur; else delete process.env.APP_ENCRYPTION_KEY;
+      if (before.old) process.env.APP_ENCRYPTION_KEYS_OLD = before.old; else delete process.env.APP_ENCRYPTION_KEYS_OLD;
+    }
   });
 
   it("löscht einen Mandanten nur nach Anbieter-Löschung (oder ausdrücklich erzwungen) und lässt andere unberührt", async () => {

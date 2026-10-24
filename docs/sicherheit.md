@@ -83,7 +83,7 @@ Löschfrist je Kunde (Standard 365 Tage): Transkripte/Aufnahmen in der Datenbank
 - **Termine verschieben/absagen per Telefon** (`find_appointments`, `reschedule_appointment`, `cancel_appointment`) nur für Termine des Kunden mit der verifizierten Anrufernummer; eine genannte Vorgangsnummer allein berechtigt nicht.
 
 ## Geheimnisse
-Nur serverseitig in `.env` (nicht im Repository, `.env.example` mit Platzhaltern). Pflicht in Produktion: `APP_ENCRYPTION_KEY`, `SETUP_TOKEN` (nur bis zur Einrichtung), `CRON_SECRET`, je genutztem Sprach-KI-Anbieter `VOICE_TOOL_SECRET_RETELL` / `_VAPI` / `_ELEVENLABS` / `_SIP` (das gemeinsame `VOICE_TOOL_SECRET` gilt nur noch, solange keines davon gesetzt ist), Datenbank-Passwort. Rotation: Twilio-/Retell-/SMTP-/Microsoft-Schlüssel jährlich oder bei Verdacht; `APP_ENCRYPTION_KEY` nicht ändern (sonst müssen alle Nutzer 2FA neu einrichten). Secret-Scan (gitleaks) in der CI.
+Nur serverseitig in `.env` (nicht im Repository, `.env.example` mit Platzhaltern). Pflicht in Produktion: `APP_ENCRYPTION_KEY`, `SETUP_TOKEN` (nur bis zur Einrichtung), `CRON_SECRET`, je genutztem Sprach-KI-Anbieter `VOICE_TOOL_SECRET_RETELL` / `_VAPI` / `_ELEVENLABS` / `_SIP` (das gemeinsame `VOICE_TOOL_SECRET` gilt nur noch, solange keines davon gesetzt ist), Datenbank-Passwort. Rotation: Twilio-/Retell-/SMTP-/Microsoft-Schlüssel jährlich oder bei Verdacht; `APP_ENCRYPTION_KEY` nur nach Verfahren wechseln (`docs/betrieb.md` → „Schlüsselwechsel“: neuer Schlüssel, alter in `APP_ENCRYPTION_KEYS_OLD`, Umschlüsseln über `/api/cron/rekey`). Secret-Scan (gitleaks) in der CI.
 
 ## Bewusst akzeptierte Risiken
 | ID | Risiko | Begründung | Neu prüfen |

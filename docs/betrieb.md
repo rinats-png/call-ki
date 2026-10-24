@@ -131,3 +131,13 @@ Zusätzlich in den Konten von Twilio, Retell, Vapi und ElevenLabs Budget-Grenzen
 ## Wiederholung von Nachrichten
 
 E-Mails und SMS werden bei Fehlern bis zu 5-mal versucht: Notfall-Alarme nach 1, 2, 5 und 10 Minuten, alle anderen nach 2, 10, 30 und 120 Minuten. Der Status steht im Nachrichtenprotokoll (`Message.status`, `attempts`, `error`). Die Sprach-KI wartet nie auf den Versand.
+
+## Schlüsselwechsel (APP_ENCRYPTION_KEY)
+
+`APP_ENCRYPTION_KEY` verschlüsselt 2FA-Secrets, die in der Oberfläche gespeicherten Anbieter-Schlüssel und Google-Tokens. Jeder Wert trägt die Kennung des Schlüssels, mit dem er verschlüsselt wurde. Wechsel ohne Ausfall:
+
+1. Neuen Schlüssel erzeugen: `openssl rand -hex 32`.
+2. In der `.env`: neuen Wert als `APP_ENCRYPTION_KEY`, bisherigen Wert in `APP_ENCRYPTION_KEYS_OLD` (mehrere kommagetrennt). Beide sofort im Tresor ablegen.
+3. `docker compose up -d app` – alte Werte bleiben lesbar.
+4. Umschlüsseln: `docker compose exec cron sh -c 'curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" http://app:3000/api/cron/rekey'` (läuft sonst nachts automatisch mit). Erst wenn die Antwort `"remaining":0` und `"failed":0` meldet, `APP_ENCRYPTION_KEYS_OLD` leeren und die App neu starten.
+5. Backups, die vor dem Wechsel entstanden sind, brauchen zum Wiederherstellen den alten Schlüssel – ihn deshalb im Tresor behalten, bis diese Backups abgelaufen sind (30 Tage).
