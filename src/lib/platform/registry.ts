@@ -157,6 +157,25 @@ export const PROVIDERS: Provider[] = [
     ],
   },
 
+  {
+    id: "costguard",
+    category: "general",
+    name: "Kostenschutz",
+    tagline: "Notschalter, gleichzeitige Anrufe, Gesprächsdauer und Tagesbudget – gegen Missbrauch und Kostenexplosion.",
+    level: "info",
+    fields: [
+      { key: "AI_KILL_SWITCH", label: "Notschalter Sprach-KI", type: "select", options: [{ value: "off", label: "Aus – KI nimmt Anrufe an" }, { value: "on", label: "An – alle Anrufe an Fallback-Nummer bzw. Mailbox" }], help: ["Bei Missbrauch, Anbieterstörung oder Kostenproblemen: sofort alle Anrufe an Menschen leiten.", "Wirkt beim nächsten Anruf, laufende Gespräche bleiben."] },
+      { key: "MAX_CALL_MINUTES", label: "Maximale Gesprächsdauer (Minuten)", type: "number", placeholder: "20", hint: "2–120, Standard 20. Danach legt Twilio auf." },
+      { key: "MAX_CONCURRENT_CALLS_PER_TENANT", label: "Gleichzeitige Anrufe je Kunde", type: "number", placeholder: "5", hint: "Weitere Anrufer gehen an die Fallback-Nummer. 0 = unbegrenzt." },
+      { key: "MAX_CONCURRENT_CALLS_TOTAL", label: "Gleichzeitige Anrufe gesamt", type: "number", placeholder: "50", hint: "Am Limit der Anbieter-Tarife ausrichten (Retell, Vapi, ElevenLabs). 0 = unbegrenzt." },
+      { key: "PLATFORM_DAILY_MINUTE_LIMIT", label: "Tagesbudget aller Kunden (Minuten)", type: "number", placeholder: "z. B. 3000", hint: "Leer = aus. Ab 80 % Warnung, ab 100 % gehen neue Anrufe an Fallback-Nummern." },
+    ],
+    setup: [
+      "Gleichzeitige Anrufe gesamt auf das Limit des Sprach-KI-Tarifs setzen.",
+      "Zusätzlich bei Twilio und den KI-Anbietern Budget-Grenzen bzw. Ausgabenalarme im jeweiligen Konto einrichten.",
+    ],
+  },
+
   // ───────────── Sprach-KI
   {
     id: "retell",

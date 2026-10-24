@@ -143,18 +143,22 @@ async function deliverAlert(f: Finding): Promise<boolean> {
   return channels > 0;
 }
 
+/** Alarm senden, außer derselbe Befund wurde vor Kurzem schon gemeldet. true = gesendet. */
+export async function alertOnce(f: Finding, now = new Date()): Promise<boolean> {
+  logger[f.level === "critical" ? "error" : "warn"]("monitor.finding", { id: f.id, title: f.title });
+  const key = `alert:${f.id}`;
+  const last = await prisma.systemState.findUnique({ where: { key } });
+  if (last && now.getTime() - new Date(last.value).getTime() < REPEAT_MS[f.level]) return false;
+  const sent = await deliverAlert(f);
+  await prisma.systemState.upsert({ where: { key }, create: { key, value: now.toISOString() }, update: { value: now.toISOString() } });
+  return sent;
+}
+
 /** Ein Monitoring-Lauf: prüfen, neue bzw. fällige Alarme senden, Lebenszeichen an externen Dienst. */
 export async function runMonitor(now = new Date()) {
   const findings = await collectFindings(now);
   let alerted = 0;
-  for (const f of findings) {
-    logger[f.level === "critical" ? "error" : "warn"]("monitor.finding", { id: f.id, title: f.title });
-    const key = `alert:${f.id}`;
-    const last = await prisma.systemState.findUnique({ where: { key } });
-    if (last && now.getTime() - new Date(last.value).getTime() < REPEAT_MS[f.level]) continue;
-    if (await deliverAlert(f)) alerted++;
-    await prisma.systemState.upsert({ where: { key }, create: { key, value: now.toISOString() }, update: { value: now.toISOString() } });
-  }
+  for (const f of findings) if (await alertOnce(f, now)) alerted++;
   // Alte Alarm-Merker aufräumen
   await prisma.systemState.deleteMany({ where: { key: { startsWith: "alert:" }, updatedAt: { lt: new Date(now.getTime() - 7 * 24 * H) } } });
 

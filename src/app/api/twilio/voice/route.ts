@@ -11,6 +11,7 @@ import { zeroRetention } from "@/lib/voice/retention-flags";
 import { fallbackTwiml } from "@/lib/voice/fallback";
 import { buildDynamicVariables, selectAgent } from "@/lib/voice/context";
 import { minuteGate } from "@/lib/billing";
+import { callAdmission } from "@/lib/cost-guard";
 import { tenantForCalledNumber, twilioParams } from "@/lib/voice/inbound";
 import { hit, LIMITS } from "@/lib/rate-limit";
 
@@ -55,6 +56,12 @@ export async function POST(req: Request) {
   const gate = await minuteGate(tenant);
   if (gate.blocked) {
     logger.warn("tenant.minute_limit_reached", { tenantId: tenant.id, reason: gate.reason });
+    return fallback("FALLBACK");
+  }
+  // Kostenschutz: Notschalter, gleichzeitige Anrufe, Tagesbudget der Plattform
+  const admission = await callAdmission(tenant.id, call.id);
+  if (!admission.ok) {
+    logger.warn("call.admission_denied", { tenantId: tenant.id, reason: admission.reason });
     return fallback("FALLBACK");
   }
 

@@ -16,3 +16,11 @@ describe("Ersatzziel bei Twilio", () => {
     expect(x).toContain("technisch nicht erreichbar");
   });
 });
+
+import { dialSip } from "@/lib/twiml";
+describe("Höchstdauer", () => {
+  it("setzt timeLimit an der SIP-Weiterleitung", () => {
+    expect(dialSip("sip:a@b", 1200)).toBe('<Dial timeLimit="1200"><Sip>sip:a@b</Sip></Dial>');
+    expect(dialSip("sip:a@b")).toBe("<Dial><Sip>sip:a@b</Sip></Dial>");
+  });
+});

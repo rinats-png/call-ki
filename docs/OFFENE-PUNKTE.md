@@ -8,7 +8,7 @@ Gemeinsame Merkliste. Erledigtes bitte hier abhaken oder streichen.
   - SIP-Anbieter: Feld `call_ref` aus der Kopfzeile `X-Call-Ref` in jedem Tool-Aufruf mitschicken.
   - Ob bei Vapi die Kopfzeile `x-call_ref` im SIP-URI von Twilio durchgereicht wird.
 - [ ] **Echte Rechnungen**: Rechnungsnummern, PDF, Zahlung (Lastschrift/Karte), Mahnwesen, Anbindung lexoffice/sevDesk. Bisher nur Vorschau + CSV.
-- [ ] **Warnungen** bei 80 % und 100 % des Kontingents (E-Mail an Kunde und Admin).
+- [x] **Warnungen** bei 80 % und 100 % des Kontingents, Kostenschutz (gleichzeitige Anrufe, Gesprächsdauer, Tagesbudget, Notschalter) – `docs/betrieb.md`.
 - [ ] **Paket-Grenzen durchsetzen**: max. Rufnummern und Zugänge prüfen; Paketwechsel und „Mehr Minuten buchen“ klickbar machen.
 - [ ] **Rufnummern in der Oberfläche kaufen/portieren**; sipgate direkt anbinden.
 - [ ] **Ausgehende Anrufe**: Rückrufe, Terminerinnerungen, Kampagnen.

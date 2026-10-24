@@ -15,4 +15,6 @@ export const say = (text: string) => `<Say language="de-DE" voice="Polly.Vicki-N
 export const dialNumber = (number: string, callerId?: string, timeout = 25) =>
   `<Dial timeout="${timeout}"${callerId ? ` callerId="${xmlEscape(callerId)}"` : ""}>${xmlEscape(number)}</Dial>`;
 
-export const dialSip = (sipUri: string) => `<Dial><Sip>${xmlEscape(sipUri)}</Sip></Dial>`;
+/** SIP-Weiterleitung zur Sprach-KI; timeLimit (Sekunden) begrenzt die Gesprächsdauer hart bei Twilio. */
+export const dialSip = (sipUri: string, timeLimitSec?: number) =>
+  `<Dial${timeLimitSec ? ` timeLimit="${Math.round(timeLimitSec)}"` : ""}><Sip>${xmlEscape(sipUri)}</Sip></Dial>`;

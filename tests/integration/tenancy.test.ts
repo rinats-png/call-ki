@@ -10,6 +10,8 @@ import { processToolBody } from "@/lib/voice/handle-tools";
 import { settleDeferred } from "@/lib/defer";
 import { recordHeartbeat, runMonitor } from "@/lib/services/monitor";
 import { checkTwilioNumbers } from "@/lib/voice/twilio-config";
+import { callAdmission, enforceCallLimits } from "@/lib/cost-guard";
+import { runQuotaWarnings } from "@/lib/services/usage-alerts";
 import { retryDueMessages, MAX_ATTEMPTS } from "@/lib/notify";
 import { resetEnvCache } from "@/lib/env";
 import { vi } from "vitest";
@@ -254,6 +256,73 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
       for (const k of ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "PUBLIC_BASE_URL"]) delete process.env[k];
       resetEnvCache();
     }
+  });
+
+  it("lässt nur begrenzt viele gleichzeitige Anrufe zur KI und hat einen Notschalter", async () => {
+    const mk = (n: number) => prisma.call.create({ data: { tenantId: A.tenant.id, fromNumber: `+491500000005${n}`, toNumber: A.number, status: "IN_PROGRESS" } });
+    const own = await prisma.call.create({ data: { tenantId: A.tenant.id, fromNumber: "+4915000000059", toNumber: A.number } });
+    process.env.MAX_CONCURRENT_CALLS_PER_TENANT = "2";
+    try {
+      await prisma.call.updateMany({ where: { tenantId: A.tenant.id, endedAt: null }, data: { endedAt: new Date() } });
+      await prisma.call.update({ where: { id: own.id }, data: { endedAt: null, status: "RINGING" } });
+      await mk(1);
+      expect(await callAdmission(A.tenant.id, own.id)).toEqual({ ok: true });
+      await mk(2);
+      expect(await callAdmission(A.tenant.id, own.id)).toEqual({ ok: false, reason: "tenant_concurrency" });
+      expect(await callAdmission(B.tenant.id, "x")).toEqual({ ok: true }); // anderer Kunde unberührt
+      process.env.AI_KILL_SWITCH = "on";
+      expect(await callAdmission(B.tenant.id, "x")).toEqual({ ok: false, reason: "kill_switch" });
+    } finally {
+      delete process.env.MAX_CONCURRENT_CALLS_PER_TENANT;
+      delete process.env.AI_KILL_SWITCH;
+      await prisma.call.updateMany({ where: { tenantId: A.tenant.id, endedAt: null }, data: { endedAt: new Date(), status: "ENDED" } });
+    }
+  });
+
+  it("stoppt neue KI-Anrufe beim Tagesbudget der Plattform", async () => {
+    process.env.PLATFORM_DAILY_MINUTE_LIMIT = "10";
+    try {
+      await prisma.call.create({ data: { tenantId: B.tenant.id, fromNumber: "+4915000000060", toNumber: B.number, status: "ENDED", endedAt: new Date(), durationSec: 11 * 60 } });
+      expect(await callAdmission(B.tenant.id, "x")).toEqual({ ok: false, reason: "platform_daily_budget" });
+    } finally {
+      delete process.env.PLATFORM_DAILY_MINUTE_LIMIT;
+    }
+  });
+
+  it("beendet Gespräche über der Höchstdauer bei Twilio", async () => {
+    Object.assign(process.env, { TWILIO_ACCOUNT_SID: "AC" + "0".repeat(32), TWILIO_AUTH_TOKEN: "t", MAX_CALL_MINUTES: "10" });
+    resetEnvCache();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
+    try {
+      const long = await prisma.call.create({ data: { tenantId: A.tenant.id, twilioCallSid: "CA" + "c".repeat(32), fromNumber: "+4915000000061", toNumber: A.number, status: "IN_PROGRESS", startedAt: new Date(Date.now() - 13 * 60_000) } });
+      await prisma.call.create({ data: { tenantId: A.tenant.id, twilioCallSid: "CA" + "d".repeat(32), fromNumber: "+4915000000062", toNumber: A.number, status: "IN_PROGRESS", startedAt: new Date(Date.now() - 5 * 60_000) } });
+      const r = await enforceCallLimits();
+      expect(r.ended).toBe(1);
+      expect(String(fetchMock.mock.calls[0][0])).toContain(`/Calls/${long.twilioCallSid}.json`);
+    } finally {
+      fetchMock.mockRestore();
+      for (const k of ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "MAX_CALL_MINUTES"]) delete process.env[k];
+      resetEnvCache();
+      await prisma.call.updateMany({ where: { tenantId: A.tenant.id, endedAt: null }, data: { endedAt: new Date(), status: "ENDED" } });
+    }
+  });
+
+  it("warnt Kunden einmalig bei 80 % und 100 % des Kontingents", async () => {
+    await prisma.user.create({ data: { email: "chef@beta.example", role: "TENANT_ADMIN", tenantId: B.tenant.id } });
+    await prisma.tenant.update({ where: { id: B.tenant.id }, data: { monthlyMinuteLimit: 20, status: "ACTIVE" } });
+    await prisma.call.create({ data: { tenantId: B.tenant.id, fromNumber: "+4915000000063", toNumber: B.number, status: "ENDED", endedAt: new Date(), durationSec: 7 * 60 } });
+    // insgesamt 11 + 7 = 18 von 20 Minuten = 90 %
+    await runQuotaWarnings();
+    let mails = await prisma.message.findMany({ where: { purpose: "QUOTA_WARNING", recipient: "chef@beta.example" } });
+    expect(mails.map((m) => m.subject)).toEqual(["80 % Ihrer Minutengrenze verbraucht"]);
+    await runQuotaWarnings(); // keine Wiederholung
+    expect(await prisma.message.count({ where: { purpose: "QUOTA_WARNING" } })).toBe(1);
+    await prisma.call.create({ data: { tenantId: B.tenant.id, fromNumber: "+4915000000064", toNumber: B.number, status: "ENDED", endedAt: new Date(), durationSec: 3 * 60 } });
+    await runQuotaWarnings();
+    mails = await prisma.message.findMany({ where: { purpose: "QUOTA_WARNING" }, orderBy: { createdAt: "asc" } });
+    expect(mails.map((m) => m.subject)).toEqual(["80 % Ihrer Minutengrenze verbraucht", "100 % Ihrer Minutengrenze verbraucht"]);
+    expect(mails[1].body).toContain("keine Anrufe mehr an");
+    await prisma.tenant.update({ where: { id: B.tenant.id }, data: { monthlyMinuteLimit: null } });
   });
 
   it("löscht einen Mandanten nur nach Anbieter-Löschung (oder ausdrücklich erzwungen) und lässt andere unberührt", async () => {

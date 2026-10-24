@@ -27,7 +27,7 @@ Ubuntu 24.04 auf dem IONOS-VPS, SSH-Schlüssel beim Anlegen hinterlegen.
 | `app` | Next.js-Anwendung, wendet beim Start die Datenbank-Migrationen an |
 | `db` | PostgreSQL 16, kein Port nach außen |
 | `caddy` | HTTPS (Let's Encrypt), einziger Dienst mit offenen Ports (80/443) |
-| `cron` | `deploy/cron.sh`: jede Minute Wiederholung fehlgeschlagener E-Mails/SMS, alle 5 Minuten Überwachung, täglich 03 Uhr Löschfristen |
+| `cron` | `deploy/cron.sh`: jede Minute Wiederholung fehlgeschlagener E-Mails/SMS und Durchsetzung der Gesprächsdauer, alle 5 Minuten Überwachung, alle 15 Minuten Kontingent-Warnungen, täglich 03 Uhr Löschfristen |
 | `backup` | `deploy/backup.sh`: täglich 02 Uhr Backup, am 1. des Monats 04 Uhr Wiederherstellungstest |
 
 ## Backups
@@ -107,6 +107,21 @@ Alarme gehen an `ALERT_EMAIL` (sonst alle Plattform-Admins), kritische zusätzli
 
 1. Externer Lebenszeichen-Dienst (z. B. healthchecks.io): Check mit 5 Minuten Intervall und 10 Minuten Kulanz, Ping-URL als `HEALTHCHECK_PING_URL`. Bleibt der Ping aus, alarmiert der Dienst per E-Mail/SMS/App.
 2. Uptime-Check von außen auf `https://DOMAIN/api/health` (z. B. UptimeRobot, Better Stack), Intervall 1–5 Minuten.
+
+## Kostenschutz
+
+Einstellungen: Verwaltung → Plattform → „Kostenschutz“.
+
+| Schutz | Wirkung | Standard |
+|---|---|---|
+| Notschalter | Alle neuen Anrufe gehen an die Fallback-Nummer bzw. Mailbox, keine KI | aus |
+| Gleichzeitige Anrufe je Kunde | Weitere Anrufer gehen an die Fallback-Nummer | 5 |
+| Gleichzeitige Anrufe gesamt | Auf das Limit des KI-Tarifs setzen | 50 |
+| Maximale Gesprächsdauer | Twilio legt nach dieser Zeit auf (`timeLimit`); bei ElevenLabs beendet der Cron das Gespräch über die Twilio-API | 20 Min. |
+| Tagesbudget aller Kunden | Ab 80 % Warnung, ab 100 % kritischer Alarm und neue Anrufe an den Fallback | aus |
+| Kontingent je Kunde | E-Mail an die Kunden-Administratoren bei 80 % und 100 % (einmal je Monat); bei 100 % Hinweis an den Betreiber; Kunden ohne Minutengrenze ab 200 % Alarm an den Betreiber | – |
+
+Zusätzlich in den Konten von Twilio, Retell, Vapi und ElevenLabs Budget-Grenzen bzw. Ausgabenalarme setzen – die Plattform sieht deren Abrechnung nicht.
 
 ## Wiederholung von Nachrichten
 

@@ -1,6 +1,7 @@
 import type { PhoneNumber, Tenant } from "@prisma/client";
 import { setting } from "../platform/config";
 import { dialSip } from "../twiml";
+import { maxCallSeconds } from "../cost-guard";
 import { registerRetellCall } from "./retell";
 
 /**
@@ -73,7 +74,7 @@ export async function handoffCall(input: HandoffInput): Promise<HandoffResult> {
       metadata: { tenant_id: input.tenant.id, call_row_id: input.callRowId, twilio_call_sid: input.twilioCallSid },
       dynamicVariables: input.dynamicVariables,
     });
-    return { twiml: dialSip(sipUri), providerCallId: callId, provider: "retell" };
+    return { twiml: dialSip(sipUri, maxCallSeconds()), providerCallId: callId, provider: "retell" };
   }
   if (p === "elevenlabs") {
     const xml = await elevenLabsRegister(input);
@@ -84,7 +85,7 @@ export async function handoffCall(input: HandoffInput): Promise<HandoffResult> {
   if (p === "vapi") {
     if (!setting("VAPI_API_KEY")) throw new Error("Vapi ist nicht konfiguriert");
     const uri = `sip:${vapiSipUser(input.toNumber)}@${vapiSipHost()}?x-call_ref=${encodeURIComponent(input.callRowId)}`;
-    return { twiml: dialSip(uri), providerCallId: null, provider: "vapi" };
+    return { twiml: dialSip(uri, maxCallSeconds()), providerCallId: null, provider: "vapi" };
   }
   if (p.startsWith("sip:")) {
     const id = p.slice(4);
@@ -92,7 +93,7 @@ export async function handoffCall(input: HandoffInput): Promise<HandoffResult> {
     if (!base) throw new Error(`SIP-Adresse für ${id} fehlt`);
     const headers = new URLSearchParams({ "X-Tenant": input.tenant.slug, "X-Caller": input.fromNumber, "X-Called": input.toNumber, "X-Call-Ref": input.callRowId });
     const uri = `${base}${base.includes("?") ? "&" : "?"}${headers.toString()}`;
-    return { twiml: dialSip(uri), providerCallId: null, provider: id };
+    return { twiml: dialSip(uri, maxCallSeconds()), providerCallId: null, provider: id };
   }
   throw new Error(`Unbekannter Sprach-KI-Anbieter: ${p}`);
 }
