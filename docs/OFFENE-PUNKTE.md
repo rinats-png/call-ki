@@ -1,4 +1,4 @@
-# Offene Punkte (Stand 2026-10-23)
+# Offene Punkte (Stand 2026-10-24)
 
 Gemeinsame Merkliste. Erledigtes bitte hier abhaken oder streichen.
 
@@ -14,7 +14,7 @@ Gemeinsame Merkliste. Erledigtes bitte hier abhaken oder streichen.
 - [ ] **Ausgehende Anrufe**: Rückrufe, Terminerinnerungen, Kampagnen.
 - [ ] **Weitere Anbindungen**: Apple-/CalDAV-Kalender, CRM (HubSpot, Pipedrive), Webhooks für Kunden.
 - [ ] **Stimme und Sprache je Kunde** in der Oberfläche wählen (auch Englisch, Türkisch).
-- [ ] **Überwachung & Alarme**, Statusseite.
+- [x] **Überwachung & Alarme** (`docs/betrieb.md`). Offen: öffentliche Statusseite.
 - [ ] **Gemeinsamer Speicher für die Anfrage-Begrenzung** (Redis o. ä.) – auf Netlify (mehrere Instanzen) greift sie sonst unzuverlässig.
 - [x] Glas-Design (Entwürfe G01–G13) umgesetzt: schwebende Icon-Leiste, Glasfenster mit Leuchten, rechte Spalte mit Profil, Schnellaktionen, Kontingent- bzw. Umsatz-Karte; Seitenköpfe mit Kennzahl-Pillen. Audio-Wellenform-Player bei Aufnahmen umgesetzt. Noch offen aus den Entwürfen: Wochen-Heatmap im Team, Schalter-Ansicht für das Telefonverhalten, Upgrade-Kandidaten, Dienst-Status bei Verbindungen.
 
@@ -25,7 +25,9 @@ Gemeinsame Merkliste. Erledigtes bitte hier abhaken oder streichen.
 
 ## Betrieb
 - [ ] Verschlüsselungsschlüssel und Geheimnisse auf Netlify liegen als sichtbare Variablen – für die Testumgebung ok, im Echtbetrieb (IONOS-VPS) in die `.env`.
-- [ ] Externe, verschlüsselte Backups + Wiederherstellungstest; Twilio-Ersatzziel (TwiML Bin) einrichten.
+- [x] Externe, verschlüsselte Backups mit monatlichem Wiederherstellungstest und Twilio-Ersatzziel sind gebaut (`docs/betrieb.md`). Offen: auf dem Produktionsserver einrichten (age-Schlüssel, S3-Bucket, TwiML Bin je Nummer) und den ersten Wiederherstellungstest dort nachweisen.
+- [ ] IONOS-VPS aufsetzen und härten (`deploy/harden.sh`), externen Lebenszeichen-Dienst und Uptime-Check einrichten.
+- [ ] Testanrufe nach `docs/testanrufe.md` je Anbieter, Ergebnisse eintragen; Launch-Gate `docs/idea-to-app/23-launch.md`.
 - [ ] Dependabot-Major-Updates (Prisma 7, Next 16, TypeScript 7, Tailwind 4) später gezielt.
 
 ## Später / Option
