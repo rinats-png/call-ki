@@ -71,7 +71,7 @@ Sicherheitsrelevante Grenzen (Login, Reset, 2FA, Re-Auth, Ersteinrichtung, Anruf
 JSON-Anfragen 100 KB (`readJson`), Tool-Webhooks 256 KB, Gesprächs-Events 2 MB (lange Transkripte), Listen max. 100–200 Einträge, Freitextfelder per zod begrenzt.
 
 ## Security-Header
-`next.config.ts`: CSP (`default-src 'self'`, `frame-ancestors 'none'`, `form-action 'self'`, `base-uri 'self'`), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`. Caddy: HSTS 1 Jahr. Kein CORS (nur gleiche Herkunft); CSRF über Origin-Prüfung (`src/middleware.ts`).
+`src/middleware.ts`: CSP mit Nonce je Anfrage für Skripte (`script-src 'self' 'nonce-…' 'strict-dynamic'`), `default-src 'self'`, `frame-ancestors 'none'`, `form-action 'self'`, `base-uri 'self'`), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`. Caddy: HSTS 1 Jahr. Kein CORS (nur gleiche Herkunft); CSRF über Origin-Prüfung (`src/middleware.ts`).
 
 ## Protokollierung
 Audit-Log (`AuditLog`, 2 Jahre): Logins und Fehlversuche, 2FA-Änderungen, Passwortwechsel, Sitzungen beendet, Support-Zugriffe, Admin-Aktionen, DSGVO-Auskunft/-Löschung, Abspielen von Aufnahmen. Server-Log: JSON, Rufnummern maskiert, keine Passwörter, Tokens oder Transkripte.
@@ -96,7 +96,7 @@ Nur serverseitig in `.env` (nicht im Repository, `.env.example` mit Platzhaltern
 ## Bewusst akzeptierte Risiken
 | ID | Risiko | Begründung | Neu prüfen |
 |---|---|---|---|
-| E-001 | CSP erlaubt `'unsafe-inline'` für Skripte und Styles | Next.js-Inline-Bootstrap und Theme-Skript; keine Ausgabe von Nutzer-HTML. Umstellung auf Nonces geplant. Bei Stufe 2 zulässig. | vor Launch |
+| E-001 | (Skripte erledigt 2026-10-24) CSP erlaubt `'unsafe-inline'` nur noch für Styles | Skripte nur mit Nonce je Anfrage (`src/middleware.ts`, `'strict-dynamic'`), getestet (T-SEC-HTTP-08, E2E-04). Styles brauchen `unsafe-inline` für style-Attribute (Diagramme); kein Nutzer-HTML | bei Bedarf |
 | E-002 | Rate-Limits für Webhooks und API-Aufrufe je Nutzer im Prozessspeicher (sicherheitsrelevante Limits – Anmeldung, 2FA, Passwort-Reset, Re-Auth, Einrichtung, Anrufer – seit 2026-10-24 gemeinsam in PostgreSQL) | Hohe Frequenz, kein Sicherheitsgewinn durch Teilen; Neustart setzt nur diese Zähler zurück | bei Skalierung |
 | E-003 | (erledigt 2026-10-24) `npm audit` | Keine bekannten Schwachstellen mehr: zod 4, vitest 5, Overrides für postcss/deepmerge-ts/postcss-selector-parser (erzeugte CSS unverändert). CI bricht bei Produktionsabhängigkeiten ab „high“ ab | – |
 | E-004 | Keine zweite Schutzschicht per Postgres-RLS | Mandantentrennung im Code + Integrationstest; RLS als Erweiterung | vor 10 Kunden |

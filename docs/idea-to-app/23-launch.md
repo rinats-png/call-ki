@@ -56,7 +56,7 @@ Stand: 2026-10-24 · Risikostufe 2 (Tendenz 3, siehe `B1-ist-analyse.md`). Ein H
 | ☑ | HTTPS überall, HSTS | 1 | `deploy/Caddyfile` (Strict-Transport-Security), geprüft 2026-10-24 |
 | ☑ | Security-Header gesetzt (CSP, nosniff, Referrer-Policy, frame-ancestors, Permissions-Policy) | 1 | `next.config.ts` (CSP, nosniff, Referrer-Policy, frame-ancestors, Permissions-Policy) |
 | ☑ | CORS nur eigene Domains | 1 | keine CORS-Header gesetzt (nur gleiche Herkunft), grep `Access-Control` ohne Treffer 2026-10-24; `docs/sicherheit.md` „Security-Header“ |
-| ☐ | CSP ohne `unsafe-inline` / `unsafe-eval` (oder begründete Ausnahme) | 3 | akzeptiert: E-001 (`docs/sicherheit.md`, Nonces geplant) |
+| ☑ | CSP ohne `unsafe-inline` / `unsafe-eval` (oder begründete Ausnahme) | 3 | Skripte nur mit Nonce (`src/middleware.ts`), Tests T-SEC-HTTP-08 und E2E-04 (keine CSP-Verstöße), 2026-10-24; begründete Ausnahme `unsafe-inline` nur für Styles (E-001) |
 | ☑ | Keine sensiblen Daten in Logs, URLs, Fehlermeldungen, Analytics, Push-Texten | 1 | grep der Log-Aufrufe 2026-10-24: Anrufernummern per `maskPhone`, im Klartext nur Firmennummern, keine Transkripte/Tokens/Passwörter; kein Analytics, keine Push-Nachrichten; Reset-Token nur im Pfad mit `Referrer-Policy` (`next.config.ts`) |
 | ☑ | Konto löschen entfernt alle Daten inkl. Dateien | 2 | Integration „löscht einen Mandanten nur nach Anbieter-Löschung …“ (inkl. Aufnahmen beim Anbieter), Schlussabrechnung bleibt (Commit 48e363a) |
 | ☑ | Datenexport nur für den Nutzer selbst | 2 | Integration „exportiert nur Daten des eigenen Mandanten“ (`tests/integration/tenancy.test.ts`) |
@@ -104,7 +104,7 @@ Stand: 2026-10-24 · Risikostufe 2 (Tendenz 3, siehe `B1-ist-analyse.md`). Ein H
 | Bereich | Pflichtpunkte | mit Nachweis | n/a | offen | akzeptiert (E-…) |
 |---|---|---|---|---|---|
 | Sprach-KI | 9 | 4 | 0 | 5 | 0 |
-| Sicherheit | 55 | 41 | 2 | 11 | 1 (E-001) |
+| Sicherheit | 55 | 42 | 2 | 11 | 0 |
 | Betrieb, Recht, Qualität | 15 | 1 | 0 | 14 | 0 |
 
 **Freigabestatus:** Nicht freigabefähig (Stand 2026-10-24, Prüfskript `--launch`: 43 von 71 Pflichtpunkten mit Nachweis, 2 n/a, 26 offen). Alles, was ohne echte Konten, Produktionsserver oder rechtliche Prüfung nachweisbar war, ist belegt. Die offenen Punkte brauchen:

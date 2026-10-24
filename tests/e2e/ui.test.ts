@@ -49,6 +49,22 @@ describe.skipIf(!BASE)("E2E im Browser", () => {
     await page.close();
   }, 60_000);
 
+  it("E2E-04: Seiten laufen ohne CSP-Verstöße (Skripte nur mit Nonce)", async () => {
+    const page = await browser.newPage();
+    const violations: string[] = [];
+    page.on("console", (m) => { if (/Content Security Policy|Refused to (execute|load)/i.test(m.text())) violations.push(m.text()); });
+    await login(page, "admin@alpha.example");
+    await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 30_000 });
+    for (const path of ["/", "/calls", "/customers", "/settings", "/settings/plan", "/status"]) {
+      await page.goto(`${BASE}${path}`);
+      await page.waitForLoadState("networkidle");
+    }
+    // Theme-Skript lief (Nonce gültig): data-theme ist gesetzt
+    expect(await page.evaluate(() => document.documentElement.dataset.theme)).toMatch(/light|dark/);
+    expect(violations).toEqual([]);
+    await page.close();
+  }, 90_000);
+
   it("E2E-03: falsches Passwort zeigt einen Fehler, keine Anmeldung", async () => {
     const page = await browser.newPage();
     await page.goto(`${BASE}/login`);

@@ -11,7 +11,42 @@ const PUBLIC_API = ["/api/auth/", "/api/twilio/", "/api/voice/", "/api/health", 
 /** Webhooks werden von Twilio/Retell aufgerufen – eigene Signaturprüfung, kein CSRF-Check */
 const WEBHOOK_API = ["/api/twilio/", "/api/voice/", "/api/cron/"];
 
+/**
+ * CSP mit Nonce je Anfrage: Skripte nur mit passender Nonce ('strict-dynamic' lässt von dort
+ * nachgeladene Next.js-Chunks zu) – kein 'unsafe-inline' für Skripte. Next.js liest die Nonce
+ * aus dem Request-Header und setzt sie an seine eigenen Inline-Skripte.
+ */
+export function cspHeader(nonce: string, dev = process.env.NODE_ENV !== "production") {
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ""}`,
+    "style-src 'self' 'unsafe-inline'", // style-Attribute (Diagramme, Fortschrittsbalken)
+    "img-src 'self' data: https:",
+    "media-src 'self' blob: https:", // blob: = Aufnahme, die der Wellenform-Player geladen hat
+    "connect-src 'self'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+  ].join("; ");
+}
+
 export function middleware(req: NextRequest) {
+  return route(req);
+}
+
+function withCsp(req: NextRequest): NextResponse {
+  const nonce = btoa(crypto.randomUUID());
+  const csp = cspHeader(nonce);
+  const headers = new Headers(req.headers);
+  headers.set("x-nonce", nonce);
+  headers.set("Content-Security-Policy", csp);
+  const res = NextResponse.next({ request: { headers } });
+  res.headers.set("Content-Security-Policy", csp);
+  return res;
+}
+
+function route(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const isApi = pathname.startsWith("/api/");
 
@@ -23,8 +58,8 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  if ((isApi ? PUBLIC_API : PUBLIC_PAGES).some((p) => pathname.startsWith(p))) return NextResponse.next();
-  if (req.cookies.has(SESSION_COOKIE)) return NextResponse.next();
+  if ((isApi ? PUBLIC_API : PUBLIC_PAGES).some((p) => pathname.startsWith(p))) return isApi ? NextResponse.next() : withCsp(req);
+  if (req.cookies.has(SESSION_COOKIE)) return isApi ? NextResponse.next() : withCsp(req);
 
   if (isApi) return NextResponse.json({ error: "Nicht angemeldet" }, { status: 401 });
   const url = req.nextUrl.clone();

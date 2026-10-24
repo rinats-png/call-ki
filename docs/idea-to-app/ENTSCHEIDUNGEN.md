@@ -5,7 +5,7 @@
 
 | ID | Datum | Phase | Entscheidung | Begründung | Verworfene Alternativen | Folgen / Risiken | Betrifft |
 |---|---|---|---|---|---|---|---|
-| E-001 | 2026-10-23 | 14 | **akzeptiert:** CSP erlaubt `'unsafe-inline'` für Skripte und Styles | Next.js-Inline-Bootstrap und Theme-Skript; keine Ausgabe von Nutzer-HTML; bei Stufe 2 zulässig | Nonces sofort (Umbau aller Seiten, Middleware) | XSS hätte weniger Hürden; neu prüfen vor Launch | B1 BF-19, OP-14-08, `next.config.ts` |
+| E-001 | 2026-10-23, Skripte erledigt 2026-10-24 | 14 | **akzeptiert (nur Styles):** CSP erlaubt `'unsafe-inline'` nur noch für style-Attribute; Skripte nur mit Nonce | Diagramme und Balken setzen style-Attribute; keine Ausgabe von Nutzer-HTML | Styles per Klassen statt Attributen | gering | `src/middleware.ts`, T-SEC-HTTP-08, E2E-04 |
 | E-002 | 2026-10-23 (geändert 2026-10-24) | 14 | **akzeptiert:** Rate-Limits für Webhooks und API-Aufrufe je Nutzer bleiben im Prozessspeicher | Hohe Frequenz, kein Sicherheitsgewinn durch Teilen; sicherheitsrelevante Limits liegen seit 2026-10-24 in PostgreSQL (E-012) | Alles in Redis (zusätzlicher Dienst) | Neustart setzt diese Zähler zurück; bei mehreren Instanzen ungenau | OP-14-06, `src/lib/rate-limit.ts` |
 | E-003 | 2026-10-23, erledigt 2026-10-24 | 14 | **gegenstandslos:** `npm audit` ohne Befund (zod 4, vitest 5, Overrides für postcss, deepmerge-ts, postcss-selector-parser) | Major-Updates Prisma 7 / Next 16 / Tailwind 4 bleiben eigene Aufgabe, aber ohne Sicherheitsdruck | – | – | B1 BF-05, OP-14-09, TASK-040 |
 | E-004 | 2026-10-23 | 14 | **akzeptiert:** keine zweite Schutzschicht per Postgres-RLS | Mandantentrennung über `tenantId` in jeder Abfrage plus Integrationstest; RLS als spätere Erweiterung | RLS sofort (Prisma-Session-Variablen, Migrationen) | Ein Programmierfehler in einer Abfrage könnte Mandanten mischen; neu prüfen vor 10 Kunden | B1 BF-13, OP-14-14 |
@@ -35,7 +35,7 @@
 
 | ID | Datum | Bezug | Empfehlung | Warum nicht umgesetzt | Risiko | Neu bewerten bis |
 |---|---|---|---|---|---|---|
-| E-001 | 2026-10-23 | BF-19, OP-14-08 | CSP mit Nonces statt `unsafe-inline` | Umbau aller Seiten; keine Nutzer-HTML-Ausgabe | niedrig–mittel | vor Launch |
+| E-001 | 2026-10-23 | BF-19, OP-14-08 | CSP mit Nonces statt `unsafe-inline` | für Skripte umgesetzt 2026-10-24; Styles bewusst offen | gering | – |
 | E-002 | 2026-10-23 | OP-14-06 | Alle Rate-Limits gemeinsam speichern | Sicherheitsrelevante Limits sind gemeinsam (E-012); Rest ohne Sicherheitsgewinn | niedrig | bei Skalierung auf mehrere Instanzen |
 | E-003 | 2026-10-23 | BF-05, OP-14-09 | Major-Updates Prisma 7 / Next 16 | Großer Umbau, braucht vollen Testlauf | mittel | 2026-11-15 |
 | E-004 | 2026-10-23 | BF-13, OP-14-14 | Postgres-RLS als zweite Schicht | Integrationstest deckt Mandantentrennung ab | mittel | vor 10 Kunden |

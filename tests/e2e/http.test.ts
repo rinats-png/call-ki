@@ -71,6 +71,16 @@ describe.skipIf(!BASE)("HTTP: Zugriffsregeln und Schutzmechanismen", () => {
   it("T-SEC-HTTP-08: Sicherheits-Header sind gesetzt", async () => {
     const r = await new Client().req("/login");
     expect(r.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
+    // Skripte nur mit Nonce (kein 'unsafe-inline'); jedes Inline-Skript der Seite trägt die Nonce
+    const csp = r.headers.get("content-security-policy") ?? "";
+    const scriptSrc = csp.split(";").find((d) => d.trim().startsWith("script-src")) ?? "";
+    expect(scriptSrc).not.toContain("unsafe-inline");
+    const nonce = /'nonce-([^']+)'/.exec(scriptSrc)?.[1];
+    expect(nonce).toBeTruthy();
+    const html = await r.text();
+    const scripts = [...html.matchAll(/<script\b[^>]*>/g)].map((m) => m[0]);
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const tag of scripts) expect(tag).toContain(`nonce="${nonce}"`);
     expect(r.headers.get("x-content-type-options")).toBe("nosniff");
     expect(r.headers.get("referrer-policy")).toBeTruthy();
   });

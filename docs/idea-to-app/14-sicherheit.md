@@ -129,7 +129,7 @@ Ort: **.env** = nur Server-Datei · **UI** = in der Oberfläche einstellbar (üb
 
 **F Eingaben & Ausgaben.** zod für alle Eingaben inklusive KI-Argumenten (unbekannte Enum-Werte → `undefined`), Prisma (keine SQL-Strings), React-Escaping, `xmlEscape` in E-Mails und TwiML, Allowlist für Aufnahme-Hosts, auch für Weiterleitungen (Commit `0e0efc5`).
 
-**G Transport & Browser.** HTTPS über Caddy mit HSTS, Cookies Secure/HttpOnly/SameSite=Lax, CSP mit `unsafe-inline` (E-001), kein CORS, Origin-Prüfung gegen CSRF.
+**G Transport & Browser.** HTTPS über Caddy mit HSTS, Cookies Secure/HttpOnly/SameSite=Lax, CSP mit Nonce für Skripte, `unsafe-inline` nur für Styles (E-001), kein CORS, Origin-Prüfung gegen CSRF.
 
 **H Daten.** Klassifizierung und Fristen in `11-daten.md`. Löschung zuerst beim Anbieter. Geheime Felder verschlüsselt (TOTP, Refresh-Token, UI-Schlüssel). Inhaltsdaten (Transkripte) sind **nicht** feldverschlüsselt – bei Stufe 3 prüfen. Backups verschlüsselt.
 
@@ -168,7 +168,7 @@ Grundlage: Kapitelstruktur von ASVS 4.0.3 (V1–V14), auf Ebene der Level-1-Anfo
 | V12 Dateien | Uploads | entfällt | keine Uploads; Aufnahmen nur durchgereicht |
 | V13 API / Webhooks | Authentifizierung, Größenlimits, Methoden | erfüllt | Signaturtests; Retell-Altformat ohne Zeitstempel wird abgelehnt (Commit `0e0efc5`, `tests/security.test.ts`) |
 | V14.1 Build | keine Geheimnisse im Repo/Build | erfüllt | gitleaks in CI; Build-Scan `scripts/scan-build.sh` mit Kanarienwerten in der CI (Commit `33c0708`) |
-| V14.4 Header | CSP, nosniff, Frame-Schutz, HSTS | teilweise | `unsafe-inline` (E-001); Header per HTTP getestet (T-SEC-HTTP-08); HSTS kommt von Caddy und ist dort nicht getestet |
+| V14.4 Header | CSP, nosniff, Frame-Schutz, HSTS | weitgehend | Skripte nur mit Nonce, `unsafe-inline` nur für Styles (E-001); Header per HTTP getestet (T-SEC-HTTP-08); HSTS kommt von Caddy und ist dort nicht getestet |
 | V14.5 Herkunft | Origin-Prüfung, kein CORS | erfüllt | `src/middleware.ts`; per HTTP getestet (T-SEC-HTTP-04) |
 
 **Ehrliches Fazit:** Level 1 ist im Code weitgehend umgesetzt. Seit Commit `7404f55` gibt es HTTP-Tests gegen den echten Build (`tests/e2e/http.test.ts`, in der CI über `scripts/e2e.sh`), seit `33c0708` auch für fremde Datensätze ändern/löschen, Rollen im Body, Reset-Links und Kollegen-Reset (T-SEC-HTTP-10…14); sie decken aber weiterhin nur je einen Vertreter pro Regel ab. Level 2 (nötig bei Stufe 3) ist **nicht** abgeglichen.
@@ -179,7 +179,7 @@ Die Einträge stehen mit Begründung in `docs/sicherheit.md` und werden nach `EN
 
 | ID | Bezug | Risiko | Warum akzeptiert | Neu bewerten bis |
 |---|---|---|---|---|
-| E-001 | BD-14 | CSP mit `unsafe-inline` | Next.js-Inline-Bootstrap, kein Nutzer-HTML | vor Launch |
+| E-001 | BD-14 | CSP `unsafe-inline` nur noch für Styles (Skripte mit Nonce seit 2026-10-24) | style-Attribute der Diagramme, kein Nutzer-HTML | bei Bedarf |
 | E-002 | BD-04, BD-05 | Webhook- und API-Zähler im Prozessspeicher | eine Instanz auf dem VPS; Sicherheitslimits sind in Postgres | bei Skalierung |
 | E-003 | BD-18 | `npm audit`-Befunde nur noch in Entwicklungswerkzeugen (vitest, tailwind); Produktion ohne Befund seit `859b8e0` | laufen nicht in Produktion | 2026-11-15 |
 | E-004 | BD-07 | keine Postgres-RLS | Trennung im Code + Integrationstest | vor 10 Kunden |
