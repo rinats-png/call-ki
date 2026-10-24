@@ -13,7 +13,7 @@ import { apiDownload, apiFetch } from "@/components/session";
 import { PlanRequests } from "@/components/admin/PlanRequests";
 
 type Row = {
-  tenantId: string; tenantName: string; status: string;
+  tenantId: string; tenantName: string; status: string; closed: boolean;
   plan: { name: string; includedMinutes: number; overageMode: string };
   usage: { calls: number; minutes: number; sms: number };
   invoice: { netCents: number; grossCents: number; overageMinutes: number };
@@ -71,7 +71,7 @@ export default function Page() {
         <>
           <section className="glass p-2 md:p-3">
             <div className="flex items-center justify-between gap-3 px-3 pb-2 pt-2">
-              <h2 className="flex items-center gap-1 text-sm font-bold text-zinc-100">Kunden<InfoTip title="Abrechnung" steps={["Vorschau je Kunde aus Paket und tatsächlichem Verbrauch – es wird keine Rechnung verschickt.", "CSV-Export für deine Buchhaltung oder dein Rechnungsprogramm (lexoffice, sevDesk …).", "Einkaufskosten unten eintragen (was dich Telefonie, KI und SMS pro Minute kosten) – daraus ergibt sich die Marge."]} /></h2>
+              <h2 className="flex items-center gap-1 text-sm font-bold text-zinc-100">Kunden<InfoTip title="Abrechnung" steps={["Abgeschlossene Monate (ab dem 3. des Folgemonats) sind festgeschrieben und ändern sich nicht mehr – auch gelöschte Kunden erscheinen dort mit ihrer Schlussabrechnung. Der laufende Monat ist eine Vorschau. Es wird keine Rechnung verschickt.", "CSV-Export für deine Buchhaltung oder dein Rechnungsprogramm (lexoffice, sevDesk …).", "Einkaufskosten unten eintragen (was dich Telefonie, KI und SMS pro Minute kosten) – daraus ergibt sich die Marge."]} /></h2>
               <span className="text-xs text-zinc-500">{data.rows.length} Kunden · {data.totals.calls} Anrufe</span>
             </div>
             <div className="hidden grid-cols-[minmax(0,1.6fr)_minmax(0,1.6fr)_60px_repeat(3,minmax(0,0.8fr))] gap-4 px-4 pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500 lg:grid">
@@ -80,10 +80,10 @@ export default function Page() {
             <ul className="space-y-1.5">
               {data.rows.map((r) => (
                 <li key={r.tenantId}>
-                  <Link href={`/admin/tenants/${r.tenantId}`} className="glass-soft grid grid-cols-2 items-center gap-x-4 gap-y-2 px-4 py-3 transition hover:bg-zinc-800/70 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1.6fr)_60px_repeat(3,minmax(0,0.8fr))]">
+                  <Link href={r.status === "DELETED" ? "#" : `/admin/tenants/${r.tenantId}`} className="glass-soft grid grid-cols-2 items-center gap-x-4 gap-y-2 px-4 py-3 transition hover:bg-zinc-800/70 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1.6fr)_60px_repeat(3,minmax(0,0.8fr))]">
                     <span className="col-span-2 min-w-0 lg:col-span-1">
                       <span className="block truncate font-bold text-zinc-50">{r.tenantName}</span>
-                      <span className="block text-xs text-zinc-500">Paket {r.plan.name}{r.invoice.overageMinutes > 0 ? ` · ${r.invoice.overageMinutes} Überminuten` : ""}</span>
+                      <span className="block text-xs text-zinc-500">Paket {r.plan.name}{r.invoice.overageMinutes > 0 ? ` · ${r.invoice.overageMinutes} Überminuten` : ""}{r.closed ? " · festgeschrieben" : ""}{r.status === "DELETED" ? " · Kunde gelöscht" : ""}</span>
                     </span>
                     <UsageBar className="col-span-2 lg:col-span-1" used={r.usage.minutes} included={r.plan.includedMinutes} />
                     <span className="text-xs text-zinc-500 lg:text-right lg:text-sm lg:text-zinc-300"><span className="lg:hidden">SMS </span><span className="tabular-nums">{r.usage.sms}</span></span>

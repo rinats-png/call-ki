@@ -32,7 +32,7 @@ import { vi } from "vitest";
 import { findAvailableSlots } from "@/lib/calendar";
 import { deleteTenant, exportTenantData } from "@/lib/services/tenants";
 import { bookMinutePack, decidePlanChange, requestPlanChange } from "@/lib/services/billing-requests";
-import { billingReport } from "@/lib/services/billing-report";
+import { billingCsv, billingReport } from "@/lib/services/billing-report";
 import { minuteGate } from "@/lib/billing";
 
 /**
@@ -619,6 +619,12 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
     // Anrufe des abgeschlossenen Monats löschen → Abrechnung bleibt gleich
     await prisma.call.deleteMany({ where: { tenantId: A.tenant.id, startedAt: { lt: monthRange(cur.year, cur.month, tz).start } } });
     expect((await usageForMonth(A.tenant, prev.year, prev.month, 60)).minutes).toBe(before.minutes);
+    // Export für die Buchhaltung: festgeschriebene Werte, auch für gelöschte Kunden
+    await prisma.billingSnapshot.create({ data: { tenantId: "geloeschter-kunde", tenantName: "Ehemals GmbH", year: prev.year, month: prev.month, planName: "Mini", usage: { calls: 1, seconds: 60, minutes: 1, sms: 0, emails: 0, tickets: 0, emergencies: 0 }, invoice: { lines: [], netCents: 4900, vatPercent: 19, vatCents: 931, grossCents: 5831, overageMinutes: 0, overageSms: 0 } } });
+    const report = await billingReport(prev.year, prev.month);
+    expect(report.find((r) => r.tenantId === A.tenant.id)?.closed).toBe(true);
+    expect(report.find((r) => r.tenantId === "geloeschter-kunde")).toMatchObject({ status: "DELETED", closed: true, tenantName: "Ehemals GmbH" });
+    expect(billingCsv(report, "x")).toContain("Ehemals GmbH;DELETED;ja;Mini");
 
     // DSGVO-Löschung eines Anrufers im laufenden Monat: Minuten bleiben, Personenbezug weg
     const cust = await prisma.customer.create({ data: { tenantId: A.tenant.id, phone: "+4915000000111", name: "Lösch Mich" } });
