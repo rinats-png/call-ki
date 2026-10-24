@@ -7,7 +7,7 @@ import { formatGermanDateTime } from "../time";
 import { assessUrgency } from "../urgency";
 import { URGENCIES, CUSTOMER_TYPES } from "../constants";
 import { findCustomerByPhone, upsertCustomer } from "../services/customers";
-import { processServiceRequest, routeRequest } from "../services/tickets";
+import { cancelAppointment, processServiceRequest, rescheduleAppointment, routeRequest } from "../services/tickets";
 import { hasFeature, planForTenant } from "../billing";
 import type { VoiceCallContext } from "./context";
 
@@ -39,6 +39,9 @@ const schemas = {
   find_technician: withCategory({ phone: phoneArg, postalCode: z.string().optional(), description: z.string().optional(), urgency: urgencyArg, customerType: customerTypeArg }),
   book_appointment: withCategory({ phone: phoneArg, description: z.string().min(1), urgency: urgencyArg, appointmentStart: z.string().optional(), employeeId: z.string().optional(), ...customerFields }),
   escalate_emergency: withCategory({ phone: phoneArg, description: z.string().min(1), postalCode: z.string().optional(), address: z.string().optional(), name: z.string().optional() }),
+  find_appointments: z.object({}).passthrough(),
+  reschedule_appointment: z.object({ reference: z.string().max(40).optional(), appointmentStart: z.string().optional() }),
+  cancel_appointment: z.object({ reference: z.string().max(40).optional(), reason: z.string().max(300).optional() }),
 } as const;
 
 export type ToolName = keyof typeof schemas;
@@ -55,6 +58,33 @@ function resolvePhone(argPhone: string | undefined, ctx: VoiceCallContext): { ph
   const p = normalizePhone(argPhone) ?? caller;
   if (!p) throw new ToolError("Keine gültige Rufnummer vorhanden. Bitte die Rückrufnummer erfragen.");
   return { phone: p, verified: p === caller };
+}
+
+/**
+ * Kommende Termine des Anrufers – ausschließlich zur verifizierten Anrufernummer
+ * (keine Termine Dritter über genannte Nummern oder Vorgangsnummern).
+ */
+async function callerAppointments(ctx: VoiceCallContext) {
+  const phone = normalizePhone(ctx.callerNumber);
+  if (!phone) return null;
+  return prisma.callTicket.findMany({
+    where: { tenantId: ctx.tenant.id, customer: { phone }, appointmentStart: { gt: new Date() }, status: { not: "CLOSED" } },
+    include: { customer: true, assignedEmployee: true },
+    orderBy: { appointmentStart: "asc" },
+    take: 5,
+  });
+}
+const NO_VERIFIED_NUMBER = { found: false, say: "Termine kann ich nur ändern, wenn Sie von der Nummer anrufen, mit der der Termin vereinbart wurde. Bitte Rückruf durch das Büro anbieten." };
+const ref = (id: string) => id.slice(-8).toUpperCase();
+
+/** Termin des Anrufers zur Vorgangsnummer; ohne Nummer nur, wenn es genau einen kommenden Termin gibt. */
+async function pickAppointment(ctx: VoiceCallContext, reference: string | undefined) {
+  const list = await callerAppointments(ctx);
+  if (!list) return { error: NO_VERIFIED_NUMBER } as const;
+  const clean = (reference ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const hit = clean ? list.find((t) => ref(t.id) === clean || ref(t.id).endsWith(clean)) : list.length === 1 ? list[0] : undefined;
+  if (!hit) return { error: { found: false, appointments: list.map((t) => ({ reference: ref(t.id), label: formatGermanDateTime(t.appointmentStart!, ctx.tenant.timezone) })), say: list.length ? "Welcher Termin ist gemeint? Bitte Datum nennen lassen und die Vorgangsnummer übergeben." : "Zu dieser Rufnummer gibt es keinen kommenden Termin." } } as const;
+  return { ticket: hit } as const;
 }
 
 type Handler<K extends ToolName> = (args: z.infer<(typeof schemas)[K]>, ctx: VoiceCallContext) => Promise<unknown>;
@@ -161,6 +191,42 @@ const handlers: { [K in ToolName]: Handler<K> } = {
         ? `Notfall ist aufgenommen. Jetzt mit transfer_call an ${transferNumber} durchstellen.`
         : `Notfall ist aufgenommen. ${emp?.name ?? "Der Notdienst"} ruft schnellstmöglich zurück.`,
     };
+  },
+
+  async find_appointments(_args, ctx) {
+    const list = await callerAppointments(ctx);
+    if (!list) return NO_VERIFIED_NUMBER;
+    if (!list.length) return { found: false, appointments: [], say: "Zu dieser Rufnummer gibt es keinen kommenden Termin." };
+    const tz = ctx.tenant.timezone;
+    const appointments = list.map((t) => ({ reference: ref(t.id), label: formatGermanDateTime(t.appointmentStart!, tz), category: t.category, employee: t.assignedEmployee?.name ?? null }));
+    return { found: true, appointments, say: `Kommende Termine: ${appointments.map((a) => `${a.label}${a.category ? ` (${a.category})` : ""}`).join("; ")}.` };
+  },
+
+  async reschedule_appointment(args, ctx) {
+    const pick = await pickAppointment(ctx, args.reference);
+    if ("error" in pick) return pick.error;
+    const t = pick.ticket;
+    if (!t.assignedEmployee) return { ok: false, say: "Für diesen Termin ist niemand eingeplant. Bitte Rückruf durch das Büro anbieten." };
+    const tz = ctx.tenant.timezone;
+    const alternatives = async () => (await findAvailableSlots(ctx.tenant, ctx.cfg, t.assignedEmployee!)).slots.map((s) => ({ start: s.start.toISOString(), label: formatGermanDateTime(s.start, tz) }));
+    if (!args.appointmentStart) {
+      const slots = await alternatives();
+      return { ok: false, reference: ref(t.id), current: formatGermanDateTime(t.appointmentStart!, tz), slots, say: slots.length ? `Freie Termine: ${slots.map((s) => s.label).join("; ")}. Danach reschedule_appointment mit appointmentStart aufrufen.` : "Keine freien Termine gefunden – Rückruf zur Terminabstimmung anbieten." };
+    }
+    const r = await rescheduleAppointment(ctx.tenant, ctx.cfg, t, new Date(args.appointmentStart), { defer: true });
+    if (!r.ok) {
+      const slots = await alternatives();
+      return { ok: false, slotTaken: r.reason === "slot_taken", slots, say: `Dieser Termin geht leider nicht. ${slots.length ? `Alternativen: ${slots.map((s) => s.label).join("; ")}.` : "Bitte Rückruf anbieten."}` };
+    }
+    return { ok: true, reference: ref(t.id), appointment: r.appointment.start.toISOString(), say: `Der Termin ist verschoben auf ${formatGermanDateTime(r.appointment.start, tz)}${t.assignedEmployee ? ` mit ${t.assignedEmployee.name}` : ""}.` };
+  },
+
+  async cancel_appointment(args, ctx) {
+    const pick = await pickAppointment(ctx, args.reference);
+    if ("error" in pick) return pick.error;
+    const when = formatGermanDateTime(pick.ticket.appointmentStart!, ctx.tenant.timezone);
+    await cancelAppointment(ctx.tenant, ctx.cfg, pick.ticket, { reason: args.reason, defer: true });
+    return { ok: true, reference: ref(pick.ticket.id), say: `Der Termin am ${when} ist abgesagt. Das Team ist informiert.` };
   },
 };
 

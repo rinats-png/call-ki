@@ -120,6 +120,10 @@ export async function createCalendarEvent(msTenantId: string, input: {
   });
 }
 
+export async function deleteCalendarEvent(msTenantId: string, mailbox: string, eventId: string): Promise<void> {
+  await graphFetch(msTenantId, `/users/${enc(mailbox)}/events/${enc(eventId)}`, { method: "DELETE" });
+}
+
 export async function createMailDraft(msTenantId: string, input: { mailbox: string; to: string[]; cc?: string[]; subject: string; bodyHtml: string; urgent?: boolean }): Promise<{ id: string }> {
   return graphFetch(msTenantId, `/users/${enc(input.mailbox)}/messages`, {
     method: "POST",

@@ -10,6 +10,7 @@ Anrufer ─▶ Kunden-Nr. (Rufumleitung) ─▶ Twilio-Nummer ─▶ /api/twilio
                                                   │ Function Calls (an Mandant gebunden)
                                                   ▼
             identify_caller · save_customer · find_technician · book_appointment · escalate_emergency
+            find_appointments · reschedule_appointment · cancel_appointment
                                                   │
      PostgreSQL (tenantId überall) ◀──────────────┼──────────▶ Kalender: intern + optional Microsoft 365
                                                   │                 Benachrichtigung: E-Mail (+ICS) · SMS

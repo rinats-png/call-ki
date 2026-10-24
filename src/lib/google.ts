@@ -123,6 +123,10 @@ export async function googleCreateEvent(tenantId: string, calendarId: string, in
   return { id: r.id };
 }
 
+export async function googleDeleteEvent(tenantId: string, calendarId: string, eventId: string): Promise<void> {
+  await gfetch(tenantId, `/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`, { method: "DELETE" });
+}
+
 /** Verbindung trennen: Token bei Google widerrufen (best effort) und lokal löschen. */
 export async function disconnectGoogle(tenantId: string): Promise<void> {
   const integ = await prisma.integration.findUnique({ where: { tenantId_type: { tenantId, type: GOOGLE_TYPE } } });

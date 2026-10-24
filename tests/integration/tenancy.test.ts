@@ -425,6 +425,43 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
     }
   });
 
+  it("verschiebt und sagt Termine per Telefon ab – nur für die verifizierte Anrufernummer", async () => {
+    const phone = "+4915000000095";
+    const cust = await prisma.customer.create({ data: { tenantId: A.tenant.id, phone, name: "Paul Termin" } });
+    const { slots } = await findAvailableSlots(A.tenant, A.cfg, A.tech);
+    const t = await prisma.callTicket.create({ data: { tenantId: A.tenant.id, customerId: cust.id, assignedEmployeeId: A.tech.id, category: "Ratten", status: "PROCESSED", appointmentStart: slots[0].start, appointmentEnd: slots[0].end, reminderSentAt: new Date() } });
+    const ref = t.id.slice(-8).toUpperCase();
+
+    // Fremder Anrufer nennt die Vorgangsnummer → nichts
+    await prisma.call.create({ data: { tenantId: A.tenant.id, providerCallId: "retell-other", fromNumber: "+4915000000096", toNumber: A.number } });
+    const other = (await resolveVoiceContext("retell-other", null, null))!;
+    expect(((await runTool("find_appointments", {}, other)) as { found: boolean }).found).toBe(false);
+    expect(((await runTool("cancel_appointment", { reference: ref }, other)) as { ok?: boolean }).ok).toBeUndefined();
+    expect((await prisma.callTicket.findUnique({ where: { id: t.id } }))?.status).toBe("PROCESSED");
+
+    // Kunde selbst
+    await prisma.call.create({ data: { tenantId: A.tenant.id, providerCallId: "retell-self", fromNumber: phone, toNumber: A.number } });
+    const self = (await resolveVoiceContext("retell-self", null, null))!;
+    const found = (await runTool("find_appointments", {}, self)) as { appointments: { reference: string }[] };
+    expect(found.appointments.map((a) => a.reference)).toEqual([ref]);
+    const offer = (await runTool("reschedule_appointment", {}, self)) as { slots: { start: string }[] };
+    expect(offer.slots.length).toBeGreaterThan(0);
+    const target = offer.slots.find((s) => s.start !== slots[0].start.toISOString())!;
+    const moved = (await runTool("reschedule_appointment", { reference: ref, appointmentStart: target.start }, self)) as { ok: boolean };
+    expect(moved.ok).toBe(true);
+    let row = (await prisma.callTicket.findUnique({ where: { id: t.id } }))!;
+    expect(row.appointmentStart?.toISOString()).toBe(target.start);
+    expect(row.reminderSentAt).toBeNull(); // neue Erinnerung für den neuen Termin
+    expect(row.notes).toContain("verschoben");
+
+    const cancelled = (await runTool("cancel_appointment", { reference: ref, reason: "Problem hat sich erledigt" }, self)) as { ok: boolean };
+    expect(cancelled.ok).toBe(true);
+    await settleDeferred();
+    row = (await prisma.callTicket.findUnique({ where: { id: t.id } }))!;
+    expect(row).toMatchObject({ status: "CLOSED", appointmentStart: null });
+    expect(row.notes).toContain("abgesagt: Problem hat sich erledigt");
+  });
+
   it("löscht einen Mandanten nur nach Anbieter-Löschung (oder ausdrücklich erzwungen) und lässt andere unberührt", async () => {
     const before = await prisma.call.count({ where: { tenantId: A.tenant.id } });
     // Ohne Retell-Schlüssel scheitert die Anbieter-Löschung → Abbruch ohne force

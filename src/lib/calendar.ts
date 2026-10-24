@@ -1,8 +1,8 @@
 import type { Employee, Tenant } from "@prisma/client";
 import { prisma } from "./db";
 import { microsoftConfigured } from "./env";
-import { getBusyIntervals } from "./graph";
-import { googleBusy, googleLinked } from "./google";
+import { deleteCalendarEvent, getBusyIntervals } from "./graph";
+import { googleBusy, googleDeleteEvent, googleLinked } from "./google";
 import { logger } from "./logger";
 import { computeFreeSlots, overlaps, type Interval } from "./time";
 import type { TenantConfig } from "./tenant/settings";
@@ -91,4 +91,24 @@ export async function isSlotFree(tenantId: string, cfg: TenantConfig, employee: 
   const [internal, ext] = await Promise.all([internalBusy(tenantId, employee.id, from, to, excludeTicketId), busyFromProviders(tenantId, employee, from, to)]);
   const padded = { start: from, end: to };
   return ![...internal, ...ext.busy].some((b) => overlaps(b, padded));
+}
+
+/**
+ * Entfernt einen von uns angelegten Termin aus Outlook bzw. Google (beim Verschieben oder
+ * Absagen). Best effort: Fehler werden protokolliert, der Vorgang läuft weiter.
+ */
+export async function removeCalendarEvent(tenantId: string, employeeEmail: string | null, calendarEventId: string | null): Promise<boolean> {
+  if (!calendarEventId || !employeeEmail) return false;
+  try {
+    if (calendarEventId.startsWith("google:")) await googleDeleteEvent(tenantId, employeeEmail, calendarEventId.slice(7));
+    else {
+      const ms = await getMicrosoftLink(tenantId);
+      if (!ms) return false;
+      await deleteCalendarEvent(ms.msTenantId, employeeEmail, calendarEventId);
+    }
+    return true;
+  } catch (err) {
+    logger.warn("calendar.remove_event_failed", { tenantId, error: (err as Error).message });
+    return false;
+  }
 }

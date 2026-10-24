@@ -179,6 +179,48 @@
           "description"
         ]
       }
+    },
+    {
+      "name": "find_appointments",
+      "description": "Listet die kommenden Termine des Anrufers – nur zur echten Anrufernummer (automatisch übermittelt). Liefert je Termin reference und label.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "reschedule_appointment",
+      "description": "Verschiebt einen Termin des Anrufers. Ohne appointmentStart: liefert freie Alternativen (slots). Mit appointmentStart (exakter start-Wert aus slots): verschiebt, entfernt den alten Kalendertermin und informiert Team und Kunde.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "reference": {
+            "type": "string",
+            "description": "Vorgangsnummer aus find_appointments (bei nur einem Termin optional)"
+          },
+          "appointmentStart": {
+            "type": "string",
+            "description": "Neuer Termin: exakter start-Wert (ISO) aus slots"
+          }
+        }
+      }
+    },
+    {
+      "name": "cancel_appointment",
+      "description": "Sagt einen Termin des Anrufers ab (vorher bestätigen lassen). Entfernt den Kalendertermin und informiert Team und Kunde.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "reference": {
+            "type": "string",
+            "description": "Vorgangsnummer aus find_appointments (bei nur einem Termin optional)"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Kurzer Grund der Absage"
+          }
+        }
+      }
     }
   ]
 }

@@ -4,10 +4,12 @@ import { logger } from "../logger";
 import { assessUrgency } from "../urgency";
 import { routeTechnician, type RoutingResult } from "../routing";
 import { createCalendarEvent, createMailDraft } from "../graph";
-import { getMicrosoftLink, isSlotFree } from "../calendar";
+import { getMicrosoftLink, isSlotFree, removeCalendarEvent } from "../calendar";
 import { googleCreateEvent, googleLinked } from "../google";
 import { hasFeature, planForTenant } from "../billing";
-import { sendEmail, sendSms } from "../notify";
+import { emailLayout, sendEmail, sendSms } from "../notify";
+import { formatGermanDateTime } from "../time";
+import { xmlEscape as h } from "../twiml";
 import { buildIcs } from "../notify/ics";
 import { URGENCIES, type Urgency } from "../constants";
 import type { TenantConfig } from "../tenant/settings";
@@ -260,4 +262,58 @@ export async function notifyForTicket(
   if (Object.keys(update).length) await prisma.callTicket.update({ where: { id: ticket.id }, data: update });
   if (res.errors.length) logger.warn("ticket.notify_errors", { tenantId: tenant.id, ticketId: ticket.id, errors: res.errors });
   return res;
+}
+
+type TicketWithPeople = CallTicket & { customer: Customer; assignedEmployee: Employee | null };
+
+/**
+ * Termin verschieben (Telefon-KI oder Portal): Slot prüfen, alten Kalendertermin entfernen,
+ * neuen Termin setzen, Erinnerung zurücksetzen, Beteiligte erneut benachrichtigen.
+ */
+export async function rescheduleAppointment(tenant: T, cfg: TenantConfig, ticket: TicketWithPeople, start: Date, opts: { defer?: boolean } = {}): Promise<{ ok: true; appointment: { start: Date; end: Date } } | { ok: false; reason: "no_employee" | "slot_taken" | "in_past" }> {
+  const employee = ticket.assignedEmployee;
+  if (!employee) return { ok: false, reason: "no_employee" };
+  if (Number.isNaN(start.getTime()) || start.getTime() < Date.now() + 5 * 60_000) return { ok: false, reason: "in_past" };
+  const slot = { start, end: new Date(start.getTime() + cfg.durationMin * 60000) };
+  if (!(await isSlotFree(tenant.id, cfg, employee, slot, ticket.id))) return { ok: false, reason: "slot_taken" };
+  await removeCalendarEvent(tenant.id, employee.email, ticket.calendarEventId);
+  const updated = await prisma.callTicket.update({
+    where: { id: ticket.id },
+    data: { appointmentStart: slot.start, appointmentEnd: slot.end, calendarEventId: null, reminderSentAt: null, status: ticket.status === "CLOSED" ? "PROCESSED" : ticket.status === "PENDING" ? "PROCESSED" : ticket.status, notes: appendNote(ticket.notes, `Termin verschoben auf ${formatGermanDateTime(slot.start, tenant.timezone)}.`) },
+    include: { customer: true, assignedEmployee: true },
+  });
+  const run = () => notifyForTicket(tenant, cfg, updated, employee, slot, { force: true });
+  if (opts.defer) runAfterResponse("ticket.reschedule_notify", run);
+  else await run();
+  logger.info("ticket.rescheduled", { tenantId: tenant.id, ticketId: ticket.id });
+  return { ok: true, appointment: slot };
+}
+
+/** Termin absagen: Kalendertermin entfernen, Vorgang schließen, Mitarbeiter/Büro/Kunde informieren. */
+export async function cancelAppointment(tenant: T, cfg: TenantConfig, ticket: TicketWithPeople, opts: { reason?: string; defer?: boolean } = {}) {
+  const when = ticket.appointmentStart ? formatGermanDateTime(ticket.appointmentStart, tenant.timezone) : null;
+  await removeCalendarEvent(tenant.id, ticket.assignedEmployee?.email ?? null, ticket.calendarEventId);
+  await prisma.callTicket.update({
+    where: { id: ticket.id },
+    data: { appointmentStart: null, appointmentEnd: null, calendarEventId: null, status: "CLOSED", notes: appendNote(ticket.notes, `Termin${when ? ` am ${when}` : ""} vom Kunden abgesagt${opts.reason ? `: ${opts.reason}` : ""}.`) },
+  });
+  const run = async () => {
+    const plan = (await planForTenant(tenant.id)).plan;
+    if (!hasFeature(plan, "email_notifications")) return;
+    const ref = ticket.id.slice(-8).toUpperCase();
+    const who = ticket.customer.companyName ?? ticket.customer.name ?? ticket.customer.phone;
+    const inner = `<p>Der Termin${when ? ` am <b>${h(when)}</b>` : ""} (${h(ticket.category ?? "Vorgang")}, ${h(who)}) wurde vom Kunden abgesagt${opts.reason ? `: ${h(opts.reason)}` : ""}.</p><p>Vorgangsnummer ${h(ref)}</p>`;
+    const internal = [ticket.assignedEmployee?.email, cfg.settings.notifications.backofficeEmail].filter((x): x is string => !!x);
+    for (const to of new Set(internal)) await sendEmail({ tenantId: tenant.id, ticketId: ticket.id, to, subject: `Abgesagt: ${ticket.category ?? "Termin"}${when ? ` am ${when}` : ""}`, html: emailLayout(inner, tenant.name), purpose: "TECHNICIAN_BRIEFING", fromName: tenant.name });
+    if (ticket.customer.email) {
+      await sendEmail({ tenantId: tenant.id, ticketId: ticket.id, to: ticket.customer.email, subject: `Ihr Termin${when ? ` am ${when}` : ""} ist abgesagt`, html: emailLayout(`<p>Guten Tag,</p><p>wie besprochen haben wir Ihren Termin${when ? ` am <b>${h(when)}</b>` : ""} abgesagt. Melden Sie sich gern, wenn Sie einen neuen Termin möchten.</p><p>Mit freundlichen Grüßen<br/>${h(tenant.name)}</p>`, `${h(tenant.name)} · Vorgangsnummer ${h(ref)}`), purpose: "CUSTOMER_CONFIRMATION", fromName: tenant.name, replyTo: cfg.settings.notifications.backofficeEmail || undefined });
+    }
+  };
+  if (opts.defer) runAfterResponse("ticket.cancel_notify", run);
+  else await run();
+  logger.info("ticket.appointment_cancelled", { tenantId: tenant.id, ticketId: ticket.id });
+}
+
+function appendNote(notes: string | null, line: string) {
+  return [notes, line].filter(Boolean).join("\n").slice(-4000);
 }

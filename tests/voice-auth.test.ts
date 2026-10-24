@@ -6,6 +6,7 @@ import { verifyVoiceRequest, voiceAuthAllows } from "@/lib/security";
 import { resetEnvCache } from "@/lib/env";
 import { isCallActive } from "@/lib/voice/context";
 import { CUSTOMER_TYPES } from "@/lib/constants";
+import { TOOL_NAMES } from "@/lib/voice/tools";
 
 const KEYS = ["VOICE_TOOL_SECRET", "VOICE_TOOL_SECRET_RETELL", "VOICE_TOOL_SECRET_VAPI", "VOICE_TOOL_SECRET_ELEVENLABS", "VOICE_TOOL_SECRET_SIP", "RETELL_API_KEY"];
 const setEnv = (vars: Record<string, string>) => {
@@ -74,6 +75,10 @@ describe("voice-agent/tools.json", () => {
     const enums = tools.map((t) => t.parameters.properties.customerType?.enum).filter(Boolean);
     expect(enums.length).toBeGreaterThan(0);
     for (const e of enums) expect([...e!].sort()).toEqual([...CUSTOMER_TYPES].sort());
+  });
+  it("beschreibt genau die Funktionen, die der Server kennt", () => {
+    const tools = JSON.parse(fs.readFileSync(path.join(__dirname, "../voice-agent/tools.json"), "utf8")).tools as { name: string }[];
+    expect(tools.map((t) => t.name).sort()).toEqual([...TOOL_NAMES].sort());
   });
   it("identify_caller nimmt keine Rufnummer von der KI an", () => {
     const tools = JSON.parse(fs.readFileSync(path.join(__dirname, "../voice-agent/tools.json"), "utf8")).tools as { name: string; parameters: { properties: Record<string, unknown> } }[];
