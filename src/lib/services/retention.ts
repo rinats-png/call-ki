@@ -32,7 +32,8 @@ export async function runRetention() {
     }
     calls += (await prisma.call.updateMany({ where: { tenantId: t.id, startedAt: { lt: cutoff }, OR: [{ transcript: { not: null } }, { recordingUrl: { not: null } }] }, data: { transcript: null, recordingUrl: null, summary: null } })).count;
     tickets += (await prisma.callTicket.updateMany({ where: { tenantId: t.id, createdAt: { lt: cutoff }, transcript: { not: null } }, data: { transcript: null } })).count;
-    messages += (await prisma.message.updateMany({ where: { tenantId: t.id, createdAt: { lt: cutoff }, body: { not: "" } }, data: { body: "" } })).count;
+    // Betreff kann Namen/Anliegen enthalten – mit dem Inhalt leeren; Empfänger bleibt als Versandnachweis
+    messages += (await prisma.message.updateMany({ where: { tenantId: t.id, createdAt: { lt: cutoff }, OR: [{ body: { not: "" } }, { subject: { not: null } }] }, data: { body: "", subject: null } })).count;
     // Anrufe ohne Kunden- und Vorgangsbezug (z. B. aufgelegt) ganz entfernen, sobald beim Anbieter gelöscht –
     // aber erst, wenn ihr Monat abgerechnet und festgeschrieben ist (GoBD, loeschkonzept.md §5 R4)
     await closeDueMonths(t.id);

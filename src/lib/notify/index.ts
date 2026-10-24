@@ -3,6 +3,7 @@ import { prisma } from "../db";
 import { env, smsConfigured, smtpConfigured } from "../env";
 import { logger } from "../logger";
 import { overlayVersion } from "../platform/overlay";
+import { setting } from "../platform/config";
 
 /**
  * Ausgehende Benachrichtigungen. Jede Nachricht wird im Protokoll (Message)
@@ -133,7 +134,20 @@ export async function sendEmail(m: {
   return { id: msg.id, status: await deliverEmail(msg) };
 }
 
+/** Ländervorwahlen, in die SMS gehen dürfen (Einstellung SMS_ALLOWED_PREFIXES, Standard DACH) – Schutz vor SMS-Pumping. */
+export function smsDestinationAllowed(to: string): boolean {
+  const prefixes = (setting("SMS_ALLOWED_PREFIXES") || "+49,+43,+41").split(",").map((p) => p.trim()).filter(Boolean);
+  return /^\+\d{6,15}$/.test(to) && prefixes.some((p) => to.startsWith(p));
+}
+
 export async function sendSms(m: { tenantId: string | null; ticketId?: string | null; to: string; body: string; purpose: Purpose }) {
+  if (!smsDestinationAllowed(m.to)) {
+    const skipped = await prisma.message.create({
+      data: { tenantId: m.tenantId, ticketId: m.ticketId ?? null, channel: "SMS", recipient: m.to, body: m.body, purpose: m.purpose, status: "SKIPPED", error: "Zielland nicht freigegeben (SMS_ALLOWED_PREFIXES)" },
+    });
+    logger.warn("sms.destination_blocked", { purpose: m.purpose, prefix: m.to.slice(0, 4) });
+    return { id: skipped.id, status: "SKIPPED" as const };
+  }
   const msg = await prisma.message.create({
     data: { tenantId: m.tenantId, ticketId: m.ticketId ?? null, channel: "SMS", recipient: m.to, body: m.body, purpose: m.purpose, status: "QUEUED" },
   });

@@ -26,7 +26,7 @@ import { eraseCustomer } from "@/lib/services/customers";
 import { monthRange } from "@/lib/billing";
 import { resealAll } from "@/lib/services/rekey";
 import { seal, open as unseal } from "@/lib/secret-box";
-import { retryDueMessages, MAX_ATTEMPTS } from "@/lib/notify";
+import { retryDueMessages, MAX_ATTEMPTS, sendSms } from "@/lib/notify";
 import { resetEnvCache } from "@/lib/env";
 import { vi } from "vitest";
 import { findAvailableSlots } from "@/lib/calendar";
@@ -172,6 +172,17 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
   it("lehnt Funktionsaufrufe im Format eines anderen Anbieters ab", async () => {
     expect(await processToolBody({ name: "identify_caller", args: {}, call: { call_id: "retell-fremd" } }, "elevenlabs")).toBeNull();
     expect(await processToolBody({ name: "identify_caller", args: {}, call: { call_id: "retell-fremd" } }, "retell")).not.toBeNull();
+  });
+
+  it("vertraut bei Retell/Vapi ohne eigene Anrufzeile nicht der Anrufernummer aus dem Body", async () => {
+    const res = (await processToolBody({ name: "identify_caller", args: {}, call: { call_id: "retell-unbekannt", to_number: A.number, from_number: SAME_CALLER } }, "retell")) as Record<string, unknown>;
+    expect(JSON.stringify(res)).not.toContain("Kunde bei Alpha");
+  });
+
+  it("sendet keine SMS in nicht freigegebene Länder (SMS-Pumping)", async () => {
+    const r = await sendSms({ tenantId: A.tenant.id, to: "+88213000000", body: "Test", purpose: "CUSTOMER_CONFIRMATION" });
+    expect(r.status).toBe("SKIPPED");
+    expect((await prisma.message.findUnique({ where: { id: r.id } }))?.error).toContain("Zielland");
   });
 
   it("lässt die Sprach-KI nicht auf den Versand warten und versendet danach", async () => {

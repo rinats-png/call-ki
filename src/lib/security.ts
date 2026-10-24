@@ -99,7 +99,7 @@ export function voiceAuthAllows(auth: VoiceAuth, provider: "retell" | "vapi" | "
 
 /**
  * Retell Signatur: "v=<timestamp>,d=<hex hmac-sha256(body + timestamp)>".
- * Ältere Variante: reiner Hex-HMAC über den Body. Beide werden akzeptiert.
+ * Älter als 5 Minuten → abgelehnt (Schutz vor Wiederholung).
  */
 export function verifyRetellSignature(body: string, apiKey: string, signature: string, now = Date.now()): boolean {
   const m = signature.match(/v=(\d+),d=([a-f0-9]+)/i);
@@ -109,8 +109,8 @@ export function verifyRetellSignature(body: string, apiKey: string, signature: s
     const digest = crypto.createHmac("sha256", apiKey).update(body + m[1]).digest("hex");
     return safeEqual(digest, m[2]);
   }
-  const digest = crypto.createHmac("sha256", apiKey).update(body).digest("hex");
-  return safeEqual(digest, signature);
+  // Die alte Variante ohne Zeitstempel ließe sich beliebig wiederholen – nicht mehr akzeptiert.
+  return false;
 }
 
 /**

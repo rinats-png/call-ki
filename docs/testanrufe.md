@@ -31,7 +31,7 @@ Echte Anrufe vor dem Launch und nach jeder Änderung an Prompt, Tools oder Anbie
 | 17 | KI-Anbieter gestört | Agent-ID absichtlich falsch eintragen | Fallback: Weiterleitung oder Mailbox → Rückruf-Ticket |
 | 18 | Server aus | `docker compose stop app`, anrufen | Twilio-Ersatzziel: Weiterleitung auf Fallback-Nummer bzw. Störungsansage |
 | 19 | Latenz | Normales Gespräch, Pausen stoppen | Antwortzeit meist unter 1,5 s, nach Tool-Aufrufen unter 3 s |
-| 20 | Löschung beim Anbieter | Nach Ablauf der Löschfrist (Test: Frist 0 Tage) Löschlauf auslösen | Aufnahme und Transkript beim Anbieter und bei Twilio gelöscht (`providerPurgedAt` gesetzt) |
+| 20 | Löschung beim Anbieter | Löschfrist auf das Minimum 7 Tage stellen, den Testanruf in der Testumgebung um 8 Tage zurückdatieren (`startedAt`) oder 8 Tage warten, dann Löschlauf auslösen | Aufnahme und Transkript beim Anbieter und bei Twilio gelöscht (`providerPurgedAt` gesetzt) |
 
 ## Ergebnisse
 

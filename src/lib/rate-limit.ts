@@ -109,4 +109,6 @@ export const LIMITS = {
   callsPerCaller: { limit: 10, windowMs: 3600_000 },
   /** Alle Anrufe mit unterdrückter Nummer an dieselbe Nummer zusammen */
   anonymousCallsPerNumber: { limit: 30, windowMs: 3600_000 },
+  /** Benachrichtigungen eines Vorgangs erneut auslösen (SMS-Kosten) */
+  notifyPerTicket: { limit: 5, windowMs: 24 * 3600_000 },
 } satisfies Record<string, Limit>;

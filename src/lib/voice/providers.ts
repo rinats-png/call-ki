@@ -33,7 +33,7 @@ async function purgeOtherProvider(call: Pick<Call, "provider" | "providerCallId"
       details.push("vapi: kein API-Schlüssel");
       return false;
     }
-    const s = await del(`https://api.vapi.ai/call/${id}`, `Bearer ${key}`);
+    const s = await del(`${setting("VAPI_API_BASE") || "https://api.vapi.ai"}/call/${id}`, `Bearer ${key}`);
     details.push(`vapi: ${s}`);
     return done(s);
   }
@@ -127,10 +127,21 @@ export function recordingUrlAllowed(raw: string): boolean {
   }
 }
 
-/** Abruf einer Aufnahme beim Anbieter (Twilio-Aufnahmen mit Zugangsdaten). */
+/**
+ * Abruf einer Aufnahme beim Anbieter (Twilio-Aufnahmen mit Zugangsdaten). Weiterleitungen
+ * (Twilio → S3) werden selbst verfolgt: jedes Ziel muss ebenfalls auf der Allowlist stehen,
+ * Zugangsdaten gehen nur an Twilio.
+ */
 export async function fetchRecording(raw: string): Promise<Response> {
-  const isTwilio = /(^|\.)twilio\.com$/i.test(new URL(raw).hostname);
-  const url = isTwilio && !/\.(mp3|wav)$/i.test(raw) ? `${raw}.mp3` : raw;
-  const auth = isTwilio ? twilioAuth() : null;
-  return fetch(url, { headers: auth ? { Authorization: auth } : undefined, signal: AbortSignal.timeout(20_000), redirect: "follow" });
+  const isTwilio = (u: string) => /(^|\.)twilio\.com$/i.test(new URL(u).hostname);
+  let url = isTwilio(raw) && !/\.(mp3|wav)$/i.test(raw) ? `${raw}.mp3` : raw;
+  for (let hop = 0; hop < 4; hop++) {
+    const auth = isTwilio(url) ? twilioAuth() : null;
+    const res = await fetch(url, { headers: auth ? { Authorization: auth } : undefined, signal: AbortSignal.timeout(20_000), redirect: "manual" });
+    const next = res.status >= 300 && res.status < 400 ? res.headers.get("location") : null;
+    if (!next) return res;
+    url = new URL(next, url).toString();
+    if (!recordingUrlAllowed(url)) throw new Error("Weiterleitung auf nicht erlaubten Host");
+  }
+  throw new Error("Zu viele Weiterleitungen");
 }

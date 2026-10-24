@@ -16,7 +16,8 @@ export const PATCH = api<P>(async (req, { params }) => {
   const auth = await requireTenant({ adminOnly: true });
   const { id } = await params;
   const d = schema.parse(await readJson(req));
-  if (d.role || d.disabled !== undefined) requireRecentAuth(auth);
+  // Rollen, Sperren und Links (Einladung/Reset – ohne SMTP direkt angezeigt) nur mit frischer Bestätigung
+  if (d.role || d.disabled !== undefined || d.action) requireRecentAuth(auth);
   const user = await prisma.user.findFirst({ where: { id, tenantId: auth.tenantId } });
   if (!user) throw notFound("Benutzer");
   if (user.id === auth.user.id && (d.disabled || d.role === "TENANT_USER")) throw new HttpError(400, "Sie können sich nicht selbst sperren oder herabstufen.");

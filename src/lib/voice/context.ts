@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger";
 import type { Customer, Tenant } from "@prisma/client";
 import { prisma } from "../db";
 import { normalizePhone } from "../phone";
@@ -170,7 +171,14 @@ export async function resolveVoiceContext(providerCallId: string | null, toNumbe
   }
   if (to && !opts.requireCall) {
     const num = await prisma.phoneNumber.findUnique({ where: { e164: to }, include: { tenant: true } });
-    if (num) return { tenant: num.tenant, cfg: resolveConfig(num.tenant), callRowId: null, callerNumber: normalizePhone(fromNumber) };
+    if (!num) return null;
+    // Funktionsaufrufe ohne eigene Anrufzeile: die Anrufernummer ist nur eine Behauptung im Body
+    // und gilt nicht als verifiziert (keine Kundendaten, keine Termin-Änderungen über diese Nummer).
+    if (opts.activeOnly) {
+      logger.warn("voice.context_unverified_caller", { tenantId: num.tenantId, providerCallId, claimedCaller: Boolean(fromNumber) });
+      return { tenant: num.tenant, cfg: resolveConfig(num.tenant), callRowId: null, callerNumber: null };
+    }
+    return { tenant: num.tenant, cfg: resolveConfig(num.tenant), callRowId: null, callerNumber: normalizePhone(fromNumber) };
   }
   return null;
 }

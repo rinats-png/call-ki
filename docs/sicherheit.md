@@ -24,6 +24,8 @@ Umsetzung: `src/lib/auth/session.ts` (`requireTenant`, `requirePlatformAdmin`, `
 | Zwangswechsel | nein | – |
 
 ## Tokens und Links
+Einladungs- und Passwort-Links für andere Nutzer (ohne SMTP werden sie direkt angezeigt) verlangen eine frische Bestätigung (Re-Auth), ebenso Rollenwechsel und Sperren.
+
 | Art | Zufall | Speicherung | Laufzeit | Nutzung |
 |---|---|---|---|---|
 | Sitzung | 256 Bit | SHA-256 | siehe unten | Cookie `ck_session`: HttpOnly, Secure (Produktion), SameSite=Lax; neue ID nach Login und nach 2. Faktor |
@@ -59,8 +61,11 @@ Umsetzung: `src/lib/auth/session.ts` (`requireTenant`, `requirePlatformAdmin`, `
 | Webhooks (Retell/Vapi) | 600/IP/min | 429 |
 | Anrufe derselben Nummer | 10/h je Kundennummer → Fallback statt KI | Kostenschutz |
 | Minuten je Kunde | Monatslimit je Mandant → Fallback | Kostenschutz |
+| Unterdrückte Nummern | 30/h je angerufener Nummer → Fallback | Kostenschutz |
+| Benachrichtigungen erneut auslösen | 5 je Vorgang in 24 h | 429 (SMS-Kosten) |
+| SMS-Zielländer | nur `SMS_ALLOWED_PREFIXES` (Standard +49, +43, +41) | Nachricht „SKIPPED“ (SMS-Pumping) |
 
-Speicher im Prozess – gültig, solange die App als **eine** Instanz läuft (Docker auf dem VPS). Für mehrere Instanzen: Redis.
+Sicherheitsrelevante Grenzen (Login, Reset, 2FA, Re-Auth, Ersteinrichtung, Anrufe, Benachrichtigungen) zählen gemeinsam in PostgreSQL (`RateLimitHit`, Schlüssel gehasht) und gelten damit auch über mehrere Instanzen; die übrigen zählen im Prozess.
 
 ## Größenlimits
 JSON-Anfragen 100 KB (`readJson`), Tool-Webhooks 256 KB, Gesprächs-Events 2 MB (lange Transkripte), Listen max. 100–200 Einträge, Freitextfelder per zod begrenzt.
@@ -72,11 +77,13 @@ JSON-Anfragen 100 KB (`readJson`), Tool-Webhooks 256 KB, Gesprächs-Events 2 MB 
 Audit-Log (`AuditLog`, 2 Jahre): Logins und Fehlversuche, 2FA-Änderungen, Passwortwechsel, Sitzungen beendet, Support-Zugriffe, Admin-Aktionen, DSGVO-Auskunft/-Löschung, Abspielen von Aufnahmen. Server-Log: JSON, Rufnummern maskiert, keine Passwörter, Tokens oder Transkripte.
 
 ## Daten bei Anbietern
-Löschfrist je Kunde (Standard 365 Tage): Transkripte/Aufnahmen in der Datenbank **und** bei Retell (`DELETE /v2/delete-call`) und Twilio (Recording + Call) werden gelöscht. DSGVO-Löschung eines Anrufers löscht ebenfalls bei den Anbietern. Aufnahmen werden nur über `/api/calls/[id]/recording` nach Berechtigungsprüfung ausgeliefert (SSRF-Allowlist `RECORDING_HOSTS`). Abschalten der Aufzeichnung → Agent ohne Speicherung (`RETELL_AGENT_ID_NO_STORAGE`); fehlt er, wird aufgezeichnet **und angesagt** – nie still.
+Löschfrist je Kunde (Standard 365 Tage): Transkripte/Aufnahmen in der Datenbank **und** bei Retell (`DELETE /v2/delete-call`) und Twilio (Recording + Call) werden gelöscht. DSGVO-Löschung eines Anrufers löscht ebenfalls bei den Anbietern. Aufnahmen werden nur über `/api/calls/[id]/recording` nach Berechtigungsprüfung ausgeliefert (SSRF-Allowlist `RECORDING_HOSTS`, auch für jede Weiterleitung; Twilio-Zugangsdaten nur an Twilio). Abschalten der Aufzeichnung → Agent ohne Speicherung (`RETELL_AGENT_ID_NO_STORAGE`); fehlt er, wird aufgezeichnet **und angesagt** – nie still.
 
 ## Sprach-KI-Schnittstellen (Tools & Ereignisse)
 
 - **Ein Geheimnis je Anbieter** (`VOICE_TOOL_SECRET_RETELL` / `_VAPI` / `_ELEVENLABS` / `_SIP`, Retell zusätzlich per Signatur). Wer sich mit dem Geheimnis eines Anbieters ausweist, darf nur Anfragen im Format dieses Anbieters schicken (`voiceAuthAllows`). Das gemeinsame `VOICE_TOOL_SECRET` gilt nur als Übergang, solange kein Anbieter-Geheimnis gesetzt ist.
+- **Retell-Signatur nur mit Zeitstempel** (`v=<ts>,d=<hmac>`, höchstens 5 Minuten alt); die alte Variante ohne Zeitstempel wird abgelehnt (Wiederholungsschutz).
+- **Retell/Vapi ohne eigene Anrufzeile:** Der Mandant kann dann über die angerufene Nummer ermittelt werden, die Anrufernummer aus dem Body gilt aber nicht als verifiziert – keine Kundendaten und keine Terminänderungen.
 - **Nur laufende Anrufe:** Funktionen werden nur ausgeführt, wenn sie einem Anruf zugeordnet sind, der höchstens 3 Stunden alt und nicht länger als 2 Minuten beendet ist.
 - **ElevenLabs und SIP-Anbieter:** Ihre Anrufkennungen (`call_sid`, `call_ref`) stehen im selben Body wie die Argumente der KI. Deshalb zählt dort nur eine Anrufzeile, die die Plattform beim Twilio-Eingang selbst angelegt hat; ein Rückgriff auf die angerufene Nummer findet nicht statt. Anrufernummer und Mandant kommen dann aus dieser Zeile, nie aus dem Body.
 - **Kundendaten nur zur verifizierten Anrufernummer:** `identify_caller` und die Zuständigkeitsprüfung nutzen ausschließlich die von Twilio bzw. dem Anbieter gemeldete Nummer. Nennt ein Anrufer eine andere Rückrufnummer, wird sie gespeichert, aber bestehende Angaben zu dieser Nummer werden nicht überschrieben (nur Lücken gefüllt) und nicht zurückgemeldet.

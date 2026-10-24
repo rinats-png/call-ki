@@ -6,6 +6,7 @@ import { requireTenant } from "@/lib/auth/session";
 import { loadTenant } from "@/lib/tenant";
 import { isSlotFree, removeCalendarEvent } from "@/lib/calendar";
 import { notifyForTicket } from "@/lib/services/tickets";
+import { enforceShared, LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export const POST = api<{ id: string }>(async (req, { params }) => {
   const body = schema.parse(await readJson(req).catch(() => ({})));
   let ticket = await prisma.callTicket.findFirst({ where: { id, tenantId: tenant.id }, include: { customer: true, assignedEmployee: true } });
   if (!ticket) throw notFound("Vorgang");
+  await enforceShared(`notify:ticket:${ticket.id}`, LIMITS.notifyPerTicket, "Für diesen Vorgang wurden heute schon mehrfach Benachrichtigungen ausgelöst.");
 
   let appointment = ticket.appointmentStart && ticket.appointmentEnd ? { start: ticket.appointmentStart, end: ticket.appointmentEnd } : null;
   if (body.appointmentStart) {

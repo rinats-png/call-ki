@@ -169,6 +169,7 @@ export const PROVIDERS: Provider[] = [
       { key: "MAX_CALL_MINUTES", label: "Maximale Gesprächsdauer (Minuten)", type: "number", placeholder: "20", hint: "2–120, Standard 20. Danach legt Twilio auf." },
       { key: "MAX_CONCURRENT_CALLS_PER_TENANT", label: "Gleichzeitige Anrufe je Kunde", type: "number", placeholder: "5", hint: "Weitere Anrufer gehen an die Fallback-Nummer. 0 = unbegrenzt." },
       { key: "MAX_CONCURRENT_CALLS_TOTAL", label: "Gleichzeitige Anrufe gesamt", type: "number", placeholder: "50", hint: "Am Limit der Anbieter-Tarife ausrichten (Retell, Vapi, ElevenLabs). 0 = unbegrenzt." },
+      { key: "SMS_ALLOWED_PREFIXES", label: "SMS nur in diese Länder", type: "text", placeholder: "+49,+43,+41", hint: "Kommagetrennte Vorwahlen, Standard Deutschland, Österreich, Schweiz. Schützt vor teuren SMS ins Ausland (SMS-Pumping)." },
       { key: "PLATFORM_DAILY_MINUTE_LIMIT", label: "Tagesbudget aller Kunden (Minuten)", type: "number", placeholder: "z. B. 3000", hint: "Leer = aus. Ab 80 % Warnung, ab 100 % gehen neue Anrufe an Fallback-Nummern." },
     ],
     setup: [

@@ -52,5 +52,7 @@ describe("Retell-Signatur", () => {
     expect(verifyRetellSignature(body, "key", `v=${ts},d=${d}`)).toBe(true);
     expect(verifyRetellSignature(body, "other", `v=${ts},d=${d}`)).toBe(false);
     expect(verifyRetellSignature(body, "key", `v=${Number(ts) - 10 * 60_000},d=${d}`)).toBe(false);
+    // alte Variante ohne Zeitstempel (wiederholbar) wird abgelehnt
+    expect(verifyRetellSignature(body, "key", crypto.createHmac("sha256", "key").update(body).digest("hex"))).toBe(false);
   });
 });
