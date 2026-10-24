@@ -155,7 +155,7 @@
     },
     {
       "name": "escalate_emergency",
-      "description": "Notfall: legt einen eskalierten Vorgang an, alarmiert den Notdienst und liefert die Nummer für die Live-Durchstellung (transfer_call).",
+      "description": "Notfall: legt einen eskalierten Vorgang an und alarmiert den Notdienst. transferring=true: das System stellt selbst durch (kein transfer_call). Sonst ggf. transferNumber für transfer_call – nur diese Nummer verwenden.",
       "parameters": {
         "type": "object",
         "properties": {

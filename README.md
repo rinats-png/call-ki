@@ -78,7 +78,7 @@ Alle URLs zum Kopieren stehen nach dem Login unter **Plattform**.
 2. **Retell AI**: Einen Agenten anlegen (Sprache Deutsch, deutsche Stimme).
    - General Prompt: Inhalt von `voice-agent/system-prompt.md`, Begin Message: `{{greeting}}`.
    - Custom Functions aus `voice-agent/tools.json`, URL `https://DOMAIN/api/voice/tools/<name>`, Header `x-tool-secret: <VOICE_TOOL_SECRET_RETELL>` (je Anbieter ein eigenes Geheimnis).
-   - Eingebaute Funktionen „End Call“ und „Transfer Call“ (dynamische Nummer aus `transferNumber`) aktivieren.
+   - Eingebaute Funktion „End Call“ aktivieren. Notfall-Durchstellungen erledigt bei Anrufen über Twilio der Server selbst (Ziel nur aus den Mitarbeiter-/Notfalldaten). „Transfer Call“ nur für Nummern ohne Twilio aktivieren und beim Anbieter auf die festen Notdienstnummern beschränken – keine frei wählbare Nummer aus dem Gespräch.
    - Agent-Webhook: `https://DOMAIN/api/voice/events`. Post-Call-Analyse (Zusammenfassung) aktivieren.
    - `RETELL_API_KEY` und `RETELL_AGENT_ID` in `.env`. Für Sonderfälle kann je Nummer ein eigener Agent hinterlegt werden.
 3. **E-Mail (SMTP)**: z. B. ein IONOS-Postfach `noreply@deine-domain.de`; SPF/DKIM für die Domain setzen, damit Mails nicht im Spam landen.

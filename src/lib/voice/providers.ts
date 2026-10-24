@@ -9,7 +9,7 @@ import { setting } from "../platform/config";
  *  - Retell: DELETE /v2/delete-call/{call_id} – entfernt Aufnahme, Transkript, Analyse
  *  - Twilio: Mailbox-Aufnahme (Recording) und Anrufprotokoll (Call) löschen
  */
-const twilioAuth = () => {
+export const twilioAuth = () => {
   const e = env();
   return e.TWILIO_ACCOUNT_SID && e.TWILIO_AUTH_TOKEN ? "Basic " + Buffer.from(`${e.TWILIO_ACCOUNT_SID}:${e.TWILIO_AUTH_TOKEN}`).toString("base64") : null;
 };

@@ -3,6 +3,8 @@ import { prisma } from "../db";
 import { findAvailableSlots } from "../calendar";
 import { logger } from "../logger";
 import { normalizePhone, maskPhone } from "../phone";
+import { scheduleServerTransfer } from "./transfer";
+import { smsDestinationAllowed } from "../notify";
 import { formatGermanDateTime } from "../time";
 import { assessUrgency } from "../urgency";
 import { URGENCIES, CUSTOMER_TYPES } from "../constants";
@@ -192,7 +194,17 @@ const handlers: { [K in ToolName]: Handler<K> } = {
     });
     const emp = res.ticket.assignedEmployee;
     const forwarding = hasFeature((await planForTenant(ctx.tenant.id)).plan, "emergency_forwarding");
-    const transferNumber = forwarding ? emp?.directPhone ?? (ctx.cfg.settings.emergency.transferNumber || null) : null;
+    const configured = forwarding ? emp?.directPhone ?? (ctx.cfg.settings.emergency.transferNumber || null) : null;
+    // Nur in freigegebene Länder durchstellen (Toll-Fraud-Schutz, SMS_ALLOWED_PREFIXES)
+    const target = configured && smsDestinationAllowed(configured) ? configured : null;
+    // Bevorzugt: Twilio stellt durch (Ziel nur aus unseren Daten). Sonst transfer_call des Anbieters.
+    if (target && (await scheduleServerTransfer(ctx.callRowId, target))) {
+      return {
+        ok: true, reference: res.ticket.id.slice(-8).toUpperCase(), employee: emp?.name ?? null, transferNumber: null, transferring: true,
+        say: "Notfall ist aufgenommen. Sagen Sie nur noch kurz: „Ich verbinde Sie jetzt mit dem Notdienst.“ Die Verbindung stellt das System selbst her – transfer_call nicht aufrufen.",
+      };
+    }
+    const transferNumber = target;
     return {
       ok: true, reference: res.ticket.id.slice(-8).toUpperCase(), employee: emp?.name ?? null, transferNumber,
       say: transferNumber

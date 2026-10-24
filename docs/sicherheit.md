@@ -82,6 +82,7 @@ Löschfrist je Kunde (Standard 365 Tage): Transkripte/Aufnahmen in der Datenbank
 ## Sprach-KI-Schnittstellen (Tools & Ereignisse)
 
 - **Ein Geheimnis je Anbieter** (`VOICE_TOOL_SECRET_RETELL` / `_VAPI` / `_ELEVENLABS` / `_SIP`, Retell zusätzlich per Signatur). Wer sich mit dem Geheimnis eines Anbieters ausweist, darf nur Anfragen im Format dieses Anbieters schicken (`voiceAuthAllows`). Das gemeinsame `VOICE_TOOL_SECRET` gilt nur als Übergang, solange kein Anbieter-Geheimnis gesetzt ist.
+- **Notfall-Durchstellung über den Server:** Kam der Anruf über Twilio, leitet der Server ihn selbst um (Twilio-REST, Ziel nur Direktnummer des Notdienstes bzw. Notfallnummer des Kunden, nur freigegebene Länder). Das `transfer_call` des Anbieters wird dann nicht benutzt – die KI kann kein Ziel wählen.
 - **Retell-Signatur nur mit Zeitstempel** (`v=<ts>,d=<hmac>`, höchstens 5 Minuten alt); die alte Variante ohne Zeitstempel wird abgelehnt (Wiederholungsschutz).
 - **Retell/Vapi ohne eigene Anrufzeile:** Der Mandant kann dann über die angerufene Nummer ermittelt werden, die Anrufernummer aus dem Body gilt aber nicht als verifiziert – keine Kundendaten und keine Terminänderungen.
 - **Nur laufende Anrufe:** Funktionen werden nur ausgeführt, wenn sie einem Anruf zugeordnet sind, der höchstens 3 Stunden alt und nicht länger als 2 Minuten beendet ist.

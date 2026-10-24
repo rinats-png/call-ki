@@ -177,6 +177,36 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
     expect(await processToolBody({ name: "identify_caller", args: {}, call: { call_id: "retell-fremd" } }, "retell")).not.toBeNull();
   });
 
+  it("stellt Notfälle über Twilio selbst durch – Ziel nur aus den eigenen Daten, nur freigegebene Länder", async () => {
+    Object.assign(process.env, { TWILIO_ACCOUNT_SID: "AC" + "1".repeat(32), TWILIO_AUTH_TOKEN: "t" });
+    resetEnvCache();
+    const calls: { url: string; body: string }[] = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: string, init?: RequestInit) => { calls.push({ url: String(url), body: String(init?.body ?? "") }); return new Response("{}", { status: 200 }); }) as typeof fetch;
+    try {
+      await prisma.employee.update({ where: { id: A.tech.id }, data: { directPhone: "+4915199999999", role: "EMERGENCY_TECH" } });
+      const call = await prisma.call.create({ data: { tenantId: A.tenant.id, twilioCallSid: "CA" + "f".repeat(32), fromNumber: "+4915000000120", toNumber: A.number } });
+      const ctx = (await resolveVoiceContext(null, null, null, { twilioCallSid: call.twilioCallSid! }, { activeOnly: true }))!;
+      const sos = (await runTool("escalate_emergency", { description: "Wasser steht im Keller", category: "Notfall", phone: "+99912345678" }, ctx)) as { transferring?: boolean; transferNumber: string | null };
+      expect(sos.transferring).toBe(true);
+      expect(sos.transferNumber).toBeNull();
+      await settleDeferred();
+      const redirect = calls.find((c) => c.url.includes(`/Calls/${call.twilioCallSid}.json`));
+      expect(decodeURIComponent(redirect?.body ?? "")).toContain("+4915199999999");
+
+      // Ziel in einem nicht freigegebenen Land → keine Durchstellung, Rückruf
+      await prisma.employee.update({ where: { id: A.tech.id }, data: { directPhone: "+88213000000" } });
+      const sos2 = (await runTool("escalate_emergency", { description: "Wasser", category: "Notfall" }, ctx)) as { transferring?: boolean; transferNumber: string | null };
+      expect(sos2.transferring).toBeUndefined();
+      expect(sos2.transferNumber).toBeNull();
+    } finally {
+      globalThis.fetch = realFetch;
+      await prisma.employee.update({ where: { id: A.tech.id }, data: { directPhone: null, role: "FIELD_TECH" } });
+      for (const k of ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN"]) delete process.env[k];
+      resetEnvCache();
+    }
+  }, 20_000);
+
   it("vertraut bei Retell/Vapi ohne eigene Anrufzeile nicht der Anrufernummer aus dem Body", async () => {
     const res = (await processToolBody({ name: "identify_caller", args: {}, call: { call_id: "retell-unbekannt", to_number: A.number, from_number: SAME_CALLER } }, "retell")) as Record<string, unknown>;
     expect(JSON.stringify(res)).not.toContain("Kunde bei Alpha");

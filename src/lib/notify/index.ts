@@ -134,7 +134,10 @@ export async function sendEmail(m: {
   return { id: msg.id, status: await deliverEmail(msg) };
 }
 
-/** Ländervorwahlen, in die SMS gehen dürfen (Einstellung SMS_ALLOWED_PREFIXES, Standard DACH) – Schutz vor SMS-Pumping. */
+/**
+ * Ländervorwahlen, in die SMS gehen und Anrufe durchgestellt werden dürfen (Einstellung
+ * SMS_ALLOWED_PREFIXES, Standard DACH) – Schutz vor SMS-Pumping und Toll Fraud.
+ */
 export function smsDestinationAllowed(to: string): boolean {
   const prefixes = (setting("SMS_ALLOWED_PREFIXES") || "+49,+43,+41").split(",").map((p) => p.trim()).filter(Boolean);
   return /^\+\d{6,15}$/.test(to) && prefixes.some((p) => to.startsWith(p));
