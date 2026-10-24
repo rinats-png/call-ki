@@ -1,7 +1,7 @@
 # Projektstatus: KI-Telefonzentrale (call-ki)
 
 > Gedächtnis des Projekts. Nach jeder Arbeitsrunde aktualisieren.
-> Stand des Codes: Commit `33c0708` (2026-10-24). Seit dem ersten Dokumentstand behoben: Monatsabschluss/GoBD und Anonymisieren statt Löschen (`48e363a`), Produktionsabhängigkeiten ohne `npm audit`-Befund, CI ab „high“ (`859b8e0`), Sicherheitsbefunde aus der Dokumentprüfung (`0e0efc5`), HTTP-Tests T-SEC-HTTP-10…14 und Build-Scan (`33c0708`). Letzter lokaler Testlauf 2026-10-24: Unit 133, Integration 31/31, E2E 17/17 grün; Lasttest siehe `18-qualitaetsziele.md`.
+> Stand des Codes: Commit `92b4aca` (2026-10-24). Seit `33c0708` dazugekommen: Minutenpakete und Paketwechsel, Notfall-Durchstellung über Twilio, Statusseite, CSP mit Nonce, Webhooks für Kunden, Rechnungen mit fortlaufender Nummer, SBOM/Lizenzprüfung, `npm audit` ohne Befund. Ältere Angaben: Commit `33c0708` (2026-10-24). Seit dem ersten Dokumentstand behoben: Monatsabschluss/GoBD und Anonymisieren statt Löschen (`48e363a`), Produktionsabhängigkeiten ohne `npm audit`-Befund, CI ab „high“ (`859b8e0`), Sicherheitsbefunde aus der Dokumentprüfung (`0e0efc5`), HTTP-Tests T-SEC-HTTP-10…14 und Build-Scan (`33c0708`). Letzter lokaler Testlauf 2026-10-24: Unit 133, Integration 31/31, E2E 17/17 grün; Lasttest siehe `18-qualitaetsziele.md`.
 
 | Feld | Wert |
 |---|---|

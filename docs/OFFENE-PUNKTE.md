@@ -24,7 +24,7 @@ Gemeinsame Merkliste. Erledigtes bitte hier abhaken oder streichen.
 - [x] **Notfall-Durchstellung** über Twilio durch den Server (Ziel nur aus den eigenen Daten). Beim Einrichten: `transfer_call` nur für Nummern ohne Twilio aktivieren und beim Anbieter auf feste Ziele beschränken.
 - [ ] **Vertragstests mit echten Payloads** je Anbieter (`tests/fixtures/<anbieter>/`) nach den ersten Testanrufen.
 - [ ] **Weiterleitung auf Mobilfunk** (Notfall-Durchstellung, Ersatzziel) kostet bei Twilio rund 33 ct/min und ist in den Paketen nicht eingepreist (`docs/idea-to-app/17-kosten.md`).
-- [x] Glas-Design (Entwürfe G01–G13) umgesetzt: schwebende Icon-Leiste, Glasfenster mit Leuchten, rechte Spalte mit Profil, Schnellaktionen, Kontingent- bzw. Umsatz-Karte; Seitenköpfe mit Kennzahl-Pillen. Audio-Wellenform-Player bei Aufnahmen umgesetzt. Noch offen aus den Entwürfen: Wochen-Heatmap im Team, Schalter-Ansicht für das Telefonverhalten, Upgrade-Kandidaten, Dienst-Status bei Verbindungen.
+- [x] Glas-Design (Entwürfe G01–G13) umgesetzt: schwebende Icon-Leiste, Glasfenster mit Leuchten, rechte Spalte mit Profil, Schnellaktionen, Kontingent- bzw. Umsatz-Karte; Seitenköpfe mit Kennzahl-Pillen. Audio-Wellenform-Player bei Aufnahmen umgesetzt. Upgrade-Kandidaten (Abrechnung) und Dienst-Status (Integrationen) umgesetzt. Noch offen aus den Entwürfen: Wochen-Heatmap im Team, Schalter-Ansicht für das Telefonverhalten.
 
 ## Recht
 - [ ] AVV/DPA mit Vapi und ElevenLabs (und weiteren gewählten Anbietern) abschließen, in `docs/recht/unterauftragsverarbeiter.md` eintragen.
