@@ -16,6 +16,9 @@ import { closeStaleCalls } from "@/lib/services/calls";
 import { usageForMonth, currentMonth } from "@/lib/billing";
 import { computeTwilioSignature } from "@/lib/security";
 import { POST as twilioStatus } from "@/app/api/twilio/status/route";
+import { assertNumberSlot, assertUserSlot } from "@/lib/plan-limits";
+import { applyPlanToConfig } from "@/lib/voice/context";
+import { effectivePlan } from "@/lib/billing";
 import { retryDueMessages, MAX_ATTEMPTS } from "@/lib/notify";
 import { resetEnvCache } from "@/lib/env";
 import { vi } from "vitest";
@@ -41,7 +44,7 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
   }
 
   beforeAll(async () => {
-    await prisma.$executeRawUnsafe('TRUNCATE "Tenant", "User", "Message", "SystemState" CASCADE');
+    await prisma.$executeRawUnsafe('TRUNCATE "Tenant", "User", "Message", "SystemState", "Plan" CASCADE');
     A = await mk("Alpha Schädlinge", "+493011111111", "pest_control");
     B = await mk("Beta Sanitär", "+493022222222", "trades");
   });
@@ -360,6 +363,38 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
     } finally {
       for (const k of ["TWILIO_AUTH_TOKEN", "PUBLIC_BASE_URL"]) delete process.env[k];
       resetEnvCache();
+    }
+  });
+
+  it("setzt Paketgrenzen durch: Zugänge, Rufnummern und Funktionen", async () => {
+    const plan = await prisma.plan.create({ data: { key: "mini", name: "Mini", monthlyPriceCents: 4900, includedMinutes: 100, overageCentsPerMinute: 39, maxUsers: 1, maxNumbers: 1, features: ["sms"] } });
+    await prisma.tenant.update({ where: { id: B.tenant.id }, data: { planId: plan.id } });
+    try {
+      // chef@beta.example existiert schon → Zugang Nr. 2 nicht erlaubt
+      await expect(assertUserSlot(B.tenant.id)).rejects.toThrow(/1 Zugänge/);
+      await expect(assertNumberSlot(B.tenant.id, B.number)).resolves.toBeUndefined(); // bestehende Nummer bearbeiten
+      await expect(assertNumberSlot(B.tenant.id, "+493099999999")).rejects.toThrow(/1 Rufnummer/);
+
+      // Ohne „Eigene Begrüßung & FAQ“: Standardbegrüßung
+      const cfg = { ...B.cfg, settings: { ...B.cfg.settings, greeting: "Moin bei Beta!", faq: "Preise auf Anfrage" } };
+      const limited = applyPlanToConfig(cfg, effectivePlan(B.tenant, plan));
+      expect(limited.settings.greeting).toBe("");
+      expect(limited.settings.faq).toBe("");
+
+      // Ohne Terminbuchung: keine Slots, Termin wird nicht eingetragen; ohne Notfall-Durchstellung keine Nummer
+      await prisma.employee.update({ where: { id: B.tech.id }, data: { directPhone: "+4915111111111" } });
+      await prisma.call.create({ data: { tenantId: B.tenant.id, providerCallId: "retell-plan", fromNumber: "+4915000000080", toNumber: B.number } });
+      const ctx = (await resolveVoiceContext("retell-plan", null, null))!;
+      const tech = (await runTool("find_technician", { description: "Heizung tropft", category: "Heizung" }, ctx)) as { slots: unknown[]; say: string };
+      expect(tech.slots).toEqual([]);
+      expect(tech.say).toContain("Rückruf zur Terminabstimmung");
+      const booked = (await runTool("book_appointment", { description: "Heizung tropft", category: "Heizung", appointmentStart: new Date(Date.now() + 86400_000).toISOString() }, ctx)) as { appointment: string | null };
+      expect(booked.appointment).toBeNull();
+      const sos = (await runTool("escalate_emergency", { description: "Wasserrohrbruch", category: "Rohrbruch" }, ctx)) as { transferNumber: string | null };
+      expect(sos.transferNumber).toBeNull();
+      await settleDeferred();
+    } finally {
+      await prisma.tenant.update({ where: { id: B.tenant.id }, data: { planId: null } });
     }
   });
 

@@ -6,6 +6,7 @@ import { requireTenant } from "@/lib/auth/session";
 import { smtpConfigured } from "@/lib/env";
 import { sendInviteEmail } from "@/lib/services/users";
 import { audit } from "@/lib/audit";
+import { assertUserSlot } from "@/lib/plan-limits";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,7 @@ export const POST = api(async (req) => {
   const auth = await requireTenant({ adminOnly: true });
   const d = schema.parse(await readJson(req));
   if (await prisma.user.findUnique({ where: { email: d.email } })) throw new HttpError(409, "Diese E-Mail-Adresse hat bereits einen Zugang.");
+  await assertUserSlot(auth.tenantId);
   const user = await prisma.user.create({ data: { email: d.email, name: d.name, role: d.role, tenantId: auth.tenantId } });
   const tenant = await prisma.tenant.findUnique({ where: { id: auth.tenantId }, select: { name: true } });
   const link = await sendInviteEmail(user, tenant?.name ?? null);

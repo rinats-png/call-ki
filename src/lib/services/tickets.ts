@@ -117,7 +117,9 @@ export async function processServiceRequest(tenant: T, cfg: TenantConfig, input:
   let notify = emptyNotify();
   if (!slotTaken && input.deferNotify) {
     runAfterResponse("ticket.notify", () => notifyForTicket(tenant, cfg, ticket, employee, appointment, { isUpdate: !!existing }));
-    notify = { ...notify, deferred: true, confirmationPlanned: confirmationPlanned(cfg, ticket.customer, urgency === "CRITICAL", hasFeature((await planForTenant(tenant.id)).plan, "sms")) };
+    const plan = (await planForTenant(tenant.id)).plan;
+    const planned = confirmationPlanned(cfg, ticket.customer, urgency === "CRITICAL", hasFeature(plan, "sms"), hasFeature(plan, "email_notifications"));
+    notify = { ...notify, deferred: true, confirmationPlanned: planned };
   } else if (!slotTaken) {
     notify = await notifyForTicket(tenant, cfg, ticket, employee, appointment, { isUpdate: !!existing });
   }
@@ -136,10 +138,10 @@ export type NotifyResult = {
 };
 
 /** Bekommt der Kunde laut Einstellungen eine Bestätigung? (Vorhersage für die Ansage am Telefon) */
-export function confirmationPlanned(cfg: TenantConfig, customer: Pick<Customer, "email">, critical: boolean, smsAllowed: boolean): boolean {
+export function confirmationPlanned(cfg: TenantConfig, customer: Pick<Customer, "email">, critical: boolean, smsAllowed: boolean, emailAllowed = true): boolean {
   const mode = cfg.settings.notifications.customerConfirmation;
   if (mode === "off" || critical) return false;
-  return ((mode === "email" || mode === "both") && !!customer.email) || ((mode === "sms" || mode === "both") && smsAllowed);
+  return ((mode === "email" || mode === "both") && !!customer.email && emailAllowed) || ((mode === "sms" || mode === "both") && smsAllowed);
 }
 const emptyNotify = (): NotifyResult => ({ calendarEvent: false, customer: [], technician: [], errors: [] });
 
@@ -199,13 +201,16 @@ export async function notifyForTicket(
   }
 
   // SMS nur, wenn im Paket enthalten (ohne Paket: erlaubt)
-  const smsAllowed = hasFeature((await planForTenant(tenant.id)).plan, "sms");
+  const plan = (await planForTenant(tenant.id)).plan;
+  const smsAllowed = hasFeature(plan, "sms");
+  // E-Mails laut Paket; Notfall-Alarme gehen immer raus
+  const emailAllowed = hasFeature(plan, "email_notifications");
   const shouldSend = opts.force || !opts.isUpdate || !!appointment;
   if (shouldSend) {
     // 2) Mitarbeiter informieren (bei Notfall gemäß emergencyAlert, sonst technicianAlert)
     const mode = critical ? n.emergencyAlert : n.technicianAlert;
     if (employee && mode !== "off") {
-      if ((mode === "email" || mode === "both") && employee.email) {
+      if ((mode === "email" || mode === "both") && employee.email && (emailAllowed || critical)) {
         const mail = technicianBriefingEmail(ctx);
         const ics = appointment && !update.calendarEventId && !ticket.calendarEventId
           ? { filename: "termin.ics", content: buildIcs({ uid: `ticket-${ticket.id}@ki-telefonzentrale`, start: appointment.start, end: appointment.end, summary: mail.subject, description: ticket.summary ?? "", location }) }
@@ -222,7 +227,7 @@ export async function notifyForTicket(
     // 3) Kundenbestätigung
     const cMode = n.customerConfirmation;
     if (cMode !== "off" && !critical) {
-      if ((cMode === "email" || cMode === "both") && ticket.customer.email) {
+      if ((cMode === "email" || cMode === "both") && ticket.customer.email && emailAllowed) {
         const mail = customerConfirmationEmail(ctx);
         if (ms?.draftMailbox && n.microsoftDraftsOnly && !ticket.emailDraftId) {
           try {
@@ -246,7 +251,7 @@ export async function notifyForTicket(
     }
 
     // 4) Kopie ans Büro
-    if (n.backofficeEmail) {
+    if (n.backofficeEmail && emailAllowed) {
       const mail = technicianBriefingEmail(ctx);
       await sendEmail({ tenantId: tenant.id, ticketId: ticket.id, to: n.backofficeEmail, subject: mail.subject, html: mail.html, purpose: "BACKOFFICE_COPY", fromName: tenant.name });
     }

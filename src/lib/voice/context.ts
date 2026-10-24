@@ -4,7 +4,7 @@ import { normalizePhone } from "../phone";
 import { fromZoned, zonedParts } from "../time";
 import { resolveConfig, type TenantConfig } from "../tenant/settings";
 import { setting } from "../platform/config";
-import { billableSeconds } from "../billing";
+import { billableSeconds, hasFeature, type EffectivePlan } from "../billing";
 import type { CustomerType } from "../constants";
 
 const DAY = ["", "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
@@ -33,6 +33,12 @@ export function buildPrivacyNotice(privacyUrl: string): string {
   if (!privacyUrl) return `${base} Ausführliche Informationen zum Datenschutz sendet Ihnen das Büro gern zu.`;
   const spoken = privacyUrl.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "");
   return `${base} Informationen zum Datenschutz finden Sie unter ${spoken}.`;
+}
+
+/** Paketgrenzen auf die Agenten-Konfiguration anwenden: ohne „Eigene Begrüßung & FAQ“ Standardbegrüßung, keine FAQ. */
+export function applyPlanToConfig(cfg: TenantConfig, plan: EffectivePlan): TenantConfig {
+  if (hasFeature(plan, "custom_greeting")) return cfg;
+  return { ...cfg, settings: { ...cfg.settings, greeting: "", faq: "" } };
 }
 
 /**

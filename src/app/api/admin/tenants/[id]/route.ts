@@ -12,6 +12,7 @@ import { currentMonth } from "@/lib/billing";
 import { setting } from "@/lib/platform/config";
 import { isVoiceProvider } from "@/lib/platform/voice-options";
 import { ensureVapiSipNumber } from "@/lib/voice/vapi";
+import { assertPlanFeature, planAfterChange } from "@/lib/plan-limits";
 
 export const dynamic = "force-dynamic";
 type P = { id: string };
@@ -66,6 +67,7 @@ export const PATCH = api<P>(async (req, { params }) => {
     throw new HttpError(409, "Bitte zuerst AVV-Version und Abschlussdatum eintragen – ohne Auftragsverarbeitungsvertrag kein Produktivbetrieb.");
   }
   if (d.planId && !(await prisma.plan.findUnique({ where: { id: d.planId } }))) throw new HttpError(400, "Paket nicht gefunden.");
+  if (d.voiceProvider || d.voiceAgentId) assertPlanFeature(await planAfterChange(id, d.planId), "own_agent");
   const t = await prisma.tenant.update({ where: { id }, data: { ...d, voiceProvider: d.voiceProvider === "" ? null : d.voiceProvider, voiceAgentId: d.voiceAgentId === "" ? null : d.voiceAgentId, avvVersion: next.avvVersion } });
   // Wechsel auf Vapi: SIP-Nummern für alle Rufnummern ohne eigenen Anbieter anlegen
   let notice: string | null = null;

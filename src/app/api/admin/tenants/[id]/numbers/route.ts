@@ -8,6 +8,8 @@ import { audit } from "@/lib/audit";
 import { providerFor } from "@/lib/voice/handoff";
 import { ensureVapiSipNumber } from "@/lib/voice/vapi";
 import { isVoiceProvider } from "@/lib/platform/voice-options";
+import { assertNumberSlot, assertPlanFeature } from "@/lib/plan-limits";
+import { planForTenant } from "@/lib/billing";
 
 export const dynamic = "force-dynamic";
 type P = { id: string };
@@ -29,6 +31,8 @@ export const POST = api<P>(async (req, { params }) => {
   if (!e164) throw new HttpError(400, "Ungültige Nummer");
   const existing = await prisma.phoneNumber.findUnique({ where: { e164 } });
   if (existing && existing.tenantId !== id) throw new HttpError(409, "Nummer ist einem anderen Kunden zugeordnet.");
+  await assertNumberSlot(id, e164);
+  if (d.voiceAgentId || d.voiceProvider) assertPlanFeature((await planForTenant(id)).plan, "own_agent");
   const data = { label: d.label || null, voiceAgentId: d.voiceAgentId || null, voiceProvider: d.voiceProvider || null, fallbackNumber: normalizePhone(d.fallbackNumber) };
   const n = await prisma.phoneNumber.upsert({ where: { e164 }, create: { tenantId: id, e164, ...data }, update: data });
   await audit({ tenantId: id, userId: auth.user.id, action: "number.assign", target: e164 });

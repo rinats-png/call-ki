@@ -9,8 +9,8 @@ import { findCustomerByPhone } from "@/lib/services/customers";
 import { handoffCall, providerFor } from "@/lib/voice/handoff";
 import { zeroRetention } from "@/lib/voice/retention-flags";
 import { fallbackTwiml } from "@/lib/voice/fallback";
-import { buildDynamicVariables, selectAgent } from "@/lib/voice/context";
-import { minuteGate } from "@/lib/billing";
+import { applyPlanToConfig, buildDynamicVariables, selectAgent } from "@/lib/voice/context";
+import { effectivePlan, minuteGate } from "@/lib/billing";
 import { callAdmission } from "@/lib/cost-guard";
 import { tenantForCalledNumber, twilioParams } from "@/lib/voice/inbound";
 import { hit, LIMITS } from "@/lib/rate-limit";
@@ -66,7 +66,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const cfg = resolveConfig(tenant);
+    const cfg = applyPlanToConfig(resolveConfig(tenant), effectivePlan(tenant, tenant.planRef));
     const customer = from !== "anonymous" ? await findCustomerByPhone(tenant.id, from) : null;
     const choice = providerFor(number, tenant);
     // Aufzeichnungs-Hinweis: Retell wählt bei Bedarf den Agenten ohne Speicherung; andere Anbieter

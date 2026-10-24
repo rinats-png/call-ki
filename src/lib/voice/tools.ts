@@ -8,6 +8,7 @@ import { assessUrgency } from "../urgency";
 import { URGENCIES, CUSTOMER_TYPES } from "../constants";
 import { findCustomerByPhone, upsertCustomer } from "../services/customers";
 import { processServiceRequest, routeRequest } from "../services/tickets";
+import { hasFeature, planForTenant } from "../billing";
 import type { VoiceCallContext } from "./context";
 
 /**
@@ -91,9 +92,15 @@ const handlers: { [K in ToolName]: Handler<K> } = {
     const routing = await routeRequest(ctx.tenant.id, ctx.cfg, { postalCode, urgency, customerType, category: args.category });
     if (!routing.employee) return { found: false, urgency, say: "Aktuell ist niemand eingeplant. Bitte Rückruf anbieten (book_appointment ohne Termin)." };
 
-    const emergencyNumber = routing.employee.directPhone ?? (ctx.cfg.settings.emergency.transferNumber || null);
+    const plan = (await planForTenant(ctx.tenant.id)).plan;
+    const forwarding = hasFeature(plan, "emergency_forwarding");
+    const emergencyNumber = forwarding ? routing.employee.directPhone ?? (ctx.cfg.settings.emergency.transferNumber || null) : null;
     if (urgency === "CRITICAL" && ctx.cfg.settings.emergency.enabled) {
-      return { found: true, urgency, employeeId: routing.employee.id, employee: routing.employee.name, transferNumber: emergencyNumber, slots: [], say: "Notfall. Sofort escalate_emergency aufrufen und danach durchstellen." };
+      return { found: true, urgency, employeeId: routing.employee.id, employee: routing.employee.name, transferNumber: emergencyNumber, slots: [], say: emergencyNumber ? "Notfall. Sofort escalate_emergency aufrufen und danach durchstellen." : "Notfall. Sofort escalate_emergency aufrufen; der Notdienst ruft schnellstmöglich zurück." };
+    }
+    // Ohne Terminbuchung im Paket: nur Rückruf zur Terminabstimmung
+    if (!hasFeature(plan, "calendar_internal")) {
+      return { found: true, urgency, employeeId: routing.employee.id, employee: routing.employee.name, areaMatch: routing.areaMatch, slots: [], reason: routing.reason, say: `Zuständig ist ${routing.employee.name}. Termine vergibt das Büro – Rückruf zur Terminabstimmung anbieten (book_appointment ohne Termin).` };
     }
 
     let slots: { start: string; label: string }[] = [];
@@ -114,6 +121,8 @@ const handlers: { [K in ToolName]: Handler<K> } = {
 
   async book_appointment(args, ctx) {
     const { phone, verified } = resolvePhone(args.phone, ctx);
+    // Ohne Terminbuchung im Paket wird kein Termin eingetragen, nur der Vorgang angelegt
+    if (args.appointmentStart && !hasFeature((await planForTenant(ctx.tenant.id)).plan, "calendar_internal")) args = { ...args, appointmentStart: undefined };
     const res = await processServiceRequest(ctx.tenant, ctx.cfg, {
       customer: { phone, onlyFillMissing: !verified, name: args.name, companyName: args.companyName, email: args.email, address: args.address, postalCode: args.postalCode, customerType: args.customerType },
       category: args.category, description: args.description, urgency: args.urgency, appointmentStart: args.appointmentStart, employeeId: args.employeeId, callId: ctx.callRowId,
@@ -144,7 +153,8 @@ const handlers: { [K in ToolName]: Handler<K> } = {
       deferNotify: true,
     });
     const emp = res.ticket.assignedEmployee;
-    const transferNumber = emp?.directPhone ?? (ctx.cfg.settings.emergency.transferNumber || null);
+    const forwarding = hasFeature((await planForTenant(ctx.tenant.id)).plan, "emergency_forwarding");
+    const transferNumber = forwarding ? emp?.directPhone ?? (ctx.cfg.settings.emergency.transferNumber || null) : null;
     return {
       ok: true, reference: res.ticket.id.slice(-8).toUpperCase(), employee: emp?.name ?? null, transferNumber,
       say: transferNumber

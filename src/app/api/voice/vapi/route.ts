@@ -8,7 +8,8 @@ import { findCustomerByPhone } from "@/lib/services/customers";
 import { parseCallEvent } from "@/lib/voice/events";
 import { processToolBody } from "@/lib/voice/handle-tools";
 import { findCallRef } from "@/lib/voice/payload";
-import { buildDynamicVariables, numberFromSipUser, resolveVoiceContext } from "@/lib/voice/context";
+import { applyPlanToConfig, buildDynamicVariables, numberFromSipUser, resolveVoiceContext } from "@/lib/voice/context";
+import { planForTenant } from "@/lib/billing";
 import { providerFor } from "@/lib/voice/handoff";
 import { zeroRetention } from "@/lib/voice/retention-flags";
 import { normalizePhone } from "@/lib/phone";
@@ -88,6 +89,6 @@ async function assistantRequest(msg: Json) {
   const customer = ctx.callerNumber ? await findCustomerByPhone(ctx.tenant.id, ctx.callerNumber) : null;
   return {
     assistantId: choice.agentId || setting("VAPI_ASSISTANT_ID"),
-    assistantOverrides: { variableValues: buildDynamicVariables(ctx.tenant, ctx.cfg, { number: ctx.callerNumber ?? "anonymous", customer }, recorded) },
+    assistantOverrides: { variableValues: buildDynamicVariables(ctx.tenant, applyPlanToConfig(ctx.cfg, (await planForTenant(ctx.tenant.id)).plan), { number: ctx.callerNumber ?? "anonymous", customer }, recorded) },
   };
 }

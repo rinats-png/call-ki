@@ -6,6 +6,7 @@ import { requirePlatformAdmin, requireRecentAuth } from "@/lib/auth/session";
 import { smtpConfigured } from "@/lib/env";
 import { sendInviteEmail, sendPasswordResetEmail } from "@/lib/services/users";
 import { audit } from "@/lib/audit";
+import { assertUserSlot } from "@/lib/plan-limits";
 
 export const dynamic = "force-dynamic";
 type P = { id: string };
@@ -36,6 +37,7 @@ export const POST = api<P>(async (req, { params }) => {
   }
   if (!d.email) throw new HttpError(400, "E-Mail fehlt");
   if (await prisma.user.findUnique({ where: { email: d.email } })) throw new HttpError(409, "Diese E-Mail hat bereits einen Zugang.");
+  await assertUserSlot(id);
   const user = await prisma.user.create({ data: { email: d.email, name: d.name, role: d.role, tenantId: id } });
   const link = await sendInviteEmail(user, tenant.name);
   await audit({ tenantId: id, userId: auth.user.id, action: "user.invite", target: user.id });
