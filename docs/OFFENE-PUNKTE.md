@@ -9,16 +9,17 @@ Gemeinsame Merkliste. Erledigtes bitte hier abhaken oder streichen.
   - Ob bei Vapi die Kopfzeile `x-call_ref` im SIP-URI von Twilio durchgereicht wird.
 - [ ] **Echte Rechnungen**: Rechnungsnummern, PDF, Zahlung (Lastschrift/Karte), Mahnwesen, Anbindung lexoffice/sevDesk. Bisher nur Vorschau + CSV.
 - [x] **Warnungen** bei 80 % und 100 % des Kontingents, Kostenschutz (gleichzeitige Anrufe, Gesprächsdauer, Tagesbudget, Notschalter) – `docs/betrieb.md`.
-- [x] **Paket-Grenzen durchsetzen**: Zugänge, Rufnummern, Terminbuchung, E-Mail-Benachrichtigungen, Notfall-Durchstellung, eigene Begrüßung & FAQ, eigener Agent. Offen: Aufzeichnung (hängt an der Entscheidung „Standard aus“), Paketwechsel und „Mehr Minuten buchen“ klickbar machen.
+- [x] **Paket-Grenzen durchsetzen**: Zugänge, Rufnummern, Terminbuchung, E-Mail-Benachrichtigungen, Notfall-Durchstellung, eigene Begrüßung & FAQ, eigener Agent. Offen: Aufzeichnung (hängt an der Entscheidung „Standard aus“).
+- [x] **Mehr Minuten buchen** (Pakete +100/+250/+500, sofort wirksam) und **Paketwechsel anfragen** unter Tarif & Verbrauch; der Betreiber stellt unter Verwaltung → Abrechnung um.
 - [ ] **Rufnummern in der Oberfläche kaufen/portieren**; sipgate direkt anbinden.
 - [x] **Terminerinnerungen** per E-Mail/SMS (Einstellungen → Benachrichtigungen).
 - [ ] **Ausgehende Anrufe**: Rückrufe, Kampagnen.
 - [ ] **Weitere Anbindungen**: Apple-/CalDAV-Kalender, CRM (HubSpot, Pipedrive), Webhooks für Kunden.
 - [ ] **Stimme und Sprache je Kunde** in der Oberfläche wählen (auch Englisch, Türkisch).
-- [x] **Überwachung & Alarme** (`docs/betrieb.md`). Offen: öffentliche Statusseite.
+- [x] **Überwachung & Alarme** (`docs/betrieb.md`) und öffentliche Statusseite `/status` (Hinweis über Plattform → „Hinweis auf der Statusseite“).
 - [x] **Gemeinsamer Speicher für die Anfrage-Begrenzung**: sicherheitsrelevante Limits in PostgreSQL (`RateLimitHit`); API-/Webhook-Zähler bleiben im Prozess (E-002).
-- [x] **Monatsabschluss** (GoBD): festgeschriebene Monatswerte, Löschung erst danach, Anonymisieren statt Löschen bei DSGVO-Löschung. Offen: Übergabe an die Buchhaltung.
-- [ ] **`transfer_call` beim Anbieter** (Retell/Vapi/ElevenLabs) auf feste Ziele beschränken – die KI darf keine Nummer aus dem Gespräch wählen (Anbieter-Konfiguration, beim Einrichten prüfen).
+- [x] **Monatsabschluss** (GoBD): festgeschriebene Monatswerte, Löschung erst danach, Anonymisieren statt Löschen bei DSGVO-Löschung. Export für die Buchhaltung: Verwaltung → Abrechnung → CSV (festgeschriebene Werte, auch gelöschte Kunden).
+- [x] **Notfall-Durchstellung** über Twilio durch den Server (Ziel nur aus den eigenen Daten). Beim Einrichten: `transfer_call` nur für Nummern ohne Twilio aktivieren und beim Anbieter auf feste Ziele beschränken.
 - [ ] **Vertragstests mit echten Payloads** je Anbieter (`tests/fixtures/<anbieter>/`) nach den ersten Testanrufen.
 - [ ] **Weiterleitung auf Mobilfunk** (Notfall-Durchstellung, Ersatzziel) kostet bei Twilio rund 33 ct/min und ist in den Paketen nicht eingepreist (`docs/idea-to-app/17-kosten.md`).
 - [x] Glas-Design (Entwürfe G01–G13) umgesetzt: schwebende Icon-Leiste, Glasfenster mit Leuchten, rechte Spalte mit Profil, Schnellaktionen, Kontingent- bzw. Umsatz-Karte; Seitenköpfe mit Kennzahl-Pillen. Audio-Wellenform-Player bei Aufnahmen umgesetzt. Noch offen aus den Entwürfen: Wochen-Heatmap im Team, Schalter-Ansicht für das Telefonverhalten, Upgrade-Kandidaten, Dienst-Status bei Verbindungen.

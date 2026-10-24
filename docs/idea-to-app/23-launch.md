@@ -95,7 +95,7 @@ Stand: 2026-10-24 · Risikostufe 2 (Tendenz 3, siehe `B1-ist-analyse.md`). Ein H
 | ☐ | Alle 54 Prüfmarkierungen in `docs/recht/` fachlich geklärt | 2 | |
 | ☐ | Impressum und Datenschutzerklärung veröffentlicht, `LEGAL_*_URL` gesetzt | 2 | |
 | ☐ | AGB, Leistungsbeschreibung und SLA final | 2 | |
-| ☐ | DSFA-Schwellwertprüfung dokumentiert (Transkripte können Gesundheitsdaten enthalten) | 3 | |
+| ☑ | DSFA-Schwellwertprüfung dokumentiert (Transkripte können Gesundheitsdaten enthalten) | 3 | `docs/recht/dsfa.md` (Ergebnis: für Kunden voraussichtlich erforderlich, Vorlage Teil B), `16-recht.md`, 2026-10-24 |
 | ☐ | Datenexport und Löschung eines Kunden auf Produktion geprüft | 2 | |
 | ☐ | Testkonten und Testdaten aus der Produktion entfernt | 1 | |
 | ☐ | Feedback-Kanal eingerichtet | 1 | |

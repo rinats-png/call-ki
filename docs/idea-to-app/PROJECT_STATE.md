@@ -18,7 +18,7 @@
 | Regelwerk-Version | 1.2.0 |
 
 ## Aktueller Stand
-- **Aktuelle Phase:** Dokumentation des Ist-Stands (B0–B2, 5–7, 10–15, 17–22 fertig; 16 in Arbeit, Unterlagen in `docs/recht/`); 23 Launch „Nicht freigabefähig“.
+- **Aktuelle Phase:** Dokumentation des Ist-Stands (B0–B2, 5–7, 10–22 fertig; Recht mit offener Fachprüfung); 23 Launch „Nicht freigabefähig“.
 - **Nächster Schritt:** Offene Entscheidungen E-010 (Aufzeichnung Standard aus), E-020 (Soft Launch), E-021 (externe Prüfung), E-022 (Repository privat) vom Inhaber treffen lassen; dann M-S/M0 aus `21-roadmap.md` (TASK-005, TASK-006, TASK-008).
 - **Fortschritt:** ▓▓▓▓▓▓░░░░ 16 von 28 Phasen (inkl. B0–B2 und übersprungener Phasen)
 
@@ -47,7 +47,7 @@ Status: `offen` · `in Arbeit` · `fertig` · `übersprungen (<Grund>)` · `⚠�
 | 13 | Tech-Stack & Architektur | fertig | 13-architektur.md |
 | 14 | Sicherheitsarchitektur | fertig | 14-sicherheit.md |
 | 15 | Login, Zahlung, Integrationen | fertig | 15-integrationen.md |
-| 16 | Recht & Datenschutz | in Arbeit (Unterlagen in `docs/recht/`) | 16-recht.md |
+| 16 | Recht & Datenschutz | fertig | 16-recht.md |
 | 17 | Monetarisierung & Kosten | fertig | 17-kosten.md |
 | 18 | Performance, Offline, Benachrichtigungen | fertig | 18-qualitaetsziele.md |
 | 19 | Qualität & Tests | fertig | 19-tests.md |
