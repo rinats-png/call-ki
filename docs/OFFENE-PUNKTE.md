@@ -11,7 +11,8 @@ Gemeinsame Merkliste. Erledigtes bitte hier abhaken oder streichen.
 - [x] **Warnungen** bei 80 % und 100 % des Kontingents, Kostenschutz (gleichzeitige Anrufe, Gesprächsdauer, Tagesbudget, Notschalter) – `docs/betrieb.md`.
 - [x] **Paket-Grenzen durchsetzen**: Zugänge, Rufnummern, Terminbuchung, E-Mail-Benachrichtigungen, Notfall-Durchstellung, eigene Begrüßung & FAQ, eigener Agent. Offen: Aufzeichnung (hängt an der Entscheidung „Standard aus“), Paketwechsel und „Mehr Minuten buchen“ klickbar machen.
 - [ ] **Rufnummern in der Oberfläche kaufen/portieren**; sipgate direkt anbinden.
-- [ ] **Ausgehende Anrufe**: Rückrufe, Terminerinnerungen, Kampagnen.
+- [x] **Terminerinnerungen** per E-Mail/SMS (Einstellungen → Benachrichtigungen).
+- [ ] **Ausgehende Anrufe**: Rückrufe, Kampagnen.
 - [ ] **Weitere Anbindungen**: Apple-/CalDAV-Kalender, CRM (HubSpot, Pipedrive), Webhooks für Kunden.
 - [ ] **Stimme und Sprache je Kunde** in der Oberfläche wählen (auch Englisch, Türkisch).
 - [x] **Überwachung & Alarme** (`docs/betrieb.md`). Offen: öffentliche Statusseite.

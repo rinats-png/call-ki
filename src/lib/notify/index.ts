@@ -9,7 +9,7 @@ import { overlayVersion } from "../platform/overlay";
  * gespeichert – auch ohne konfigurierten Versanddienst (Status SKIPPED), damit
  * im Dashboard sichtbar ist, was rausgegangen wäre.
  */
-export type Purpose = "CUSTOMER_CONFIRMATION" | "TECHNICIAN_BRIEFING" | "EMERGENCY_ALERT" | "INVITE" | "PASSWORD_RESET" | "BACKOFFICE_COPY" | "PLATFORM_ALERT" | "QUOTA_WARNING";
+export type Purpose = "CUSTOMER_CONFIRMATION" | "TECHNICIAN_BRIEFING" | "EMERGENCY_ALERT" | "INVITE" | "PASSWORD_RESET" | "BACKOFFICE_COPY" | "PLATFORM_ALERT" | "QUOTA_WARNING" | "APPOINTMENT_REMINDER";
 
 let transport: Transporter | null = null;
 let transportVersion = -1;

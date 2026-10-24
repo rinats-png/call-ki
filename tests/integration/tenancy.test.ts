@@ -19,6 +19,7 @@ import { POST as twilioStatus } from "@/app/api/twilio/status/route";
 import { assertNumberSlot, assertUserSlot } from "@/lib/plan-limits";
 import { applyPlanToConfig } from "@/lib/voice/context";
 import { effectivePlan } from "@/lib/billing";
+import { runAppointmentReminders } from "@/lib/services/reminders";
 import { retryDueMessages, MAX_ATTEMPTS } from "@/lib/notify";
 import { resetEnvCache } from "@/lib/env";
 import { vi } from "vitest";
@@ -395,6 +396,32 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
       await settleDeferred();
     } finally {
       await prisma.tenant.update({ where: { id: B.tenant.id }, data: { planId: null } });
+    }
+  });
+
+  it("erinnert Kunden einmal vor dem Termin, aber nicht bei kurzfristig gebuchten Terminen", async () => {
+    const settings = { ...(A.tenant.settings as object), notifications: { reminder: "email", reminderHoursBefore: 24, contactPhone: "030 1234567" } };
+    await prisma.tenant.update({ where: { id: A.tenant.id }, data: { settings } });
+    const cust = await prisma.customer.create({ data: { tenantId: A.tenant.id, phone: "+4915000000090", name: "Erika Muster", email: "erika@example.org" } });
+    const old = new Date(Date.now() - 2 * 86400_000);
+    const at = (h: number) => new Date(Date.now() + h * 3600_000);
+    const mk = (start: Date, created: Date) => prisma.callTicket.create({ data: { tenantId: A.tenant.id, customerId: cust.id, assignedEmployeeId: A.tech.id, category: "Wespen", appointmentStart: start, appointmentEnd: new Date(start.getTime() + 3600_000), createdAt: created, updatedAt: created } });
+    const due = await mk(at(20), old);
+    const shortNotice = await mk(at(10), new Date());
+    const later = await mk(at(40), old);
+    try {
+      const r = await runAppointmentReminders();
+      expect(r.sent).toBe(1);
+      const msgs = await prisma.message.findMany({ where: { purpose: "APPOINTMENT_REMINDER" } });
+      expect(msgs).toHaveLength(1);
+      expect(msgs[0]).toMatchObject({ ticketId: due.id, recipient: "erika@example.org" });
+      expect(msgs[0].body).toContain("030 1234567");
+      expect((await prisma.callTicket.findUnique({ where: { id: shortNotice.id } }))?.reminderSentAt).not.toBeNull(); // übersprungen
+      expect((await prisma.callTicket.findUnique({ where: { id: later.id } }))?.reminderSentAt).toBeNull(); // noch nicht fällig
+      await runAppointmentReminders();
+      expect(await prisma.message.count({ where: { purpose: "APPOINTMENT_REMINDER" } })).toBe(1);
+    } finally {
+      await prisma.tenant.update({ where: { id: A.tenant.id }, data: { settings: A.tenant.settings as object } });
     }
   });
 

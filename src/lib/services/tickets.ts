@@ -105,7 +105,7 @@ export async function processServiceRequest(tenant: T, cfg: TenantConfig, input:
     summary,
     status,
     callId: input.callId ?? null,
-    ...(appointment ? { appointmentStart: appointment.start, appointmentEnd: appointment.end } : {}),
+    ...(appointment ? { appointmentStart: appointment.start, appointmentEnd: appointment.end, reminderSentAt: null } : {}),
   };
 
   const ticket = existing

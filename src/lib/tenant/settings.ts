@@ -55,6 +55,11 @@ export const tenantSettingsSchema = z.object({
       backofficeEmail: z.string().email().or(z.literal("")).default(""),
       /** Bei verbundenem Microsoft 365: Kundenbestätigung nur als Entwurf ablegen statt senden */
       microsoftDraftsOnly: z.boolean().default(true),
+      /** Terminerinnerung an den Kunden vor dem Termin */
+      reminder: z.enum(["off", "email", "sms", "both"]).default("off"),
+      reminderHoursBefore: z.number().int().min(2).max(72).default(24),
+      /** Rufnummer in der Erinnerung zum Verschieben/Absagen (die bekannte Firmennummer) */
+      contactPhone: z.string().trim().max(30).default(""),
     })
     .default({}),
   emergency: z

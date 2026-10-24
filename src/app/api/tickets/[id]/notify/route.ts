@@ -27,7 +27,7 @@ export const POST = api<{ id: string }>(async (req, { params }) => {
     const slot = { start, end: new Date(start.getTime() + cfg.durationMin * 60000) };
     if (!(await isSlotFree(tenant.id, cfg, ticket.assignedEmployee, slot, ticket.id))) throw new HttpError(409, "Der Mitarbeiter ist zu dieser Zeit bereits verplant.");
     ticket = await prisma.callTicket.update({
-      where: { id }, data: { appointmentStart: slot.start, appointmentEnd: slot.end, calendarEventId: null, status: ticket.status === "PENDING" ? "PROCESSED" : ticket.status },
+      where: { id }, data: { appointmentStart: slot.start, appointmentEnd: slot.end, calendarEventId: null, reminderSentAt: null, status: ticket.status === "PENDING" ? "PROCESSED" : ticket.status },
       include: { customer: true, assignedEmployee: true },
     });
     appointment = slot;

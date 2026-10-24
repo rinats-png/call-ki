@@ -27,7 +27,7 @@ Ubuntu 24.04 auf dem IONOS-VPS, SSH-Schlüssel beim Anlegen hinterlegen.
 | `app` | Next.js-Anwendung, wendet beim Start die Datenbank-Migrationen an |
 | `db` | PostgreSQL 16, kein Port nach außen |
 | `caddy` | HTTPS (Let's Encrypt), einziger Dienst mit offenen Ports (80/443) |
-| `cron` | `deploy/cron.sh`: jede Minute Wiederholung fehlgeschlagener E-Mails/SMS und Durchsetzung der Gesprächsdauer, alle 5 Minuten Überwachung, alle 15 Minuten Kontingent-Warnungen, täglich 03 Uhr Löschfristen |
+| `cron` | `deploy/cron.sh`: jede Minute Wiederholung fehlgeschlagener E-Mails/SMS und Durchsetzung der Gesprächsdauer, alle 5 Minuten Überwachung, alle 15 Minuten Kontingent-Warnungen und Terminerinnerungen, täglich 03 Uhr Löschfristen |
 | `backup` | `deploy/backup.sh`: täglich 02 Uhr Backup, am 1. des Monats 04 Uhr Wiederherstellungstest |
 
 ## Backups

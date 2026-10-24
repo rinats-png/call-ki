@@ -246,6 +246,8 @@ model CallTicket {
   appointmentEnd     DateTime?
   calendarEventId    String? // Microsoft-365-Event (falls verbunden)
   emailDraftId       String? // Microsoft-365-Entwurf (falls verbunden)
+  /// Terminerinnerung versendet (bzw. bewusst übersprungen) für den Termin appointmentStart
+  reminderSentAt     DateTime?
   status             String    @default("PENDING") // PENDING, PROCESSED, ESCALATED, CLOSED
   notes              String?
   createdAt          DateTime  @default(now())
