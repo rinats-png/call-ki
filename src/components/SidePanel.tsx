@@ -100,7 +100,7 @@ function TenantBlocks() {
                 <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full", t?.urgency === "CRITICAL" ? "bg-rose-400/15 text-rose-400" : "bg-cyan-400/15 text-cyan-300")}><PhoneCall className="h-3.5 w-3.5" /></span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs font-bold text-zinc-100">{c.customer?.companyName ?? c.customer?.name ?? c.fromNumber}</span>
-                  <span className="block text-[10.5px] text-zinc-500">{new Date(c.startedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })} · {fmtDuration(c.durationSec)}</span>
+                  <span className="block text-[10.5px] text-zinc-500">{new Date(c.startedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" })} · {fmtDuration(c.durationSec)}</span>
                 </span>
                 {t?.category && <span className={cn("chip border-transparent", t.urgency === "CRITICAL" ? "bg-rose-400/15 text-rose-400" : "bg-cyan-400/15 text-cyan-300")}>{t.urgency === "CRITICAL" ? "Notfall" : t.category}</span>}
               </Link>
