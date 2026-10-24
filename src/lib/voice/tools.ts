@@ -35,11 +35,12 @@ const customerFields = {
 
 const schemas = {
   identify_caller: z.object({ phone: phoneArg }),
-  save_customer: z.object({ phone: phoneArg, ...customerFields }),
+  save_customer: z.object({ phone: phoneArg, ...customerFields, smsConsent: z.boolean().optional() }),
   find_technician: withCategory({ phone: phoneArg, postalCode: z.string().optional(), description: z.string().optional(), urgency: urgencyArg, customerType: customerTypeArg }),
   book_appointment: withCategory({ phone: phoneArg, description: z.string().min(1), urgency: urgencyArg, appointmentStart: z.string().optional(), employeeId: z.string().optional(), ...customerFields }),
   escalate_emergency: withCategory({ phone: phoneArg, description: z.string().min(1), postalCode: z.string().optional(), address: z.string().optional(), name: z.string().optional() }),
   find_appointments: z.object({}).passthrough(),
+  recording_consent: z.object({ granted: z.boolean() }),
   reschedule_appointment: z.object({ reference: z.string().max(40).optional(), appointmentStart: z.string().optional() }),
   cancel_appointment: z.object({ reference: z.string().max(40).optional(), reason: z.string().max(300).optional() }),
 } as const;
@@ -107,7 +108,11 @@ const handlers: { [K in ToolName]: Handler<K> } = {
 
   async save_customer(args, ctx) {
     const { phone, verified } = resolvePhone(args.phone, ctx);
-    const c = await upsertCustomer(ctx.tenant.id, { ...args, phone, onlyFillMissing: !verified });
+    const { smsConsent, ...fields } = args;
+    const c = await upsertCustomer(ctx.tenant.id, { ...fields, phone, onlyFillMissing: !verified });
+    // SMS-Einwilligung nur für die eigene (verifizierte) Nummer festhalten
+    if (smsConsent === true && verified) await prisma.customer.update({ where: { id: c.id }, data: { smsConsentAt: new Date(), smsConsentSource: ctx.callRowId ? `call:${ctx.callRowId}` : "call", smsOptOutAt: null } });
+    if (smsConsent === false && verified) await prisma.customer.update({ where: { id: c.id }, data: { smsOptOutAt: new Date() } });
     if (ctx.callRowId) await prisma.call.update({ where: { id: ctx.callRowId }, data: { customerId: c.id } });
     // Zu einer nicht verifizierten Nummer keine gespeicherten Angaben zurückmelden
     return verified ? { ok: true, status: c.status, postalCode: c.postalCode, emailSaved: !!c.email } : { ok: true };
@@ -191,6 +196,12 @@ const handlers: { [K in ToolName]: Handler<K> } = {
         ? `Notfall ist aufgenommen. Jetzt mit transfer_call an ${transferNumber} durchstellen.`
         : `Notfall ist aufgenommen. ${emp?.name ?? "Der Notdienst"} ruft schnellstmöglich zurück.`,
     };
+  },
+
+  async recording_consent(args, ctx) {
+    if (!ctx.callRowId) return { ok: false, say: "Antwort notiert." };
+    await prisma.call.update({ where: { id: ctx.callRowId }, data: { recordingConsent: args.granted ? "GRANTED" : "DENIED", recordingConsentAt: new Date() } });
+    return { ok: true, say: args.granted ? "Danke. Wie kann ich Ihnen helfen?" : "Gern, dann wird das Gespräch nicht gespeichert. Wie kann ich Ihnen helfen?" };
   },
 
   async find_appointments(_args, ctx) {

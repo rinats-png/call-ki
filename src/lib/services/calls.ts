@@ -9,6 +9,8 @@ import { resolveVoiceContext } from "../voice/context";
 import { upsertCustomer } from "./customers";
 import { notifyForTicket, routeRequest } from "./tickets";
 import { resolveConfig } from "../tenant/settings";
+import { runAfterResponse } from "../defer";
+import { purgeCallAtProviders } from "../voice/providers";
 
 const CALLBACK_PREFIX = "Gespräch ohne Abschluss – Rückruf erforderlich.";
 
@@ -75,6 +77,19 @@ export async function handleCallEvent(ev: CallEvent) {
       ...(ev.endReason ? { endReason: ev.endReason } : {}),
     },
   });
+
+  // Keine Einwilligung in die Aufzeichnung (Variante C): Aufnahme sofort beim Anbieter löschen
+  const consentMode = ctx.cfg.settings.recordingConsent;
+  if (!call.providerPurgedAt && (call.recordingConsent === "DENIED" || (consentMode === "ask" && call.recordingConsent !== "GRANTED"))) {
+    const c = call;
+    await prisma.call.update({ where: { id: c.id }, data: { recordingUrl: null } });
+    call = { ...call, recordingUrl: null };
+    runAfterResponse("call.purge_no_consent", async () => {
+      const r = await purgeCallAtProviders(c);
+      if (r.ok) await prisma.call.update({ where: { id: c.id }, data: { providerPurgedAt: new Date() } });
+      logger.info("call.recording_purged_no_consent", { tenantId: ctx.tenant.id, callId: c.id, ok: r.ok });
+    });
+  }
 
   const tickets = await prisma.callTicket.findMany({ where: { tenantId: ctx.tenant.id, callId: call.id } });
   for (const t of tickets) {

@@ -246,7 +246,7 @@ export async function notifyForTicket(
           res.customer.push(`E-Mail ${r.status}`);
         }
       }
-      if ((cMode === "sms" || cMode === "both") && smsAllowed) {
+      if ((cMode === "sms" || cMode === "both") && smsAllowed && !ticket.customer.smsOptOutAt) {
         const r = await sendSms({ tenantId: tenant.id, ticketId: ticket.id, to: ticket.customer.phone, body: customerSms(ctx), purpose: "CUSTOMER_CONFIRMATION" });
         res.customer.push(`SMS ${r.status}`);
       }

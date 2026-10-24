@@ -28,9 +28,9 @@ Fehlt `RETELL_AGENT_ID_NO_STORAGE`, verwendet die Plattform den Standard-Agenten
 |---|---|---|---|
 | **A – Keine Aufzeichnung** (Standard) | nur Mitschrift/Zusammenfassung | höchste | vorhanden |
 | B – Ansage, Weitersprechen gilt als Zustimmung | Hinweis in der Begrüßung, Opt-out: „Sagen Sie ‚ohne Aufnahme‘“ | mittel – umstritten | Hinweis vorhanden; **Opt-out mitten im Gespräch nicht umgesetzt** (Agent kann die Speicherung nicht nachträglich abschalten; wäre über Löschung des Anrufs direkt nach Ende lösbar) |
-| C – Ausdrückliche Einwilligung | KI fragt „Dürfen wir das Gespräch aufzeichnen?“; bei Nein keine Speicherung | hoch | **nicht umgesetzt** – erfordert Löschung bzw. Nicht-Speicherung nach „Nein“ (z. B. Tool `recording_consent` setzt Merker, Plattform löscht Aufnahme beim Anbieter nach Gesprächsende) |
+| C – Ausdrückliche Einwilligung | KI fragt „Darf ich das Gespräch aufzeichnen?“; bei Nein keine Speicherung | hoch | **umgesetzt (2026-10-24)**: Einstellung „Einwilligung zur Aufzeichnung → Ausdrücklich fragen“. Die Antwort hält das Tool `recording_consent` mit Zeitpunkt am Anruf fest (`Call.recordingConsent`, `recordingConsentAt`). Bei „Nein“ oder ohne klare Antwort entfernt die Plattform nach Gesprächsende den Aufnahme-Link und löscht den Anruf beim Anbieter; die Mitschrift bleibt für den Vorgang. Noch mit echten Anrufen zu testen (`docs/testanrufe.md`). |
 
-**Empfehlung:** Bis zur anwaltlichen Klärung Option **A** für alle Kunden. Wird Aufzeichnung gebraucht (z. B. Qualitätssicherung), Option C umsetzen, bevor sie aktiviert wird.
+**Empfehlung:** Bis zur anwaltlichen Klärung Option **A** für alle Kunden. Wird Aufzeichnung gebraucht (z. B. Qualitätssicherung), nur mit Option C („Ausdrücklich fragen“) aktivieren. **Offene Entscheidung:** Der Standard in der Software ist noch „Aufzeichnung an, nur ansagen“ – Umstellung auf „aus“ bzw. „fragen“ als Standard steht aus.
 
 ## 4. Fragen an die Fachperson
 1. Reicht Option B für § 201 StGB und Art. 6 DSGVO bei eingehenden Geschäftsanrufen?

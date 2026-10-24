@@ -17,13 +17,16 @@ const AI_DISCLOSURE = /\b(KI|künstliche[nr]?\s+Intelligenz|digitale[nr]?\s+Assi
  * aktiviert – Aufzeichnungshinweis. Eine eigene Begrüßung des Kunden wird ergänzt, nie ersetzt.
  */
 export function buildGreeting(companyName: string, s: TenantConfig["settings"], recorded = s.announceRecording): string {
-  const recording = recorded ? " Das Gespräch wird zur Bearbeitung Ihres Anliegens aufgezeichnet." : "";
+  // Variante C: ausdrücklich fragen – die KI hält die Antwort mit recording_consent fest
+  const ask = recorded && s.recordingConsent === "ask";
+  const recording = !recorded ? "" : ask ? " Darf ich das Gespräch zur Bearbeitung Ihres Anliegens aufzeichnen?" : " Das Gespräch wird zur Bearbeitung Ihres Anliegens aufgezeichnet.";
   if (!s.greeting) {
-    return `${companyName}, guten Tag! Hier spricht ${s.assistantName}, die digitale Assistentin.${recording} Wie kann ich Ihnen helfen?`;
+    return `${companyName}, guten Tag! Hier spricht ${s.assistantName}, die digitale Assistentin.${recording}${ask ? "" : " Wie kann ich Ihnen helfen?"}`;
   }
   let g = s.greeting.trim();
   if (!AI_DISCLOSURE.test(g)) g = `${g} Sie sprechen mit ${s.assistantName}, der digitalen KI-Assistenz von ${companyName}.`;
-  if (recording && !/aufgezeichnet|aufzeichnung|mitgeschnitten/i.test(g)) g += recording;
+  if (ask) g += recording;
+  else if (recording && !/aufgezeichnet|aufzeichnung|mitgeschnitten/i.test(g)) g += recording;
   return g;
 }
 
@@ -61,6 +64,7 @@ export function buildDynamicVariables(
     company_name: tenant.name,
     assistant_name: s.assistantName,
     greeting: buildGreeting(tenant.name, s, recorded),
+    recording_consent_required: recorded && s.recordingConsent === "ask" ? "ja" : "nein",
     company_description: s.companyDescription || t.description,
     industry_context: t.promptContext,
     intake_questions: t.intakeQuestions.join(" "),

@@ -23,6 +23,8 @@ export const tenantSettingsSchema = z.object({
   extraInstructions: z.string().trim().max(4000).default(""),
   /** Hinweis auf Gesprächsaufzeichnung in der Begrüßung */
   announceRecording: z.boolean().default(true),
+  /** Wird aufgezeichnet: nur ansagen (announce) oder ausdrücklich fragen (ask, Variante C – bei „Nein“ wird die Aufnahme gelöscht) */
+  recordingConsent: z.enum(["announce", "ask"]).default("announce"),
 
   /** Eigene Kategorien; leer = Branchenvorlage */
   categories: z.array(z.string().trim().min(1).max(60)).max(50).default([]),

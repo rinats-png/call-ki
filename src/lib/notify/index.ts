@@ -80,7 +80,7 @@ async function deliverEmail(msg: { id: string; recipient: string; subject: strin
 }
 
 /** Versendet eine gespeicherte SMS über Twilio (erster Versuch und Wiederholungen). */
-async function deliverSms(msg: { id: string; recipient: string; body: string; purpose: string; attempts: number }) {
+async function deliverSms(msg: { id: string; tenantId: string | null; recipient: string; body: string; purpose: string; attempts: number }) {
   if (!smsConfigured()) {
     await prisma.message.update({ where: { id: msg.id }, data: { status: "SKIPPED", error: "SMS-Versand nicht konfiguriert", nextAttemptAt: null } });
     return "SKIPPED" as const;
@@ -97,7 +97,13 @@ async function deliverSms(msg: { id: string; recipient: string; body: string; pu
       body: new URLSearchParams({ To: msg.recipient, Body: msg.body.slice(0, 1500), ...(from.startsWith("MG") ? { MessagingServiceSid: from } : { From: from }) }),
       signal: AbortSignal.timeout(10_000),
     });
-    const json = (await res.json().catch(() => ({}))) as { message?: string };
+    const json = (await res.json().catch(() => ({}))) as { message?: string; code?: number };
+    // 21610: Empfänger hat SMS abbestellt („STOP“) – nicht wiederholen, Widerspruch beim Kunden vermerken
+    if (json.code === 21610) {
+      await prisma.message.update({ where: { id: msg.id }, data: { status: "SKIPPED", provider: "twilio", nextAttemptAt: null, error: "Empfänger hat SMS abbestellt (STOP)" } });
+      if (msg.tenantId) await prisma.customer.updateMany({ where: { tenantId: msg.tenantId, phone: msg.recipient, smsOptOutAt: null }, data: { smsOptOutAt: new Date() } });
+      return "SKIPPED" as const;
+    }
     if (!res.ok) throw new Error(json.message ?? `HTTP ${res.status}`);
     await prisma.message.update({ where: { id: msg.id }, data: { status: "SENT", provider: "twilio", attempts: msg.attempts + 1, nextAttemptAt: null, error: null } });
     return "SENT" as const;

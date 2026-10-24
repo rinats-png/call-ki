@@ -65,6 +65,12 @@ describe("Begrüßung (KI-Transparenz, Art. 50 KI-VO)", () => {
     const g = buildGreeting("X", parseSettings({ greeting: "Hallo, hier ist die digitale Assistentin von X.", announceRecording: false }));
     expect(g).toBe("Hallo, hier ist die digitale Assistentin von X.");
   });
+  it("fragt bei Variante C ausdrücklich nach der Aufzeichnung", () => {
+    const g = buildGreeting("Firma", parseSettings({ recordingConsent: "ask" }), true);
+    expect(g).toContain("Darf ich das Gespräch");
+    expect(g).not.toContain("wird zur Bearbeitung Ihres Anliegens aufgezeichnet");
+    expect(buildGreeting("Firma", parseSettings({ recordingConsent: "ask" }), false)).not.toContain("aufzeichnen");
+  });
 });
 
 import { selectAgent } from "@/lib/voice/context";

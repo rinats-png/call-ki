@@ -501,6 +501,55 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
     }
   });
 
+  it("hält die Einwilligung zur Aufzeichnung fest und löscht die Aufnahme ohne Einwilligung", async () => {
+    const ask = { ...(A.tenant.settings as object), recordingConsent: "ask" };
+    await prisma.tenant.update({ where: { id: A.tenant.id }, data: { settings: ask } });
+    try {
+      for (const [id, granted] of [["retell-yes", true], ["retell-no", false], ["retell-silent", null]] as const) {
+        await prisma.call.create({ data: { tenantId: A.tenant.id, providerCallId: id, fromNumber: "+4915000000097", toNumber: A.number, status: "IN_PROGRESS" } });
+        if (granted !== null) {
+          const ctx = (await resolveVoiceContext(id, null, null))!;
+          await runTool("recording_consent", { granted }, ctx);
+        }
+        await handleCallEvent({ provider: "retell", kind: "ended", callId: id, fromNumber: null, toNumber: null, transcript: "Agent: Hallo", summary: null, durationSec: 30, recordingUrl: `https://api.twilio.com/rec/${id}`, endReason: "user_hangup" });
+      }
+      await settleDeferred();
+      const rows = Object.fromEntries((await prisma.call.findMany({ where: { providerCallId: { in: ["retell-yes", "retell-no", "retell-silent"] } } })).map((c) => [c.providerCallId, c]));
+      expect(rows["retell-yes"]).toMatchObject({ recordingConsent: "GRANTED", recordingUrl: "https://api.twilio.com/rec/retell-yes" });
+      expect(rows["retell-no"]).toMatchObject({ recordingConsent: "DENIED", recordingUrl: null });
+      expect(rows["retell-silent"]).toMatchObject({ recordingConsent: null, recordingUrl: null }); // ohne klare Antwort keine Aufnahme
+      expect(rows["retell-no"].transcript).toBe("Agent: Hallo"); // Mitschrift bleibt für den Vorgang
+    } finally {
+      await prisma.tenant.update({ where: { id: A.tenant.id }, data: { settings: A.tenant.settings as object } });
+    }
+  });
+
+  it("respektiert SMS-Abbestellung (STOP) und Einwilligung", async () => {
+    Object.assign(process.env, { TWILIO_ACCOUNT_SID: "AC" + "0".repeat(32), TWILIO_AUTH_TOKEN: "t", TWILIO_SMS_FROM: "+4930000000" });
+    resetEnvCache();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ code: 21610, message: "Attempt to send to unsubscribed recipient" }), { status: 400 }));
+    try {
+      const cust = await prisma.customer.create({ data: { tenantId: A.tenant.id, phone: "+4915000000098" } });
+      const { sendSms } = await import("@/lib/notify");
+      const r = await sendSms({ tenantId: A.tenant.id, to: cust.phone, body: "Test", purpose: "CUSTOMER_CONFIRMATION" });
+      expect(r.status).toBe("SKIPPED");
+      expect((await prisma.message.findUnique({ where: { id: r.id } }))?.nextAttemptAt).toBeNull(); // keine Wiederholung
+      expect((await prisma.customer.findUnique({ where: { id: cust.id } }))?.smsOptOutAt).not.toBeNull();
+
+      // Einwilligung am Telefon (nur verifizierte Nummer) setzt den Widerspruch zurück
+      await prisma.call.create({ data: { tenantId: A.tenant.id, providerCallId: "retell-sms", fromNumber: cust.phone, toNumber: A.number } });
+      await runTool("save_customer", { smsConsent: true }, (await resolveVoiceContext("retell-sms", null, null))!);
+      const c = (await prisma.customer.findUnique({ where: { id: cust.id } }))!;
+      expect(c.smsConsentAt).not.toBeNull();
+      expect(c.smsConsentSource).toMatch(/^call:/);
+      expect(c.smsOptOutAt).toBeNull();
+    } finally {
+      fetchMock.mockRestore();
+      for (const k of ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_SMS_FROM"]) delete process.env[k];
+      resetEnvCache();
+    }
+  });
+
   it("löscht einen Mandanten nur nach Anbieter-Löschung (oder ausdrücklich erzwungen) und lässt andere unberührt", async () => {
     const before = await prisma.call.count({ where: { tenantId: A.tenant.id } });
     // Ohne Retell-Schlüssel scheitert die Anbieter-Löschung → Abbruch ohne force

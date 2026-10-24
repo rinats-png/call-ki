@@ -42,6 +42,10 @@
               "BUSINESS",
               "PROPERTY_MANAGEMENT"
             ]
+          },
+          "smsConsent": {
+            "type": "boolean",
+            "description": "Anrufer ist mit SMS an seine Nummer einverstanden (true) bzw. nicht (false); nur setzen, wenn gefragt"
           }
         }
       }
@@ -220,6 +224,22 @@
             "description": "Kurzer Grund der Absage"
           }
         }
+      }
+    },
+    {
+      "name": "recording_consent",
+      "description": "Hält die Antwort des Anrufers auf die Frage nach der Gesprächsaufzeichnung fest. Nur aufrufen, wenn recording_consent_required = ja. Bei false wird die Aufnahme nach dem Gespräch gelöscht.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "granted": {
+            "type": "boolean",
+            "description": "true nur bei klarem Ja"
+          }
+        },
+        "required": [
+          "granted"
+        ]
       }
     }
   ]

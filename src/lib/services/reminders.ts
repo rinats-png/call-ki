@@ -52,7 +52,7 @@ export async function runAppointmentReminders(now = new Date()) {
       await sendEmail({ tenantId: t.tenantId, ticketId: t.id, to: t.customer.email, subject: `Erinnerung: ${noun} am ${when}`, html, purpose: "APPOINTMENT_REMINDER", fromName: t.tenant.name, replyTo: n.backofficeEmail || undefined });
       any = true;
     }
-    if ((n.reminder === "sms" || n.reminder === "both") && hasFeature(plan, "sms")) {
+    if ((n.reminder === "sms" || n.reminder === "both") && hasFeature(plan, "sms") && !t.customer.smsOptOutAt) {
       await sendSms({ tenantId: t.tenantId, ticketId: t.id, to: t.customer.phone, body: `${t.tenant.name}: Erinnerung an Ihren Termin am ${when}.${change}`, purpose: "APPOINTMENT_REMINDER" });
       any = true;
     }

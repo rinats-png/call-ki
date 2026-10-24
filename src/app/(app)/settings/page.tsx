@@ -32,6 +32,12 @@ export default function Page() {
           <Field label="Gesprächsaufzeichnung" help={["Aus (empfohlen): Es wird keine Tonaufnahme gespeichert, nur eine Mitschrift für den Vorgang.", "An: Die KI kündigt die Aufzeichnung zu Beginn an. Vorher rechtlich prüfen lassen (Einwilligung, § 201 StGB)."]} hint="Aus: keine Aufnahme und kein Transkript beim Anbieter (nur Basisdaten). Ist das auf der Plattform noch nicht eingerichtet, wird weiter aufgezeichnet – und dann immer angesagt.">
             <label className="flex h-[38px] items-center gap-2 text-sm text-zinc-300"><input type="checkbox" checked={st.announceRecording} onChange={(e) => setS("announceRecording", e.target.checked)} />Gespräche aufzeichnen und transkribieren (mit Hinweis)</label>
           </Field>
+          <Field label="Einwilligung zur Aufzeichnung" help={["Nur ansagen: Die KI sagt zu Beginn, dass aufgezeichnet wird.", "Ausdrücklich fragen: Die KI fragt, ob aufgezeichnet werden darf. Bei „Nein“ oder ohne klare Antwort löscht die Plattform die Aufnahme nach dem Gespräch beim Anbieter (Mitschrift bleibt für den Vorgang).", "Welche Variante rechtlich nötig ist, vorher klären lassen."]} hint="Gilt nur, wenn aufgezeichnet wird.">
+            <select className="input" value={st.recordingConsent} onChange={(e) => setS("recordingConsent", e.target.value as typeof st.recordingConsent)}>
+              <option value="announce">Nur ansagen</option>
+              <option value="ask">Ausdrücklich fragen (empfohlen)</option>
+            </select>
+          </Field>
           <div className="sm:col-span-2">
             <Field label="Eigene Begrüßung (optional)" help={["Leer lassen = Standardbegrüßung.", "Fehlt in Ihrem Text der Hinweis auf die KI, ergänzt die Plattform ihn automatisch."]} hint="Leer = Standard. Die KI stellt sich immer als digitale Assistenz vor (Transparenzpflicht).">
               <textarea className="input min-h-[60px]" value={st.greeting} onChange={(e) => setS("greeting", e.target.value)} placeholder={`${draft.tenant.name}, guten Tag! Hier spricht ${st.assistantName}, die digitale Assistentin. Wie kann ich helfen?`} />

@@ -176,6 +176,10 @@ model Customer {
   customerType String       @default("PRIVATE") // PRIVATE, BUSINESS, PROPERTY_MANAGEMENT
   status       String       @default("NEW") // NEW, EXISTING
   notes        String?
+  /// SMS-Einwilligung (Zeitpunkt + Quelle, z. B. call:<id>) und Widerspruch (z. B. „STOP“ bei Twilio)
+  smsConsentAt     DateTime?
+  smsConsentSource String?
+  smsOptOutAt      DateTime?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   tickets      CallTicket[]
@@ -217,6 +221,9 @@ model Call {
   durationSec    Int?
   /// Gesprächsdauer laut Twilio (StatusCallback) – unabhängig vom KI-Anbieter, Grundlage der Abrechnung
   twilioDurationSec Int?
+  /// Einwilligung des Anrufers in die Tonaufzeichnung (GRANTED/DENIED, Tool recording_consent) mit Zeitpunkt
+  recordingConsent   String?
+  recordingConsentAt DateTime?
   transcript     String?
   summary        String?
   recordingUrl   String?
