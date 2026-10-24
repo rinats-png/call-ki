@@ -34,7 +34,7 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
   }
 
   beforeAll(async () => {
-    await prisma.$executeRawUnsafe('TRUNCATE "Tenant", "User" CASCADE');
+    await prisma.$executeRawUnsafe('TRUNCATE "Tenant", "User", "Message", "SystemState" CASCADE');
     A = await mk("Alpha Schädlinge", "+493011111111", "pest_control");
     B = await mk("Beta Sanitär", "+493022222222", "trades");
   });
@@ -211,7 +211,7 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
       await prisma.call.create({ data: { tenantId: A.tenant.id, fromNumber: "+4915000000041", toNumber: A.number, status: "IN_PROGRESS", startedAt: new Date(Date.now() - 3 * 3600_000) } });
       const first = await runMonitor();
       const ids = first.findings.map((f) => f.id.split(":")[0]);
-      expect(ids).toEqual(expect.arrayContaining(["emergency-skipped", "calls-hanging", "backup-missing"]));
+      expect(ids).toEqual(expect.arrayContaining(["emergency-skipped", "calls-hanging", "backup-missing", "restore-test-missing"]));
       expect(first.alerted).toBe(first.findings.length);
       const alerts = await prisma.message.findMany({ where: { purpose: "PLATFORM_ALERT", recipient: "betrieb@example.org" } });
       expect(alerts.length).toBe(first.findings.length);
@@ -221,6 +221,8 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
       // Backup meldet sich → Befund verschwindet
       await recordHeartbeat("backup", true);
       expect((await runMonitor()).findings.some((f) => f.id.startsWith("backup"))).toBe(false);
+      await recordHeartbeat("restore-test", false, "pg_restore fehlgeschlagen");
+      expect((await runMonitor()).findings.find((f) => f.id.startsWith("restore-test"))?.level).toBe("critical");
     } finally {
       delete process.env.ALERT_EMAIL;
       delete process.env.BACKUP_EXPECTED;

@@ -51,7 +51,7 @@ docker compose up -d --build
 ```
 Secrets erzeugen: `openssl rand -hex 24`. Updates: `git pull && docker compose up -d --build` (Migrationen laufen beim Start automatisch).
 
-**Backups**: Der Dienst `backup` legt täglich einen Dump nach `./backups` (14 Tage). Zusätzlich extern sichern, z. B. per `rclone` auf IONOS S3 Object Storage oder das IONOS-Server-Backup aktivieren. Wiederherstellen: `gunzip -c backups/<datei>.sql.gz | docker compose exec -T db psql -U callki -d callki`.
+**Backups**: Der Dienst `backup` sichert täglich, mit age verschlüsselt, nach `./backups` (14 Tage) und auf einen externen S3-Bucket (30 Tage) und prüft monatlich automatisch die Wiederherstellung. Einrichtung, Schlüsselablage und Wiederherstellung: [`docs/betrieb.md`](docs/betrieb.md#backups). Ohne Schlüssel und Bucket meldet die Überwachung einen kritischen Alarm.
 
 **Zeitgesteuerte Aufgaben** (Dienst `cron`, `deploy/cron.sh`): jede Minute werden fehlgeschlagene E-Mails und SMS erneut gesendet (bis zu 5 Versuche, Notfall-Alarme nach 1, 2, 5, 10 Minuten, sonst nach 2, 10, 30, 120 Minuten), täglich um 3 Uhr laufen die Löschfristen. Die Sprach-KI wartet während des Gesprächs nicht auf den Versand – Kalender, E-Mail und SMS laufen direkt nach der Antwort an den Anbieter.
 

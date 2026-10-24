@@ -1,12 +1,19 @@
 #!/bin/sh
-# Tägliches pg_dump um ca. 02:00 Uhr (Container-Zeit), Aufbewahrung 14 Tage.
-set -eu
+# Zeitplan des Backup-Dienstes (docker-compose: "backup"):
+#  - täglich ca. 02:00 Uhr: Backup (deploy/backup-once.sh)
+#  - am 1. jedes Monats ca. 04:00 Uhr: Wiederherstellungstest (deploy/restore-test.sh)
+set -u
+last_backup=""
+last_test=""
 while true; do
-  if [ "$(date +%H)" = "02" ]; then
-    f="/backups/callki-$(date +%Y%m%d-%H%M).sql.gz"
-    pg_dump -h db -U callki -d callki | gzip > "$f.tmp" && mv "$f.tmp" "$f" && echo "Backup: $f"
-    find /backups -name 'callki-*.sql.gz' -mtime +14 -delete
-    sleep 3600
+  hour=$(date +%H); today=$(date +%Y%m%d)
+  if [ "$hour" = "02" ] && [ "$today" != "$last_backup" ]; then
+    sh /deploy/backup-once.sh
+    last_backup=$today
   fi
-  sleep 600
+  if [ "$(date +%d)" = "01" ] && [ "$hour" = "04" ] && [ "$today" != "$last_test" ]; then
+    sh /deploy/restore-test.sh
+    last_test=$today
+  fi
+  sleep 300
 done

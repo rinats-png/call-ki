@@ -81,6 +81,13 @@ export async function collectFindings(now = new Date()): Promise<Finding[]> {
     }
   }
 
+  // 5b) Wiederherstellungstest: monatlich automatisch; älter als 35 Tage oder fehlgeschlagen → Warnung
+  if (setting("BACKUP_EXPECTED") === "true") {
+    const rt = await heartbeat("restore-test");
+    if (rt && !rt.ok) out.push({ id: `restore-test-failed:${rt.at.toISOString()}`, level: "critical", title: "Wiederherstellungstest fehlgeschlagen", detail: `${rt.at.toISOString()}: ${rt.note || "Fehler"}. Backups sind möglicherweise nicht nutzbar.` });
+    else if (!rt || now.getTime() - rt.at.getTime() > 35 * 24 * H) out.push({ id: `restore-test-missing:${now.toISOString().slice(0, 7)}`, level: "warning", title: "Wiederherstellungstest überfällig", detail: rt ? `Letzter erfolgreicher Test: ${rt.at.toISOString()}.` : "Noch kein Wiederherstellungstest gemeldet. Von Hand: docker compose exec backup sh /deploy/restore-test.sh" });
+  }
+
   // 6) Plattenplatz
   try {
     const fs = await statfs("/");

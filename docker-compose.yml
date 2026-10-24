@@ -48,16 +48,32 @@ services:
       - caddy-config:/config
     depends_on: [app]
 
-  # Tägliches Datenbank-Backup nach ./backups (14 Tage aufbewahrt). Zusätzlich extern sichern (siehe README)!
+  # Tägliches, mit age verschlüsseltes Datenbank-Backup: lokal ./backups (14 Tage) und extern auf
+  # S3 (z. B. IONOS Object Storage, 30 Tage). Monatlich automatischer Wiederherstellungstest.
+  # Einrichtung: docs/betrieb.md → „Backups“.
   backup:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
+      PGHOST: db
+      PGUSER: callki
+      PGDATABASE: callki
       PGPASSWORD: ${POSTGRES_PASSWORD}
+      CRON_SECRET: ${CRON_SECRET}
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:-}
+      BACKUP_AGE_IDENTITY: /secrets/backup-age.key
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:-}
+      RCLONE_CONFIG_REMOTE_TYPE: s3
+      RCLONE_CONFIG_REMOTE_PROVIDER: Other
+      RCLONE_CONFIG_REMOTE_ENDPOINT: ${BACKUP_S3_ENDPOINT:-}
+      RCLONE_CONFIG_REMOTE_REGION: ${BACKUP_S3_REGION:-}
+      RCLONE_CONFIG_REMOTE_ACCESS_KEY_ID: ${BACKUP_S3_ACCESS_KEY:-}
+      RCLONE_CONFIG_REMOTE_SECRET_ACCESS_KEY: ${BACKUP_S3_SECRET_KEY:-}
     volumes:
       - ./backups:/backups
-      - ./deploy/backup.sh:/backup.sh:ro
-    entrypoint: ["/bin/sh", "/backup.sh"]
+      - ./deploy:/deploy:ro
+      - ./secrets:/secrets:ro
+    entrypoint: ["/bin/sh", "-c", "apk add --no-cache age rclone >/dev/null && exec /bin/sh /deploy/backup.sh"]
     depends_on:
       db:
         condition: service_healthy
