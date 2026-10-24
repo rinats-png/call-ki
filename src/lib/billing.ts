@@ -21,6 +21,8 @@ export type EffectivePlan = {
   maxNumbers: number | null;
   maxUsers: number | null;
   features: string[] | null; // null = ohne Paket, keine Einschränkung
+  /** Für den Monat zusätzlich gebuchte Minutenpakete (in includedMinutes bereits enthalten) */
+  topUps: { minutes: number; priceCents: number }[];
 };
 
 export function effectivePlan(tenant: Pick<Tenant, "priceOverrideCents" | "includedMinutesOverride" | "overageCentsOverride">, plan: Plan | null): EffectivePlan {
@@ -38,7 +40,21 @@ export function effectivePlan(tenant: Pick<Tenant, "priceOverrideCents" | "inclu
     maxNumbers: plan?.maxNumbers ?? null,
     maxUsers: plan?.maxUsers ?? null,
     features: plan ? plan.features : null,
+    topUps: [],
   };
+}
+
+/** Minutenpakete zum Nachbuchen (Preis = Minuten × Überminutenpreis des Pakets) */
+export const MINUTE_PACKS = [100, 250, 500] as const;
+export function minutePackPrice(plan: EffectivePlan, minutes: number): number {
+  return minutes * plan.overageCentsPerMinute;
+}
+
+/** Paket für einen bestimmten Monat – inklusive der für diesen Monat gebuchten Minutenpakete. */
+export async function withTopUps(tenantId: string, plan: EffectivePlan, year: number, month: number): Promise<EffectivePlan> {
+  const topUps = await prisma.minuteTopUp.findMany({ where: { tenantId, year, month }, select: { minutes: true, priceCents: true }, orderBy: { createdAt: "asc" } });
+  if (!topUps.length) return plan;
+  return { ...plan, includedMinutes: plan.includedMinutes + topUps.reduce((n, t) => n + t.minutes, 0), topUps };
 }
 
 export async function planForTenant(tenantId: string) {
@@ -117,7 +133,9 @@ export function vatPercent() {
 /** Rechnungsvorschau eines Monats. Die Einrichtungsgebühr fällt im Monat des Vertragsbeginns an. */
 export function invoiceFor(plan: EffectivePlan, usage: Usage, opts: { includeSetupFee: boolean }): Invoice {
   const lines: InvoiceLine[] = [];
-  if (plan.monthlyPriceCents) lines.push({ label: `Paket ${plan.name} (inkl. ${plan.includedMinutes} Min.)`, quantity: 1, unit: "Monat", unitCents: plan.monthlyPriceCents, totalCents: plan.monthlyPriceCents });
+  const topUpMinutes = plan.topUps.reduce((n, t) => n + t.minutes, 0);
+  if (plan.monthlyPriceCents) lines.push({ label: `Paket ${plan.name} (inkl. ${plan.includedMinutes - topUpMinutes} Min.)`, quantity: 1, unit: "Monat", unitCents: plan.monthlyPriceCents, totalCents: plan.monthlyPriceCents });
+  for (const t of plan.topUps) lines.push({ label: `Minutenpaket +${t.minutes} Min.`, quantity: 1, unit: "Paket", unitCents: t.priceCents, totalCents: t.priceCents });
   if (opts.includeSetupFee && plan.setupFeeCents) lines.push({ label: "Einrichtungsgebühr", quantity: 1, unit: "einmalig", unitCents: plan.setupFeeCents, totalCents: plan.setupFeeCents });
   const overageMinutes = Math.max(0, Math.ceil(usage.minutes - plan.includedMinutes));
   if (overageMinutes > 0 && plan.overageMode === "CHARGE") lines.push({ label: "Zusätzliche Gesprächsminuten", quantity: overageMinutes, unit: "Min.", unitCents: plan.overageCentsPerMinute, totalCents: overageMinutes * plan.overageCentsPerMinute });
@@ -158,10 +176,10 @@ export async function dailyMinutes(tenant: Pick<Tenant, "id" | "timezone">, year
 
 /** Minuten bis zum Kontingent-Stopp (nur Modus BLOCK) bzw. Kostenbremse monthlyMinuteLimit */
 export async function minuteGate(tenant: Tenant & { planRef: Plan | null }): Promise<{ blocked: boolean; reason?: string }> {
-  const plan = effectivePlan(tenant, tenant.planRef);
+  const { year, month } = currentMonth(tenant.timezone);
+  const plan = await withTopUps(tenant.id, effectivePlan(tenant, tenant.planRef), year, month);
   const needsUsage = tenant.monthlyMinuteLimit != null || (plan.planId && plan.overageMode === "BLOCK");
   if (!needsUsage) return { blocked: false };
-  const { year, month } = currentMonth(tenant.timezone);
   const u = await usageForMonth(tenant, year, month, plan.billingIncrementSec);
   if (tenant.monthlyMinuteLimit != null && u.minutes >= tenant.monthlyMinuteLimit) return { blocked: true, reason: "minute_limit" };
   if (plan.planId && plan.overageMode === "BLOCK" && u.minutes >= plan.includedMinutes) return { blocked: true, reason: "plan_quota" };

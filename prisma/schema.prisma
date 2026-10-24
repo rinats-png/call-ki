@@ -15,69 +15,71 @@ generator client {
 // ───────────────────────────── Plattform & Zugang
 
 model Tenant {
-  id                 String   @id @default(cuid())
-  slug               String   @unique
-  name               String
-  industry           String   @default("general") // Branchenvorlage: pest_control, trades, general
-  status             String   @default("ONBOARDING") // ONBOARDING, ACTIVE, PAUSED
-  timezone           String   @default("Europe/Berlin")
-  logoUrl            String?
+  id                      String    @id @default(cuid())
+  slug                    String    @unique
+  name                    String
+  industry                String    @default("general") // Branchenvorlage: pest_control, trades, general
+  status                  String    @default("ONBOARDING") // ONBOARDING, ACTIVE, PAUSED
+  timezone                String    @default("Europe/Berlin")
+  logoUrl                 String?
   /// Mandanten-Einstellungen (KI, Geschäftszeiten, Termine, Benachrichtigungen) – Schema: src/lib/tenant/settings.ts
-  settings           Json     @default("{}")
-  plan               String   @default("STARTER")
-  monthlyMinuteLimit Int?
+  settings                Json      @default("{}")
+  plan                    String    @default("STARTER")
+  monthlyMinuteLimit      Int?
   /// Auftragsverarbeitungsvertrag (Art. 28 DSGVO): Version der Vorlage und Abschlussdatum.
   /// Ohne beide Angaben kann der Mandant nicht auf ACTIVE gesetzt werden.
-  avvVersion         String?
-  avvSignedAt        DateTime?
+  avvVersion              String?
+  avvSignedAt             DateTime?
   /// Paket (Preise, Freiminuten, Überminuten) – Einzelwerte je Kunde überschreibbar
   planId                  String?
-  planRef                 Plan?    @relation(fields: [planId], references: [id], onDelete: SetNull)
+  planRef                 Plan?     @relation(fields: [planId], references: [id], onDelete: SetNull)
   priceOverrideCents      Int?
   includedMinutesOverride Int?
   overageCentsOverride    Int?
   billingNote             String?
   /// Sprach-KI dieses Kunden (leer = Plattform-Standard), z. B. retell, vapi, elevenlabs, sip:bland
-  voiceProvider      String?
+  voiceProvider           String?
   /// Agent/Assistent beim Anbieter (leer = Standard-Agent des Anbieters)
-  voiceAgentId       String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  voiceAgentId            String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
-  users        User[]
-  phoneNumbers PhoneNumber[]
-  integrations Integration[]
-  customers    Customer[]
-  employees    Employee[]
-  tickets      CallTicket[]
-  calls        Call[]
-  messages     Message[]
-  auditLogs    AuditLog[]
+  users              User[]
+  phoneNumbers       PhoneNumber[]
+  integrations       Integration[]
+  customers          Customer[]
+  employees          Employee[]
+  tickets            CallTicket[]
+  calls              Call[]
+  messages           Message[]
+  auditLogs          AuditLog[]
+  minuteTopUps       MinuteTopUp[]
+  planChangeRequests PlanChangeRequest[]
 }
 
 model User {
-  id             String    @id @default(cuid())
-  email          String    @unique
-  name           String?
-  passwordHash   String?
-  role           String // PLATFORM_ADMIN, TENANT_ADMIN, TENANT_USER
-  tenantId       String?
-  tenant         Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  failedLogins   Int       @default(0)
-  lockedUntil    DateTime?
-  lastLoginAt    DateTime?
-  disabled       Boolean   @default(false)
+  id            String      @id @default(cuid())
+  email         String      @unique
+  name          String?
+  passwordHash  String?
+  role          String // PLATFORM_ADMIN, TENANT_ADMIN, TENANT_USER
+  tenantId      String?
+  tenant        Tenant?     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  failedLogins  Int         @default(0)
+  lockedUntil   DateTime?
+  lastLoginAt   DateTime?
+  disabled      Boolean     @default(false)
   /// TOTP-Secret, AES-256-GCM-verschlüsselt (APP_ENCRYPTION_KEY)
-  totpSecretEnc  String?
-  totpEnabledAt  DateTime?
+  totpSecretEnc String?
+  totpEnabledAt DateTime?
   /// Zuletzt akzeptierter TOTP-Zeitschritt (Schutz gegen Wiederverwendung)
-  totpLastStep   Int?
+  totpLastStep  Int?
   /// SHA-256-Hashes der Wiederherstellungscodes
-  recoveryCodes  String[]  @default([])
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  sessions       Session[]
-  tokens         AuthToken[]
+  recoveryCodes String[]    @default([])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  sessions      Session[]
+  tokens        AuthToken[]
 
   @@index([tenantId])
 }
@@ -128,18 +130,18 @@ model AuditLog {
 // ───────────────────────────── Telefonie & Integrationen
 
 model PhoneNumber {
-  id           String   @id @default(cuid())
-  tenantId     String
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  e164         String   @unique // Twilio-Nummer, auf die der Kunde umleitet
-  label        String?
+  id             String   @id @default(cuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  e164           String   @unique // Twilio-Nummer, auf die der Kunde umleitet
+  label          String?
   /// Optional eigener Agent je Nummer (sonst Mandanten- bzw. Plattform-Standard)
-  voiceAgentId String?
+  voiceAgentId   String?
   /// Optional anderer Sprach-KI-Anbieter je Nummer (sonst wie Mandant)
-  voiceProvider String?
+  voiceProvider  String?
   /// Weiterleitung, wenn KI nicht verfügbar / Kontingent erschöpft
   fallbackNumber String?
-  createdAt    DateTime @default(now())
+  createdAt      DateTime @default(now())
 
   @@index([tenantId])
 }
@@ -164,26 +166,26 @@ model Integration {
 // ───────────────────────────── Fachdaten je Mandant
 
 model Customer {
-  id           String       @id @default(cuid())
-  tenantId     String
-  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name         String?
-  companyName  String?
-  phone        String
-  email        String?
-  address      String?
-  postalCode   String?
-  customerType String       @default("PRIVATE") // PRIVATE, BUSINESS, PROPERTY_MANAGEMENT
-  status       String       @default("NEW") // NEW, EXISTING
-  notes        String?
+  id               String       @id @default(cuid())
+  tenantId         String
+  tenant           Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name             String?
+  companyName      String?
+  phone            String
+  email            String?
+  address          String?
+  postalCode       String?
+  customerType     String       @default("PRIVATE") // PRIVATE, BUSINESS, PROPERTY_MANAGEMENT
+  status           String       @default("NEW") // NEW, EXISTING
+  notes            String?
   /// SMS-Einwilligung (Zeitpunkt + Quelle, z. B. call:<id>) und Widerspruch (z. B. „STOP“ bei Twilio)
   smsConsentAt     DateTime?
   smsConsentSource String?
   smsOptOutAt      DateTime?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  tickets      CallTicket[]
-  calls        Call[]
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  tickets          CallTicket[]
+  calls            Call[]
 
   @@unique([tenantId, phone])
 }
@@ -205,32 +207,32 @@ model Employee {
 }
 
 model Call {
-  id             String      @id @default(cuid())
-  tenantId       String
-  tenant         Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  provider       String      @default("retell")
-  providerCallId String?     @unique
-  twilioCallSid  String?     @unique
-  fromNumber     String
-  toNumber       String
-  customerId     String?
-  customer       Customer?   @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  status         String      @default("RINGING") // RINGING, IN_PROGRESS, ENDED, FAILED, FALLBACK, VOICEMAIL
-  startedAt      DateTime    @default(now())
-  endedAt        DateTime?
-  durationSec    Int?
+  id                 String       @id @default(cuid())
+  tenantId           String
+  tenant             Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  provider           String       @default("retell")
+  providerCallId     String?      @unique
+  twilioCallSid      String?      @unique
+  fromNumber         String
+  toNumber           String
+  customerId         String?
+  customer           Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  status             String       @default("RINGING") // RINGING, IN_PROGRESS, ENDED, FAILED, FALLBACK, VOICEMAIL
+  startedAt          DateTime     @default(now())
+  endedAt            DateTime?
+  durationSec        Int?
   /// Gesprächsdauer laut Twilio (StatusCallback) – unabhängig vom KI-Anbieter, Grundlage der Abrechnung
-  twilioDurationSec Int?
+  twilioDurationSec  Int?
   /// Einwilligung des Anrufers in die Tonaufzeichnung (GRANTED/DENIED, Tool recording_consent) mit Zeitpunkt
   recordingConsent   String?
   recordingConsentAt DateTime?
-  transcript     String?
-  summary        String?
-  recordingUrl   String?
-  endReason      String?
+  transcript         String?
+  summary            String?
+  recordingUrl       String?
+  endReason          String?
   /// Zeitpunkt, zu dem Aufnahme/Transkript beim Anbieter (Retell/Twilio) gelöscht wurden
-  providerPurgedAt DateTime?
-  tickets        CallTicket[]
+  providerPurgedAt   DateTime?
+  tickets            CallTicket[]
 
   @@index([tenantId, startedAt])
 }
@@ -267,25 +269,25 @@ model CallTicket {
 
 /// Protokoll aller ausgehenden Benachrichtigungen (E-Mail, SMS) – auch wenn kein Versanddienst konfiguriert ist.
 model Message {
-  id         String      @id @default(cuid())
-  tenantId   String?
-  tenant     Tenant?     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  ticketId   String?
-  ticket     CallTicket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
-  channel    String // EMAIL, SMS
-  recipient  String
-  subject    String?
-  body       String
-  purpose    String // CUSTOMER_CONFIRMATION, TECHNICIAN_BRIEFING, EMERGENCY_ALERT, INVITE, PASSWORD_RESET
-  status     String      @default("QUEUED") // QUEUED, SENT, DRAFT, FAILED, SKIPPED
-  provider   String? // smtp, twilio, microsoft
-  error      String?
+  id            String      @id @default(cuid())
+  tenantId      String?
+  tenant        Tenant?     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ticketId      String?
+  ticket        CallTicket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  channel       String // EMAIL, SMS
+  recipient     String
+  subject       String?
+  body          String
+  purpose       String // CUSTOMER_CONFIRMATION, TECHNICIAN_BRIEFING, EMERGENCY_ALERT, INVITE, PASSWORD_RESET
+  status        String      @default("QUEUED") // QUEUED, SENT, DRAFT, FAILED, SKIPPED
+  provider      String? // smtp, twilio, microsoft
+  error         String?
   /// Zustellversuche; nach einem Fehler erneut ab nextAttemptAt (Cron /api/cron/notify)
-  attempts      Int       @default(0)
+  attempts      Int         @default(0)
   nextAttemptAt DateTime?
   /// Versanddetails für Wiederholungen (Absendername, Antwortadresse, Kalenderanhang)
   meta          Json?
-  createdAt  DateTime    @default(now())
+  createdAt     DateTime    @default(now())
 
   @@index([tenantId, createdAt])
   @@index([status, nextAttemptAt])
@@ -360,4 +362,37 @@ model BillingSnapshot {
   closedAt   DateTime @default(now())
 
   @@unique([tenantId, year, month])
+}
+
+/// Zusätzlich gebuchte Minuten für einen Kalendermonat (Kunden-Admin, Selbstbedienung)
+model MinuteTopUp {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  year        Int
+  month       Int
+  minutes     Int
+  priceCents  Int
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, year, month])
+}
+
+/// Wunsch eines Kunden nach einem anderen Paket – der Betreiber nimmt an oder lehnt ab
+model PlanChangeRequest {
+  id          String    @id @default(cuid())
+  tenantId    String
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  planId      String
+  planName    String
+  note        String    @default("")
+  /// OPEN, APPROVED, REJECTED
+  status      String    @default("OPEN")
+  createdById String?
+  createdAt   DateTime  @default(now())
+  handledAt   DateTime?
+  handledById String?
+
+  @@index([status, createdAt])
 }

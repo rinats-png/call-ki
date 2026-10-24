@@ -1,5 +1,5 @@
 import { prisma } from "../db";
-import { costFor, effectivePlan, invoiceFor, usageForMonth, type EffectivePlan, type Invoice, type Usage } from "../billing";
+import { costFor, effectivePlan, invoiceFor, usageForMonth, withTopUps, type EffectivePlan, type Invoice, type Usage } from "../billing";
 import { zonedParts } from "../time";
 
 export type BillingRow = {
@@ -13,7 +13,7 @@ export async function billingReport(year: number, month: number, tenantId?: stri
   const tenants = await prisma.tenant.findMany({ where: tenantId ? { id: tenantId } : {}, include: { planRef: true }, orderBy: { name: "asc" } });
   return Promise.all(
     tenants.map(async (t) => {
-      const plan = effectivePlan(t, t.planRef);
+      const plan = await withTopUps(t.id, effectivePlan(t, t.planRef), year, month);
       const usage = await usageForMonth(t, year, month, plan.billingIncrementSec);
       const created = zonedParts(t.createdAt, t.timezone);
       const invoice = invoiceFor(plan, usage, { includeSetupFee: created.year === year && created.month === month });

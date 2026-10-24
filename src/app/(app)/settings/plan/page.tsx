@@ -8,6 +8,7 @@ import { InfoTip } from "@/components/InfoTip";
 import { UsageBar } from "@/components/UsageBar";
 import { AreaChart } from "@/components/AreaChart";
 import { BarChart } from "@/components/BarChart";
+import { PlanSelfService, type SelfServiceData } from "@/components/PlanSelfService";
 
 type Data = {
   plan: { name: string; hasPlan: boolean; includedMinutes: number; overageMode: string; includedSms: number; features: string[]; monthlyPriceCents?: number; overageCentsPerMinute?: number; smsCents?: number };
@@ -16,12 +17,12 @@ type Data = {
   daily: { day: number; minutes: number; calls: number }[];
   history: { period: string; minutes: number; calls: number }[];
   invoice: { lines: { label: string; quantity: number; totalCents: number }[]; netCents: number; vatPercent: number; vatCents: number; grossCents: number } | null;
-};
+} & Partial<SelfServiceData>;
 
 const monthName = (p: string) => new Date(`${p}-01T12:00:00`).toLocaleDateString("de-DE", { month: "short" });
 
 export default function Page() {
-  const { data } = usePoll<Data>("/api/billing", 60_000);
+  const { data, reload } = usePoll<Data>("/api/billing", 60_000);
   if (!data) return <Skeleton className="h-96" />;
   const { plan, usage } = data;
   const willExceed = plan.includedMinutes > 0 && data.projectedMinutes > plan.includedMinutes;
@@ -29,7 +30,7 @@ export default function Page() {
   return (
     <div className="space-y-5">
       <div className="grid gap-4 lg:grid-cols-3">
-        <Panel title={<span className="flex items-center gap-1">Ihr Paket<InfoTip title="Ihr Paket" steps={["Freiminuten gelten je Kalendermonat und verfallen am Monatsende.", plan.overageMode === "BLOCK" ? "Sind die Freiminuten aufgebraucht, nimmt die KI keine Anrufe mehr an – sie gehen an Ihre Ausweichnummer bzw. Mailbox." : "Darüber hinaus wird jede weitere Minute zum vereinbarten Preis berechnet.", "Für ein anderes Paket wenden Sie sich an Ihren Ansprechpartner."]} /></span>}>
+        <Panel title={<span className="flex items-center gap-1">Ihr Paket<InfoTip title="Ihr Paket" steps={["Freiminuten gelten je Kalendermonat und verfallen am Monatsende.", plan.overageMode === "BLOCK" ? "Sind die Freiminuten aufgebraucht, nimmt die KI keine Anrufe mehr an – sie gehen an Ihre Ausweichnummer bzw. Mailbox." : "Darüber hinaus wird jede weitere Minute zum vereinbarten Preis berechnet.", "Mehr Minuten oder ein anderes Paket können Kunden-Admins weiter unten buchen bzw. anfragen."]} /></span>}>
           <div className="text-xl font-semibold text-zinc-50">{plan.name}</div>
           {plan.monthlyPriceCents != null && plan.hasPlan && <div className="text-sm text-zinc-400">{eur(plan.monthlyPriceCents)} netto / Monat · {plan.overageMode === "BLOCK" ? "Stopp nach Kontingent" : `${eur(plan.overageCentsPerMinute)} je weitere Minute`}</div>}
           <ul className="mt-3 space-y-1.5 text-sm text-zinc-300">
@@ -51,6 +52,10 @@ export default function Page() {
           </div>
         </Panel>
       </div>
+
+      {data.packs && data.plans && (
+        <PlanSelfService data={{ packs: data.packs, plans: data.plans, openRequest: data.openRequest ?? null, topUps: data.topUps ?? [] }} onChanged={reload} />
+      )}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Panel title="Minuten pro Tag">

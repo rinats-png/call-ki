@@ -154,4 +154,17 @@ describe.skipIf(!BASE)("HTTP: Zugriffsregeln und Schutzmechanismen", () => {
     replay.cookie = old;
     expect((await replay.req("/api/dashboard")).status).toBe(401);
   });
+
+  it("T-SEC-HTTP-17: Minuten buchen und Paketwechsel nur für Kunden-Admins, Buchen mit frischer Bestätigung", async () => {
+    const user = await new Client().login("mitarbeiter@alpha.example");
+    expect((await user.req("/api/billing/topup", { method: "POST", json: { minutes: 100 } })).status).toBe(403);
+    expect((await user.req("/api/billing/plan-request", { method: "POST", json: { planId: "x" } })).status).toBe(403);
+    const admin = await new Client().login("admin@alpha.example");
+    await prisma.session.updateMany({ where: { userId: s.adminA.id }, data: { authAt: new Date(Date.now() - 20 * 60_000) } });
+    const r = await admin.req("/api/billing/topup", { method: "POST", json: { minutes: 100 } });
+    expect(r.status).toBe(403);
+    expect(((await r.json()) as { details?: { code?: string } }).details?.code).toBe("REAUTH_REQUIRED");
+    expect(await prisma.minuteTopUp.count()).toBe(0);
+    expect((await admin.req("/api/admin/plan-requests")).status).toBe(403);
+  });
 });

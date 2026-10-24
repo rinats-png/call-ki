@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { api } from "@/lib/http";
 import { requireTenant } from "@/lib/auth/session";
-import { currentMonth, dailyMinutes, invoiceFor, planForTenant, usageForMonth } from "@/lib/billing";
+import { prisma } from "@/lib/db";
+import { currentMonth, dailyMinutes, invoiceFor, MINUTE_PACKS, minutePackPrice, planForTenant, usageForMonth, withTopUps } from "@/lib/billing";
 import { zonedParts } from "@/lib/time";
 import { PLAN_FEATURES } from "@/lib/platform/registry";
 
@@ -10,8 +11,9 @@ export const dynamic = "force-dynamic";
 /** Tarif & Verbrauch des eigenen Unternehmens (Preise/Rechnungsvorschau nur für Kunden-Admins) */
 export const GET = api(async () => {
   const auth = await requireTenant();
-  const { tenant, plan } = await planForTenant(auth.tenantId);
+  const { tenant, plan: basePlan } = await planForTenant(auth.tenantId);
   const { year, month } = currentMonth(tenant.timezone);
+  const plan = await withTopUps(tenant.id, basePlan, year, month);
   const usage = await usageForMonth(tenant, year, month, plan.billingIncrementSec);
   const daily = await dailyMinutes(tenant, year, month);
   const history = await Promise.all(
@@ -42,5 +44,14 @@ export const GET = api(async () => {
     daily,
     history,
     invoice: isAdmin ? invoiceFor(plan, usage, { includeSetupFee: created.year === year && created.month === month }) : null,
+    topUps: plan.topUps,
+    // Selbstbedienung für Kunden-Admins: Minuten nachbuchen, Paketwechsel anfragen
+    ...(isAdmin
+      ? {
+          packs: plan.planId && plan.overageCentsPerMinute > 0 ? MINUTE_PACKS.map((m) => ({ minutes: m, priceCents: minutePackPrice(plan, m) })) : [],
+          plans: (await prisma.plan.findMany({ where: { active: true }, orderBy: { sortOrder: "asc" } })).map((p) => ({ id: p.id, name: p.name, description: p.description, monthlyPriceCents: p.monthlyPriceCents, includedMinutes: p.includedMinutes, current: p.id === plan.planId })),
+          openRequest: await prisma.planChangeRequest.findFirst({ where: { tenantId: tenant.id, status: "OPEN" }, select: { planName: true, createdAt: true } }),
+        }
+      : {}),
   });
 });

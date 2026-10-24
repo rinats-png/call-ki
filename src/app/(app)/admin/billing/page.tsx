@@ -10,6 +10,7 @@ import { PageHero, heroBtn } from "@/components/PageHero";
 import { InfoTip } from "@/components/InfoTip";
 import { UsageBar } from "@/components/UsageBar";
 import { apiDownload, apiFetch } from "@/components/session";
+import { PlanRequests } from "@/components/admin/PlanRequests";
 
 type Row = {
   tenantId: string; tenantName: string; status: string;
@@ -63,6 +64,8 @@ export default function Page() {
           </div>
         }
       />
+
+      <PlanRequests />
 
       {!data ? <Skeleton className="h-96 rounded-3xl" /> : (
         <>

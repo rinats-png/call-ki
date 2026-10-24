@@ -31,6 +31,9 @@ import { resetEnvCache } from "@/lib/env";
 import { vi } from "vitest";
 import { findAvailableSlots } from "@/lib/calendar";
 import { deleteTenant, exportTenantData } from "@/lib/services/tenants";
+import { bookMinutePack, decidePlanChange, requestPlanChange } from "@/lib/services/billing-requests";
+import { billingReport } from "@/lib/services/billing-report";
+import { minuteGate } from "@/lib/billing";
 
 /**
  * Integrationstests gegen echte PostgreSQL-Datenbank.
@@ -388,6 +391,37 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
     } finally {
       for (const k of ["TWILIO_AUTH_TOKEN", "PUBLIC_BASE_URL"]) delete process.env[k];
       resetEnvCache();
+    }
+  });
+
+  it("bucht Minutenpakete (sofort wirksam, auf der Rechnung) und stellt Pakete nach Freigabe um", async () => {
+    const base = await prisma.plan.create({ data: { key: "stopp", name: "Stopp", monthlyPriceCents: 4900, includedMinutes: 0, overageCentsPerMinute: 30, overageMode: "BLOCK" } });
+    const big = await prisma.plan.create({ data: { key: "gross", name: "Groß", monthlyPriceCents: 14900, includedMinutes: 1000, overageCentsPerMinute: 25 } });
+    await prisma.tenant.update({ where: { id: B.tenant.id }, data: { planId: base.id } });
+    const tenant = () => prisma.tenant.findUniqueOrThrow({ where: { id: B.tenant.id }, include: { planRef: true } });
+    try {
+      // Kontingent 0 im Stopp-Modus → gesperrt; nach 100 Minuten Nachbuchung wieder frei
+      expect((await minuteGate(await tenant())).blocked).toBe(true);
+      await expect(bookMinutePack(B.tenant.id, "u-test", 42)).rejects.toThrow(/Unbekanntes/);
+      const top = await bookMinutePack(B.tenant.id, "u-test", 100);
+      expect(top.priceCents).toBe(3000);
+      expect((await minuteGate(await tenant())).blocked).toBe(false);
+      const { year, month } = currentMonth(B.tenant.timezone);
+      const row = (await billingReport(year, month, B.tenant.id))[0];
+      expect(row.plan.includedMinutes).toBe(100);
+      expect(row.invoice.lines.map((l) => l.label)).toContain("Minutenpaket +100 Min.");
+      expect(row.invoice.netCents).toBe(4900 + 3000);
+
+      // Paketwechsel: nur eine offene Anfrage, Umstellung erst durch den Betreiber
+      const req = await requestPlanChange(B.tenant.id, "u-test", big.id, "ab sofort bitte");
+      await expect(requestPlanChange(B.tenant.id, "u-test", big.id, "")).rejects.toThrow(/offene Anfrage/);
+      expect((await tenant()).planId).toBe(base.id);
+      await decidePlanChange(req.id, "u-test", true);
+      expect((await tenant()).planId).toBe(big.id);
+      await expect(decidePlanChange(req.id, "u-test", false)).rejects.toThrow(/erledigt/);
+    } finally {
+      await prisma.tenant.update({ where: { id: B.tenant.id }, data: { planId: null } });
+      await prisma.minuteTopUp.deleteMany({ where: { tenantId: B.tenant.id } });
     }
   });
 

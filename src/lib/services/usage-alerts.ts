@@ -1,7 +1,7 @@
 import { prisma } from "../db";
 import { logger } from "../logger";
 import { settingNumber } from "../platform/config";
-import { currentMonth, effectivePlan, usageForMonth } from "../billing";
+import { currentMonth, effectivePlan, usageForMonth, withTopUps } from "../billing";
 import { emailLayout, sendEmail } from "../notify";
 import { xmlEscape as h } from "../twiml";
 import { fromZoned, zonedParts } from "../time";
@@ -18,11 +18,11 @@ export async function runQuotaWarnings(now = new Date()) {
   const tenants = await prisma.tenant.findMany({ where: { status: { not: "PAUSED" } }, include: { planRef: true } });
   let sent = 0;
   for (const t of tenants) {
-    const plan = effectivePlan(t, t.planRef);
+    const { year, month } = currentMonth(t.timezone);
+    const plan = await withTopUps(t.id, effectivePlan(t, t.planRef), year, month);
     // Bezugsgröße: harte Kostenbremse des Kunden, sonst Freiminuten des Pakets
     const limit = t.monthlyMinuteLimit ?? (plan.planId && plan.includedMinutes > 0 ? plan.includedMinutes : null);
     if (!limit) continue;
-    const { year, month } = currentMonth(t.timezone);
     const usage = await usageForMonth(t, year, month, plan.billingIncrementSec);
     const pct = (usage.minutes / limit) * 100;
     const ym = `${year}-${String(month).padStart(2, "0")}`;
@@ -40,7 +40,7 @@ export async function runQuotaWarnings(now = new Date()) {
             ? "Ist das Kontingent aufgebraucht, nimmt die KI keine Anrufe mehr an; Anrufe gehen dann an Ihre Weiterleitungsnummer bzw. die Mailbox."
             : `Danach berechnen wir jede weitere Minute mit ${(plan.overageCentsPerMinute / 100).toFixed(2).replace(".", ",")} € netto.`
           : blocks
-            ? "Das Kontingent ist aufgebraucht: Die KI nimmt bis zum Monatsende keine Anrufe mehr an. Anrufe gehen an Ihre Weiterleitungsnummer bzw. die Mailbox. Für mehr Minuten melden Sie sich bitte bei uns."
+            ? "Das Kontingent ist aufgebraucht: Die KI nimmt bis zum Monatsende keine Anrufe mehr an. Anrufe gehen an Ihre Weiterleitungsnummer bzw. die Mailbox. Unter Tarif & Verbrauch können Sie Minuten nachbuchen."
             : `Ab jetzt berechnen wir jede weitere Minute mit ${(plan.overageCentsPerMinute / 100).toFixed(2).replace(".", ",")} € netto.`;
       const subject = `${th} % ${what} verbraucht`;
       const html = emailLayout(

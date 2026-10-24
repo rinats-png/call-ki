@@ -1,6 +1,6 @@
 import { prisma } from "../db";
 import { logger } from "../logger";
-import { effectivePlan, invoiceFor, liveUsageForMonth, monthRange } from "../billing";
+import { effectivePlan, invoiceFor, liveUsageForMonth, monthRange, withTopUps } from "../billing";
 import { zonedParts } from "../time";
 
 /**
@@ -12,7 +12,7 @@ export async function closeMonth(tenantId: string, year: number, month: number, 
   const existing = await prisma.billingSnapshot.findUnique({ where: { tenantId_year_month: { tenantId, year, month } } });
   if (existing && !existing.partial) return existing;
   const t = await prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, include: { planRef: true } });
-  const plan = effectivePlan(t, t.planRef);
+  const plan = await withTopUps(t.id, effectivePlan(t, t.planRef), year, month);
   const usage = await liveUsageForMonth(t, year, month, plan.billingIncrementSec);
   const created = zonedParts(t.createdAt, t.timezone);
   const invoice = invoiceFor(plan, usage, { includeSetupFee: created.year === year && created.month === month });
