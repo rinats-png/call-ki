@@ -2,6 +2,7 @@ import { prisma } from "../db";
 import { logger } from "../logger";
 import { effectivePlan, invoiceFor, liveUsageForMonth, monthRange, withTopUps } from "../billing";
 import { zonedParts } from "../time";
+import { issueInvoice } from "./invoices";
 
 /**
  * Monatsabschluss (docs/recht/loeschkonzept.md §5, R1/R2/R4–R6): Summen je Kunde und Monat
@@ -17,7 +18,9 @@ export async function closeMonth(tenantId: string, year: number, month: number, 
   const created = zonedParts(t.createdAt, t.timezone);
   const invoice = invoiceFor(plan, usage, { includeSetupFee: created.year === year && created.month === month });
   const data = { tenantName: t.name, planName: plan.name, usage, invoice, partial: !!opts.partial, closedAt: new Date() };
-  return prisma.billingSnapshot.upsert({ where: { tenantId_year_month: { tenantId, year, month } }, create: { tenantId, year, month, ...data }, update: data });
+  const snap = await prisma.billingSnapshot.upsert({ where: { tenantId_year_month: { tenantId, year, month } }, create: { tenantId, year, month, ...data }, update: data });
+  await issueInvoice(snap);
+  return snap;
 }
 
 /** Alle abgelaufenen Monate eines Kunden abschließen (ab dem 3. des Folgemonats – Nachzügler-Ereignisse). */

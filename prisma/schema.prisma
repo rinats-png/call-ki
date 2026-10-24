@@ -37,6 +37,9 @@ model Tenant {
   includedMinutesOverride Int?
   overageCentsOverride    Int?
   billingNote             String?
+  /// Rechnungsanschrift (mehrzeilig) und USt-IdNr. des Kunden – Pflichtangaben auf Rechnungen
+  billingAddress          String?
+  billingVatId            String?
   /// Sprach-KI dieses Kunden (leer = Plattform-Standard), z. B. retell, vapi, elevenlabs, sip:bland
   voiceProvider           String?
   /// Agent/Assistent beim Anbieter (leer = Standard-Agent des Anbieters)
@@ -432,4 +435,35 @@ model WebhookDelivery {
 
   @@index([status, nextAttemptAt])
   @@index([endpointId, createdAt])
+}
+
+/// Rechnung – unveränderlich nach Ausstellung (GoBD), ohne Fremdschlüssel: bleibt nach Löschung des Kunden
+model Invoice {
+  id         String   @id @default(cuid())
+  /// fortlaufend je Jahr, z. B. 2026-0001
+  number     String   @unique
+  tenantId   String
+  year       Int
+  month      Int
+  issuedAt   DateTime @default(now())
+  dueAt      DateTime
+  /// Aussteller und Empfänger zum Zeitpunkt der Ausstellung
+  issuer     Json
+  recipient  Json
+  lines      Json
+  netCents   Int
+  vatPercent Float
+  vatCents   Int
+  grossCents Int
+  /// Schlussrechnung beim Löschen des Kunden (Monat nicht zu Ende)
+  partial    Boolean  @default(false)
+
+  @@unique([tenantId, year, month])
+  @@index([year, month])
+}
+
+/// Zähler für fortlaufende Rechnungsnummern je Jahr
+model InvoiceCounter {
+  year Int @id
+  last Int @default(0)
 }

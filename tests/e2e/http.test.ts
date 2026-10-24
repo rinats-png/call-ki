@@ -207,4 +207,20 @@ describe.skipIf(!BASE)("HTTP: Zugriffsregeln und Schutzmechanismen", () => {
     }
     expect(await prisma.webhookEndpoint.count()).toBe(0);
   });
+
+  it("T-SEC-HTTP-21: Rechnungen nur für Kunden-Admins des Empfängers", async () => {
+    const mk = (tenantId: string, n: string) => prisma.invoice.create({ data: { number: n, tenantId, year: 2026, month: 9, dueAt: new Date(), issuer: {}, recipient: {}, lines: [], netCents: 100, vatPercent: 19, vatCents: 19, grossCents: 119 } });
+    const own = await mk(s.A.tenant.id, "T-0001");
+    const foreign = await mk(s.B.tenant.id, "T-0002");
+    const admin = await new Client().login("admin@alpha.example");
+    expect((await admin.req(`/api/invoices/${own.id}`)).status).toBe(200);
+    expect((await admin.req(`/api/invoices/${foreign.id}`)).status).toBe(404);
+    const list = await (await admin.req("/api/invoices")).text();
+    expect(list).toContain("T-0001");
+    expect(list).not.toContain("T-0002");
+    const user = await new Client().login("mitarbeiter@alpha.example");
+    expect((await user.req("/api/invoices")).status).toBe(403);
+    expect((await user.req(`/api/invoices/${own.id}`)).status).toBe(404);
+    await prisma.invoice.deleteMany({ where: { number: { in: ["T-0001", "T-0002"] } } });
+  });
 });

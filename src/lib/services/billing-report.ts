@@ -7,6 +7,8 @@ export type BillingRow = {
   tenantId: string; tenantName: string; status: string;
   /** true = Monat festgeschrieben (Monatsabschluss) – Werte stammen aus dem BillingSnapshot */
   closed: boolean;
+  /** Ausgestellte Rechnung zu diesem Monat */
+  invoiceNumber?: string | null;
   plan: EffectivePlan; usage: Usage; invoice: Invoice;
   cost: ReturnType<typeof costFor>; marginCents: number; usagePercent: number | null;
 };
@@ -33,6 +35,8 @@ export async function billingReport(year: number, month: number, tenantId?: stri
   // Gelöschte Kunden: nur noch ihr festgeschriebener Monat (Schlussabrechnung) bleibt
   const known = new Set(tenants.map((t) => t.id));
   for (const snap of snaps.values()) if (!known.has(snap.tenantId)) rows.push(fromSnapshot(snap, "DELETED", effectivePlan({ priceOverrideCents: null, includedMinutesOverride: null, overageCentsOverride: null }, null)));
+  const numbers = new Map((await prisma.invoice.findMany({ where: { year, month, ...(tenantId ? { tenantId } : {}) }, select: { tenantId: true, number: true } })).map((i) => [i.tenantId, i.number]));
+  for (const r of rows) r.invoiceNumber = numbers.get(r.tenantId) ?? null;
   return rows.sort((a, b) => a.tenantName.localeCompare(b.tenantName, "de"));
 }
 
@@ -52,8 +56,8 @@ function fromSnapshot(snap: BillingSnapshot, status: string, plan: EffectivePlan
 const eur = (c: number) => (c / 100).toFixed(2).replace(".", ",");
 
 export function billingCsv(rows: BillingRow[], period: string): string {
-  const head = ["Monat", "Kunde", "Status", "Festgeschrieben", "Paket", "Anrufe", "Minuten", "Inklusive", "Überminuten", "SMS", "Netto €", "USt €", "Brutto €", "Kosten €", "Marge €"];
-  const lines = rows.map((r) => [period, r.tenantName, r.status, r.closed ? "ja" : "nein (Vorschau)", r.plan.name, r.usage.calls, String(r.usage.minutes).replace(".", ","), r.plan.includedMinutes, r.invoice.overageMinutes, r.usage.sms, eur(r.invoice.netCents), eur(r.invoice.vatCents), eur(r.invoice.grossCents), eur(r.cost.totalCents), eur(r.marginCents)]);
+  const head = ["Monat", "Kunde", "Status", "Festgeschrieben", "Rechnung", "Paket", "Anrufe", "Minuten", "Inklusive", "Überminuten", "SMS", "Netto €", "USt €", "Brutto €", "Kosten €", "Marge €"];
+  const lines = rows.map((r) => [period, r.tenantName, r.status, r.closed ? "ja" : "nein (Vorschau)", r.invoiceNumber ?? "", r.plan.name, r.usage.calls, String(r.usage.minutes).replace(".", ","), r.plan.includedMinutes, r.invoice.overageMinutes, r.usage.sms, eur(r.invoice.netCents), eur(r.invoice.vatCents), eur(r.invoice.grossCents), eur(r.cost.totalCents), eur(r.marginCents)]);
   // Semikolon + BOM: öffnet sich in deutschem Excel korrekt; Formel-Injection verhindern
   const cell = (v: unknown) => {
     let s = String(v);

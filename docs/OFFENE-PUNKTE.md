@@ -7,7 +7,8 @@ Gemeinsame Merkliste. Erledigtes bitte hier abhaken oder streichen.
   - Wie ElevenLabs Webhook-Tools die Daten genau schicken (Hüllenformat vs. flacher Body). `call_sid` muss als Dynamic Variable `system__call_sid` kommen – ohne passenden laufenden Anruf lehnt die Plattform den Aufruf ab.
   - SIP-Anbieter: Feld `call_ref` aus der Kopfzeile `X-Call-Ref` in jedem Tool-Aufruf mitschicken.
   - Ob bei Vapi die Kopfzeile `x-call_ref` im SIP-URI von Twilio durchgereicht wird.
-- [ ] **Echte Rechnungen**: Rechnungsnummern, PDF, Zahlung (Lastschrift/Karte), Mahnwesen, Anbindung lexoffice/sevDesk. Bisher nur Vorschau + CSV.
+- [x] **Rechnungen**: fortlaufende Nummer je Jahr beim Monatsabschluss, eingefrorener Inhalt, Druck/PDF-Ansicht, E-Mail an Kunden-Admins, Rechnungsanschrift im Portal (Ausstellerdaten unter Plattform → Rechnungen eintragen).
+- [ ] **Zahlung und Mahnwesen**: Lastschrift/Karte, Zahlungseingang, Mahnungen, Anbindung lexoffice/sevDesk; Sonderfälle (Kleinunternehmer, Reverse Charge) prüfen lassen.
 - [x] **Warnungen** bei 80 % und 100 % des Kontingents, Kostenschutz (gleichzeitige Anrufe, Gesprächsdauer, Tagesbudget, Notschalter) – `docs/betrieb.md`.
 - [x] **Paket-Grenzen durchsetzen**: Zugänge, Rufnummern, Terminbuchung, E-Mail-Benachrichtigungen, Notfall-Durchstellung, eigene Begrüßung & FAQ, eigener Agent. Offen: Aufzeichnung (hängt an der Entscheidung „Standard aus“).
 - [x] **Mehr Minuten buchen** (Pakete +100/+250/+500, sofort wirksam) und **Paketwechsel anfragen** unter Tarif & Verbrauch; der Betreiber stellt unter Verwaltung → Abrechnung um.

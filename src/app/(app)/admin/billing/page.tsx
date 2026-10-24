@@ -13,7 +13,7 @@ import { apiDownload, apiFetch } from "@/components/session";
 import { PlanRequests } from "@/components/admin/PlanRequests";
 
 type Row = {
-  tenantId: string; tenantName: string; status: string; closed: boolean;
+  tenantId: string; tenantName: string; status: string; closed: boolean; invoiceNumber?: string | null;
   plan: { name: string; includedMinutes: number; overageMode: string };
   usage: { calls: number; minutes: number; sms: number };
   invoice: { netCents: number; grossCents: number; overageMinutes: number };
@@ -83,7 +83,7 @@ export default function Page() {
                   <Link href={r.status === "DELETED" ? "#" : `/admin/tenants/${r.tenantId}`} className="glass-soft grid grid-cols-2 items-center gap-x-4 gap-y-2 px-4 py-3 transition hover:bg-zinc-800/70 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1.6fr)_60px_repeat(3,minmax(0,0.8fr))]">
                     <span className="col-span-2 min-w-0 lg:col-span-1">
                       <span className="block truncate font-bold text-zinc-50">{r.tenantName}</span>
-                      <span className="block text-xs text-zinc-500">Paket {r.plan.name}{r.invoice.overageMinutes > 0 ? ` · ${r.invoice.overageMinutes} Überminuten` : ""}{r.closed ? " · festgeschrieben" : ""}{r.status === "DELETED" ? " · Kunde gelöscht" : ""}</span>
+                      <span className="block text-xs text-zinc-500">Paket {r.plan.name}{r.invoice.overageMinutes > 0 ? ` · ${r.invoice.overageMinutes} Überminuten` : ""}{r.closed ? " · festgeschrieben" : ""}{r.invoiceNumber ? ` · Rechnung ${r.invoiceNumber}` : ""}{r.status === "DELETED" ? " · Kunde gelöscht" : ""}</span>
                     </span>
                     <UsageBar className="col-span-2 lg:col-span-1" used={r.usage.minutes} included={r.plan.includedMinutes} />
                     <span className="text-xs text-zinc-500 lg:text-right lg:text-sm lg:text-zinc-300"><span className="lg:hidden">SMS </span><span className="tabular-nums">{r.usage.sms}</span></span>

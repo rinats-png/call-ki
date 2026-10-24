@@ -21,7 +21,7 @@ import { applyPlanToConfig } from "@/lib/voice/context";
 import { effectivePlan } from "@/lib/billing";
 import { runAppointmentReminders } from "@/lib/services/reminders";
 import { hitShared } from "@/lib/rate-limit";
-import { closeDueMonths } from "@/lib/services/billing-close";
+import { closeDueMonths, closeMonth } from "@/lib/services/billing-close";
 import { eraseCustomer } from "@/lib/services/customers";
 import { monthRange } from "@/lib/billing";
 import { resealAll } from "@/lib/services/rekey";
@@ -56,7 +56,7 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
   }
 
   beforeAll(async () => {
-    await prisma.$executeRawUnsafe('TRUNCATE "Tenant", "User", "Message", "SystemState", "Plan", "RateLimitHit", "BillingSnapshot" CASCADE');
+    await prisma.$executeRawUnsafe('TRUNCATE "Tenant", "User", "Message", "SystemState", "Plan", "RateLimitHit", "BillingSnapshot", "Invoice", "InvoiceCounter" CASCADE');
     A = await mk("Alpha Schädlinge", "+493011111111", "pest_control");
     B = await mk("Beta Sanitär", "+493022222222", "trades");
   });
@@ -426,6 +426,37 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
     }
   });
 
+  it("stellt beim Monatsabschluss Rechnungen mit fortlaufender Nummer aus (nur mit Ausstellerdaten)", async () => {
+    const plan = await prisma.plan.create({ data: { key: "rechnung", name: "Rechnung", monthlyPriceCents: 4900, includedMinutes: 100, overageCentsPerMinute: 30 } });
+    const t = await prisma.tenant.create({ data: { name: "Rechnung GmbH", slug: "rechnung-gmbh", status: "ACTIVE", planId: plan.id, billingAddress: "Musterweg 1\n10115 Berlin", createdAt: new Date(Date.UTC(2026, 0, 5)) } });
+    const t2 = await prisma.tenant.create({ data: { name: "Zweite GmbH", slug: "zweite-gmbh", status: "ACTIVE", planId: plan.id, createdAt: new Date(Date.UTC(2026, 0, 5)) } });
+    try {
+      // Ohne Ausstellerdaten: Monat wird festgeschrieben, aber keine Rechnung
+      await closeMonth(t.id, 2026, 2);
+      expect(await prisma.invoice.count({ where: { tenantId: t.id } })).toBe(0);
+      Object.assign(process.env, { INVOICE_ISSUER_NAME: "Muster Telefonie GmbH", INVOICE_ISSUER_ADDRESS: "Hauptstr. 1, 10115 Berlin", INVOICE_TAX_ID: "DE123456789", INVOICE_PAYMENT_DAYS: "10" });
+      await closeMonth(t.id, 2026, 3);
+      await closeMonth(t2.id, 2026, 3);
+      await closeMonth(t.id, 2026, 3); // erneut: keine zweite Rechnung
+      const invs = await prisma.invoice.findMany({ where: { tenantId: { in: [t.id, t2.id] } }, orderBy: { number: "asc" } });
+      expect(invs).toHaveLength(2);
+      const [a, b] = invs.map((i) => Number(i.number.split("-")[1]));
+      expect(b).toBe(a + 1);
+      const inv = invs.find((i) => i.tenantId === t.id)!;
+      expect(inv).toMatchObject({ year: 2026, month: 3, netCents: 4900 });
+      expect((inv.recipient as { address: string }).address).toContain("10115 Berlin");
+      expect((inv.issuer as { taxId: string }).taxId).toBe("DE123456789");
+      expect(inv.dueAt.getTime() - inv.issuedAt.getTime()).toBe(10 * 86400_000);
+      // Spätere Änderungen am Kunden ändern die Rechnung nicht; nach Löschung bleibt sie
+      await prisma.tenant.update({ where: { id: t.id }, data: { billingAddress: "Neu" } });
+      await prisma.tenant.delete({ where: { id: t.id } });
+      expect((await prisma.invoice.findUnique({ where: { id: inv.id } }))?.recipient).toMatchObject({ address: "Musterweg 1\n10115 Berlin" });
+    } finally {
+      for (const k of ["INVOICE_ISSUER_NAME", "INVOICE_ISSUER_ADDRESS", "INVOICE_TAX_ID", "INVOICE_PAYMENT_DAYS"]) delete process.env[k];
+      await prisma.tenant.deleteMany({ where: { id: { in: [t.id, t2.id] } } });
+    }
+  });
+
   it("sendet neue Vorgänge signiert an Kunden-Webhooks und wiederholt Fehlschläge", async () => {
     const { secret } = await createWebhook(A.tenant.id, "https://93.184.216.34/hook", ["ticket.created", "bogus"]);
     const ep = await prisma.webhookEndpoint.findFirstOrThrow({ where: { tenantId: A.tenant.id } });
@@ -692,7 +723,7 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
     const report = await billingReport(prev.year, prev.month);
     expect(report.find((r) => r.tenantId === A.tenant.id)?.closed).toBe(true);
     expect(report.find((r) => r.tenantId === "geloeschter-kunde")).toMatchObject({ status: "DELETED", closed: true, tenantName: "Ehemals GmbH" });
-    expect(billingCsv(report, "x")).toContain("Ehemals GmbH;DELETED;ja;Mini");
+    expect(billingCsv(report, "x")).toContain("Ehemals GmbH;DELETED;ja;;Mini");
 
     // DSGVO-Löschung eines Anrufers im laufenden Monat: Minuten bleiben, Personenbezug weg
     const cust = await prisma.customer.create({ data: { tenantId: A.tenant.id, phone: "+4915000000111", name: "Lösch Mich" } });

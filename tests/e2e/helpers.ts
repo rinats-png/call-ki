@@ -13,7 +13,7 @@ export const PASSWORD = "Testpasswort-sehr-lang-2026!";
 export type Seed = Awaited<ReturnType<typeof seed>>;
 
 export async function seed() {
-  await prisma.$executeRawUnsafe('TRUNCATE "Tenant", "User", "Message", "SystemState", "Plan", "RateLimitHit", "Session", "AuditLog" CASCADE');
+  await prisma.$executeRawUnsafe('TRUNCATE "Tenant", "User", "Message", "SystemState", "Plan", "RateLimitHit", "Session", "AuditLog", "Invoice" CASCADE');
   const hash = await hashPassword(PASSWORD);
   const mk = async (name: string, number: string) => {
     const tenant = await prisma.tenant.create({ data: { name, slug: name.toLowerCase().replace(/\W/g, "-"), industry: "pest_control", status: "ACTIVE", avvVersion: "TEST", avvSignedAt: new Date() } });

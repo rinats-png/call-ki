@@ -111,6 +111,12 @@ export const PROVIDERS: Provider[] = [
     level: "info",
     fields: [
       { key: "PLATFORM_NAME", label: "Plattformname", type: "text", placeholder: "KI-Telefonzentrale", hint: "Erscheint in E-Mails und Einladungen." },
+      { key: "INVOICE_ISSUER_NAME", label: "Rechnungen: Firmenname", type: "text", placeholder: "Muster Telefonie GmbH", hint: "Ohne Name, Anschrift und Steuernummer werden keine Rechnungen ausgestellt." },
+      { key: "INVOICE_ISSUER_ADDRESS", label: "Rechnungen: Anschrift", type: "text", placeholder: "Musterstr. 1, 10115 Berlin" },
+      { key: "INVOICE_TAX_ID", label: "Rechnungen: USt-IdNr. oder Steuernummer", type: "text", placeholder: "DE123456789" },
+      { key: "INVOICE_IBAN", label: "Rechnungen: Bankverbindung (IBAN)", type: "text", placeholder: "DE.. .... .... .... .... .." },
+      { key: "INVOICE_EMAIL", label: "Rechnungen: Kontakt-E-Mail", type: "text", placeholder: "rechnung@ihre-firma.de" },
+      { key: "INVOICE_PAYMENT_DAYS", label: "Rechnungen: Zahlungsziel (Tage)", type: "number", placeholder: "14" },
       { key: "STATUS_NOTICE", label: "Hinweis auf der Statusseite", type: "text", placeholder: "z. B. Wartung am 3.11. von 22–23 Uhr", hint: "Erscheint öffentlich unter /status. Leer = kein Hinweis." },
       {
         key: "VOICE_PROVIDER",
