@@ -4,6 +4,8 @@ import { logger } from "../logger";
 import { setting } from "../platform/config";
 import { MAX_ATTEMPTS, sendEmail, sendSms, emailLayout } from "../notify";
 import { xmlEscape as h } from "../twiml";
+import { checkTwilioNumbers } from "../voice/twilio-config";
+import { createHash } from "node:crypto";
 
 /**
  * Überwachung des Betriebs (Cron alle 5 Minuten, /api/cron/monitor). Prüft, was Kunden
@@ -86,6 +88,21 @@ export async function collectFindings(now = new Date()): Promise<Finding[]> {
     const rt = await heartbeat("restore-test");
     if (rt && !rt.ok) out.push({ id: `restore-test-failed:${rt.at.toISOString()}`, level: "critical", title: "Wiederherstellungstest fehlgeschlagen", detail: `${rt.at.toISOString()}: ${rt.note || "Fehler"}. Backups sind möglicherweise nicht nutzbar.` });
     else if (!rt || now.getTime() - rt.at.getTime() > 35 * 24 * H) out.push({ id: `restore-test-missing:${now.toISOString().slice(0, 7)}`, level: "warning", title: "Wiederherstellungstest überfällig", detail: rt ? `Letzter erfolgreicher Test: ${rt.at.toISOString()}.` : "Noch kein Wiederherstellungstest gemeldet. Von Hand: docker compose exec backup sh /deploy/restore-test.sh" });
+  }
+
+  // 5c) Twilio-Rufnummern: Anrufziel, unabhängiges Ersatzziel, Weiterleitungsnummer (höchstens stündlich prüfen)
+  const lastCheck = await prisma.systemState.findUnique({ where: { key: "check:twilio-numbers" } });
+  if (!lastCheck || now.getTime() - new Date(lastCheck.value).getTime() >= H) {
+    await prisma.systemState.upsert({ where: { key: "check:twilio-numbers" }, create: { key: "check:twilio-numbers", value: now.toISOString() }, update: { value: now.toISOString() } });
+    try {
+      const r = await checkTwilioNumbers();
+      if (r?.problems.length) {
+        const hash = createHash("sha256").update(r.problems.join("|")).digest("hex").slice(0, 12);
+        out.push({ id: `twilio-numbers:${hash}`, level: "warning", title: "Rufnummern bei Twilio unvollständig eingerichtet", detail: r.problems.slice(0, 10).join(" · ") + (r.problems.length > 10 ? ` · und ${r.problems.length - 10} weitere` : "") });
+      }
+    } catch (err) {
+      out.push({ id: `twilio-check-failed:${now.toISOString().slice(0, 10)}`, level: "warning", title: "Twilio-Prüfung fehlgeschlagen", detail: (err as Error).message.slice(0, 200) });
+    }
   }
 
   // 6) Plattenplatz

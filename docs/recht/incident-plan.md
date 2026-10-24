@@ -24,7 +24,7 @@
 | Schritt | Was | Zeit |
 |---|---|---|
 | 1. Erkennen | Meldung (Alarm, Kunde, Anbieter, Forscher) → Ticket anlegen, **Zeitpunkt der Kenntnis notieren** (startet Fristen) | sofort |
-| 2. Eindämmen | je nach Lage: App stoppen (`docker compose stop app`) – **Achtung:** der Twilio-Fallback läuft ebenfalls über unseren Server; vorher je Nummer in Twilio „Primary handler fails“ auf ein Twilio-gehostetes Ersatzziel (TwiML Bin mit `<Dial>` auf die Kundennummer) stellen, Konto sperren (`disabled`), Sitzungen löschen, Schlüssel rotieren (Abschnitt 3) | < 1 h |
+| 2. Eindämmen | je nach Lage: App stoppen (`docker compose stop app`) – „Primary handler fails“ ist je Nummer eine TwiML Bin bei Twilio (Weiterleitung auf die Fallback-Nummer des Kunden), die Anrufannahme bleibt also auch bei gestoppter App erhalten – die Überwachung prüft das stündlich. Wer keine Fallback-Nummer hat, hört eine Störungsansage; Konto sperren (`disabled`), Sitzungen löschen, Schlüssel rotieren (Abschnitt 3) | < 1 h |
 | 3. Beweise sichern | Logs (`docker compose logs > …`), Audit-Log-Auszug, DB-Snapshot **vor** Bereinigung | < 2 h |
 | 4. Bewerten | Welche Mandanten, welche Daten, wie viele Betroffene, Risiko (Abschnitt 4) | < 12 h |
 | 5. Kunden informieren (wir = Auftragsverarbeiter) | betroffene Kunden **unverzüglich, spätestens 24 h** (AVV § 6) mit Art.-33-Abs.-3-Angaben, soweit bekannt; Nachträge laufend | < 24 h |

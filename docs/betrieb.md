@@ -58,6 +58,17 @@ Neuer Server: Installation laut README, `.env` und `secrets/backup-age.key` aus 
 
 **Nachweis:** Jeden erfolgreichen Wiederherstellungstest (automatisch oder von Hand) mit Datum in der Launch-Checkliste bzw. im Betriebsprotokoll festhalten.
 
+## Ersatzziel bei Twilio (Serverausfall)
+
+Antwortet unsere App nicht (Serverausfall, Wartung, Netzwerk), nutzt Twilio das Ersatzziel der Nummer („Primary handler fails“). Es muss **bei Twilio** liegen, nicht auf unserem Server – sonst fällt es mit aus.
+
+1. Verwaltung → Kunde → Rufnummer → „Ersatzziel bei Twilio“ aufklappen, TwiML kopieren.
+2. Twilio-Konsole → TwiML Bins → „Create new TwiML Bin“ (Name z. B. `ersatz-+4930…`), Inhalt einfügen, speichern.
+3. Phone Numbers → Nummer → Voice Configuration → „Primary handler fails“: TwiML → diese Bin wählen. Speichern.
+4. Testen: App kurz stoppen (`docker compose stop app`), Nummer anrufen → Weiterleitung muss klingeln. Danach `docker compose start app`.
+
+Der Anrufer wird auf die Fallback-Nummer des Kunden verbunden (Anruferkennung = Twilio-Nummer); ohne Fallback-Nummer hört er eine Störungsansage. Eine Mailbox gibt es auf diesem Weg nicht – deshalb für jeden Kunden eine Fallback-Nummer hinterlegen. Ändert sich die Fallback-Nummer, die Bin aktualisieren. Die Überwachung prüft stündlich über die Twilio-API, ob jede Nummer auf die App zeigt, ein Ersatzziel außerhalb unseres Servers hat und eine Fallback-Nummer besitzt.
+
 ## Überwachung und Alarme
 
 Alle 5 Minuten prüft `/api/cron/monitor`:
@@ -70,6 +81,7 @@ Alle 5 Minuten prüft `/api/cron/monitor`:
 | Andere Nachrichten endgültig nicht zugestellt, ≥ 10 Fehlschläge pro Stunde | Warnung |
 | Anrufe seit über 2 Stunden ohne Gesprächsende (fehlt Abrechnung und Löschung beim Anbieter) | Warnung |
 | Wiederherstellungstest älter als 35 Tage, Speicherplatz unter 10 % | Warnung |
+| Rufnummer bei Twilio ohne unabhängiges Ersatzziel, ohne Fallback-Nummer oder mit falschem Anrufziel (stündlich) | Warnung |
 
 Alarme gehen an `ALERT_EMAIL` (sonst alle Plattform-Admins), kritische zusätzlich per SMS an `ALERT_SMS` und an `ALERT_WEBHOOK_URL`. Derselbe Befund wird höchstens stündlich (kritisch) bzw. alle 6 Stunden wiederholt. Einstellungen: Verwaltung → Plattform → „Überwachung & Alarme“.
 

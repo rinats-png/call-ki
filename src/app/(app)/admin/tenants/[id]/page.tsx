@@ -9,6 +9,7 @@ import { centsToInput, cn, eur, fmtDateTime, parseEuro, TENANT_STATUS_LABEL, TEN
 import { InfoTip } from "@/components/InfoTip";
 import { UsageBar } from "@/components/UsageBar";
 import { VOICE_PROVIDER_OPTIONS } from "@/lib/platform/registry";
+import { twilioBinTwiml } from "@/lib/voice/twilio-fallback";
 import { USER_ROLE_LABEL, type UserRole } from "@/lib/constants";
 import { Panel, Skeleton } from "@/components/hub/Primitives";
 import { PageHero, heroBtn } from "@/components/PageHero";
@@ -198,6 +199,14 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
                 <span className="font-mono text-zinc-100">{n.e164}</span>
                 <span className="flex-1 text-xs text-zinc-500">{[n.label, n.fallbackNumber && `Fallback ${n.fallbackNumber}`, n.voiceProvider && `KI ${VOICE_PROVIDER_OPTIONS.find((o) => o.value === n.voiceProvider)?.label ?? n.voiceProvider}`, n.voiceAgentId && `Agent ${n.voiceAgentId}`].filter(Boolean).join(" · ")}</span>
                 <button className="btn-ghost p-1.5" aria-label="Entfernen" onClick={() => run("rm", async () => { if (!confirm(`Nummer ${n.e164} entfernen?`)) return; await apiFetch(`/api/admin/tenants/${id}/numbers?e164=${encodeURIComponent(n.e164)}`, { method: "DELETE" }); })}><Trash2 className="h-3.5 w-3.5" /></button>
+                <details className="w-full text-xs text-zinc-400">
+                  <summary className="cursor-pointer select-none">Ersatzziel bei Twilio (bei Serverausfall){!n.fallbackNumber && <span className="text-amber-400"> · ohne Fallback-Nummer nur Ansage</span>}</summary>
+                  <p className="mt-2">Twilio-Konsole → TwiML Bins → neu anlegen, diesen Inhalt einfügen, speichern. Dann bei der Nummer unter „Primary handler fails“ diese TwiML Bin wählen. So erreichen Anrufer auch bei ausgefallenem Server die Fallback-Nummer.</p>
+                  <div className="mt-2 flex items-start gap-2">
+                    <pre className="flex-1 overflow-x-auto whitespace-pre-wrap break-all rounded-lg bg-zinc-950 p-2 font-mono text-[11px] text-zinc-300">{twilioBinTwiml(n, data.name)}</pre>
+                    <button type="button" className="btn-ghost p-1.5" aria-label="TwiML kopieren" onClick={() => navigator.clipboard.writeText(twilioBinTwiml(n, data.name))}><Copy className="h-3.5 w-3.5" /></button>
+                  </div>
+                </details>
               </li>
             ))}
             {data.phoneNumbers.length === 0 && <li className="text-sm text-amber-400">Noch keine Nummer – ohne Nummer erreicht kein Anruf diesen Kunden.</li>}

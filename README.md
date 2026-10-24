@@ -72,7 +72,7 @@ Vorlagen und Einordnung (AVV, TOM, VVT, Löschkonzept, DSFA, Anrufer-Information
 ## Externe Dienste einrichten (einmalig, für alle Kunden)
 Alle URLs zum Kopieren stehen nach dem Login unter **Plattform**.
 
-1. **Twilio**: Konto anlegen, deutsche Nummern kaufen (Regulatory Bundle mit Adressnachweis nötig). Je Nummer unter *Voice Configuration*: „A call comes in“ → `https://DOMAIN/api/twilio/voice` (POST), „Primary handler fails“ → `https://DOMAIN/api/twilio/fallback`. `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN` in `.env`.
+1. **Twilio**: Konto anlegen, deutsche Nummern kaufen (Regulatory Bundle mit Adressnachweis nötig). Je Nummer unter *Voice Configuration*: „A call comes in“ → `https://DOMAIN/api/twilio/voice` (POST), „Primary handler fails“ → eine **TwiML Bin bei Twilio** (Inhalt je Nummer in der Verwaltung unter „Ersatzziel bei Twilio“), damit Anrufe auch bei ausgefallenem Server die Fallback-Nummer erreichen (`docs/betrieb.md`). `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN` in `.env`.
 2. **Retell AI**: Einen Agenten anlegen (Sprache Deutsch, deutsche Stimme).
    - General Prompt: Inhalt von `voice-agent/system-prompt.md`, Begin Message: `{{greeting}}`.
    - Custom Functions aus `voice-agent/tools.json`, URL `https://DOMAIN/api/voice/tools/<name>`, Header `x-tool-secret: <VOICE_TOOL_SECRET_RETELL>` (je Anbieter ein eigenes Geheimnis).

@@ -9,6 +9,7 @@ import { runTool } from "@/lib/voice/tools";
 import { processToolBody } from "@/lib/voice/handle-tools";
 import { settleDeferred } from "@/lib/defer";
 import { recordHeartbeat, runMonitor } from "@/lib/services/monitor";
+import { checkTwilioNumbers } from "@/lib/voice/twilio-config";
 import { retryDueMessages, MAX_ATTEMPTS } from "@/lib/notify";
 import { resetEnvCache } from "@/lib/env";
 import { vi } from "vitest";
@@ -226,6 +227,32 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
     } finally {
       delete process.env.ALERT_EMAIL;
       delete process.env.BACKUP_EXPECTED;
+    }
+  });
+
+  it("erkennt Rufnummern ohne unabhängiges Ersatzziel bei Twilio", async () => {
+    Object.assign(process.env, { TWILIO_ACCOUNT_SID: "AC" + "0".repeat(32), TWILIO_AUTH_TOKEN: "t", PUBLIC_BASE_URL: "https://app.example.de" });
+    resetEnvCache();
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
+      incoming_phone_numbers: [
+        // A: Ersatzziel auf dem eigenen Server
+        { phone_number: A.number, voice_url: "https://app.example.de/api/twilio/voice", voice_fallback_url: "https://app.example.de/api/twilio/fallback" },
+      ],
+      next_page_uri: null,
+    }), { status: 200 }));
+    try {
+      const r = (await checkTwilioNumbers())!;
+      expect(r.problems.join("\n")).toContain("Ersatzziel liegt auf dem eigenen Server");
+      expect(r.problems.join("\n")).toContain("keine Weiterleitungsnummer");
+      expect(r.problems.join("\n")).toContain(`${B.number} (${B.tenant.name}): nicht im Twilio-Konto`);
+      // korrekt eingerichtet → keine Probleme für A
+      fetchMock.mockResolvedValue(new Response(JSON.stringify({ incoming_phone_numbers: [{ phone_number: A.number, voice_url: "https://app.example.de/api/twilio/voice", voice_fallback_url: "https://handler.twilio.com/twiml/EH123" }], next_page_uri: null }), { status: 200 }));
+      await prisma.phoneNumber.update({ where: { e164: A.number }, data: { fallbackNumber: "+4915199999999" } });
+      expect((await checkTwilioNumbers())!.problems.filter((p) => p.startsWith(A.number))).toEqual([]);
+    } finally {
+      fetchMock.mockRestore();
+      for (const k of ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "PUBLIC_BASE_URL"]) delete process.env[k];
+      resetEnvCache();
     }
   });
 
