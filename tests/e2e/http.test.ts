@@ -167,4 +167,12 @@ describe.skipIf(!BASE)("HTTP: Zugriffsregeln und Schutzmechanismen", () => {
     expect(await prisma.minuteTopUp.count()).toBe(0);
     expect((await admin.req("/api/admin/plan-requests")).status).toBe(403);
   });
+
+  it("T-SEC-HTTP-18: Statusseite ist öffentlich und zeigt keine Kundendaten", async () => {
+    const r = await new Client().req("/status");
+    expect(r.status).toBe(200);
+    const html = await r.text();
+    expect(html).toContain("Telefonannahme durch die KI");
+    expect(html).not.toContain("Alpha GmbH");
+  });
 });

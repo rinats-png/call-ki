@@ -111,6 +111,7 @@ export const PROVIDERS: Provider[] = [
     level: "info",
     fields: [
       { key: "PLATFORM_NAME", label: "Plattformname", type: "text", placeholder: "KI-Telefonzentrale", hint: "Erscheint in E-Mails und Einladungen." },
+      { key: "STATUS_NOTICE", label: "Hinweis auf der Statusseite", type: "text", placeholder: "z. B. Wartung am 3.11. von 22–23 Uhr", hint: "Erscheint öffentlich unter /status. Leer = kein Hinweis." },
       {
         key: "VOICE_PROVIDER",
         label: "Standard-Sprach-KI",
