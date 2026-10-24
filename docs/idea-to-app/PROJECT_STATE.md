@@ -18,7 +18,7 @@
 | Regelwerk-Version | 1.2.0 |
 
 ## Aktueller Stand
-- **Aktuelle Phase:** Dokumentation des Ist-Stands (B0–B2, 5–7, 10, 21 fertig; 11–20, 22 in Arbeit); 23 Launch „Nicht freigabefähig“.
+- **Aktuelle Phase:** Dokumentation des Ist-Stands (B0–B2, 5–7, 10–15, 17–22 fertig; 16 in Arbeit, Unterlagen in `docs/recht/`); 23 Launch „Nicht freigabefähig“.
 - **Nächster Schritt:** Offene Entscheidungen E-010 (Aufzeichnung Standard aus), E-020 (Soft Launch), E-021 (externe Prüfung), E-022 (Repository privat) vom Inhaber treffen lassen; dann M-S/M0 aus `21-roadmap.md` (TASK-005, TASK-006, TASK-008).
 - **Fortschritt:** ▓▓▓▓▓▓░░░░ 16 von 28 Phasen (inkl. B0–B2 und übersprungener Phasen)
 
@@ -42,18 +42,18 @@ Status: `offen` · `in Arbeit` · `fertig` · `übersprungen (<Grund>)` · `⚠�
 | 8 | Mockups | übersprungen (B2 – Glas-Design umgesetzt) | 08-mockups.md |
 | 9 | Design-System | übersprungen (B2 – Kontrast in Phase 10) | 09-design.md |
 | 10 | Barrierefreiheit & Sprachen | fertig (verkürzt; Prüfungen offen, TASK-042) | 10-barrierefreiheit.md |
-| 11 | Daten & Inhalte | in Arbeit | 11-daten.md |
-| 12 | Rollen & Berechtigungen | in Arbeit | 12-berechtigungen.md |
-| 13 | Tech-Stack & Architektur | in Arbeit | 13-architektur.md |
-| 14 | Sicherheitsarchitektur | in Arbeit | 14-sicherheit.md |
-| 15 | Login, Zahlung, Integrationen | in Arbeit | 15-integrationen.md |
+| 11 | Daten & Inhalte | fertig | 11-daten.md |
+| 12 | Rollen & Berechtigungen | fertig | 12-berechtigungen.md |
+| 13 | Tech-Stack & Architektur | fertig | 13-architektur.md |
+| 14 | Sicherheitsarchitektur | fertig | 14-sicherheit.md |
+| 15 | Login, Zahlung, Integrationen | fertig | 15-integrationen.md |
 | 16 | Recht & Datenschutz | in Arbeit (Unterlagen in `docs/recht/`) | 16-recht.md |
-| 17 | Monetarisierung & Kosten | in Arbeit | 17-kosten.md |
-| 18 | Performance, Offline, Benachrichtigungen | in Arbeit | 18-qualitaetsziele.md |
-| 19 | Qualität & Tests | in Arbeit | 19-tests.md |
-| 20 | Betrieb | in Arbeit | 20-betrieb.md |
+| 17 | Monetarisierung & Kosten | fertig | 17-kosten.md |
+| 18 | Performance, Offline, Benachrichtigungen | fertig | 18-qualitaetsziele.md |
+| 19 | Qualität & Tests | fertig | 19-tests.md |
+| 20 | Betrieb | fertig | 20-betrieb.md |
 | 21 | Roadmap & Aufgaben | fertig | 21-roadmap.md |
-| 22 | Build-Handoff | in Arbeit | handoff/AGENTS.md |
+| 22 | Build-Handoff | fertig | handoff/AGENTS.md |
 | 23 | Launch & Freigabe | in Arbeit (Nicht freigabefähig) | 23-launch.md |
 | 24 | Iteration & Wartung | übersprungen (B2 – nach dem Launch) | 24-iteration.md |
 
