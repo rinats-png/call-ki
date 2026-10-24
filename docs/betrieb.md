@@ -99,7 +99,8 @@ Alle 5 Minuten prüft `/api/cron/monitor`:
 | Andere Nachrichten endgültig nicht zugestellt, ≥ 10 Fehlschläge pro Stunde | Warnung |
 | Anrufe seit über 2 Stunden ohne Gesprächsende (fehlt Abrechnung und Löschung beim Anbieter) | Warnung |
 | Wiederherstellungstest älter als 35 Tage, Speicherplatz unter 10 % | Warnung |
-| Rufnummer bei Twilio ohne unabhängiges Ersatzziel, ohne Fallback-Nummer oder mit falschem Anrufziel (stündlich) | Warnung |
+| Rufnummer bei Twilio ohne unabhängiges Ersatzziel, ohne Status-URL, ohne Fallback-Nummer oder mit falschem Anrufziel (stündlich) | Warnung |
+| Mindestens 3 Anrufe in 24 Std. ohne Gesprächsende vom KI-Anbieter | Warnung |
 
 Alarme gehen an `ALERT_EMAIL` (sonst alle Plattform-Admins), kritische zusätzlich per SMS an `ALERT_SMS` und an `ALERT_WEBHOOK_URL`. Derselbe Befund wird höchstens stündlich (kritisch) bzw. alle 6 Stunden wiederholt. Einstellungen: Verwaltung → Plattform → „Überwachung & Alarme“.
 
@@ -107,6 +108,10 @@ Alarme gehen an `ALERT_EMAIL` (sonst alle Plattform-Admins), kritische zusätzli
 
 1. Externer Lebenszeichen-Dienst (z. B. healthchecks.io): Check mit 5 Minuten Intervall und 10 Minuten Kulanz, Ping-URL als `HEALTHCHECK_PING_URL`. Bleibt der Ping aus, alarmiert der Dienst per E-Mail/SMS/App.
 2. Uptime-Check von außen auf `https://DOMAIN/api/health` (z. B. UptimeRobot, Better Stack), Intervall 1–5 Minuten.
+
+## Gesprächsende und Abrechnung
+
+Jede Twilio-Nummer meldet das Gesprächsende an `/api/twilio/status` („Call status changes“). Die Dauer laut Twilio ist die Grundlage der Abrechnung – auch wenn der KI-Anbieter kein Ereignis schickt. Bleibt das Anbieter-Ereignis 10 Minuten nach dem Auflegen aus (oder fehlt jedes Lebenszeichen länger als Höchstdauer + 30 Minuten), schließt der Cron den Anruf (`endReason = no_provider_event`), legt bei einem echten Gespräch ein Rückruf-Ticket an und die Löschfristen greifen wieder. Ab drei solchen Anrufen in 24 Stunden meldet die Überwachung, dass der Ereignis-Webhook beim Anbieter fehlt oder falsch ist. Die stündliche Twilio-Prüfung meldet Nummern ohne Status-URL.
 
 ## Kostenschutz
 

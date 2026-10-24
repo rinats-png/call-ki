@@ -1,7 +1,7 @@
 import { prisma } from "../db";
 import { env } from "../env";
 
-type TwilioNumber = { phone_number: string; voice_url: string | null; voice_fallback_url: string | null };
+type TwilioNumber = { phone_number: string; voice_url: string | null; voice_fallback_url: string | null; status_callback?: string | null };
 
 /**
  * Prüft die Konfiguration der Rufnummern im Twilio-Konto gegen unsere Zuordnung:
@@ -44,6 +44,7 @@ export async function checkTwilioNumbers(): Promise<{ checked: number; problems:
     if (!r.voice_url || !/\/api\/twilio\/voice\b/.test(r.voice_url) || (ownHost && host(r.voice_url) !== ownHost)) problems.push(`${label}: Anrufziel zeigt nicht auf die App`);
     if (!r.voice_fallback_url) problems.push(`${label}: kein Ersatzziel („Primary handler fails“)`);
     else if (ownHost && host(r.voice_fallback_url) === ownHost) problems.push(`${label}: Ersatzziel liegt auf dem eigenen Server und fällt mit ihm aus`);
+    if (!r.status_callback || !/\/api\/twilio\/status\b/.test(r.status_callback)) problems.push(`${label}: „Call status changes“ zeigt nicht auf /api/twilio/status (Gesprächsende für Abrechnung fehlt)`);
     if (!n.fallbackNumber) problems.push(`${label}: keine Weiterleitungsnummer für Störungen`);
   }
   return { checked: ours.length, problems };

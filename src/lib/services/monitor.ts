@@ -73,6 +73,14 @@ export async function collectFindings(now = new Date()): Promise<Finding[]> {
     out.push({ id: `calls-hanging:${last!.id}`, level: "warning", title: "Anrufe ohne Gesprächsende", detail: `${nHanging} Anruf(e) seit über 2 Std. ohne Ende-Ereignis (zuletzt ${last!.provider}). Ereignis-Webhook beim Anbieter prüfen – sonst fehlen Abrechnung und Löschung.` });
   }
 
+  // 4b) Anrufe, deren Ende nur Twilio gemeldet hat → Ereignis-Webhook des KI-Anbieters fehlt oder ist falsch
+  const noEvent = { endReason: "no_provider_event", endedAt: { gte: since24h } };
+  const nNoEvent = await prisma.call.count({ where: noEvent });
+  if (nNoEvent >= 3) {
+    const last = await prisma.call.findFirst({ where: noEvent, orderBy: { endedAt: "desc" }, select: { id: true, provider: true } });
+    out.push({ id: `calls-no-provider-event:${last!.id}`, level: "warning", title: "KI-Anbieter meldet Gesprächsende nicht", detail: `${nNoEvent} Anrufe in 24 Std. ohne Ereignis vom Anbieter (zuletzt ${last!.provider}). Transkript und Zusammenfassung fehlen; Ereignis-URL und Geheimnis beim Anbieter prüfen.` });
+  }
+
   // 5) Backup: letztes erfolgreiches Backup zu alt oder letzter Lauf fehlgeschlagen
   if (setting("BACKUP_EXPECTED") === "true") {
     const hb = await heartbeat("backup");

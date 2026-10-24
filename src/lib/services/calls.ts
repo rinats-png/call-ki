@@ -8,6 +8,7 @@ import type { CallEvent } from "../voice/events";
 import { resolveVoiceContext } from "../voice/context";
 import { upsertCustomer } from "./customers";
 import { notifyForTicket, routeRequest } from "./tickets";
+import { resolveConfig } from "../tenant/settings";
 
 const CALLBACK_PREFIX = "Gespräch ohne Abschluss – Rückruf erforderlich.";
 
@@ -90,4 +91,37 @@ export async function handleCallEvent(ev: CallEvent) {
   const meaningful = (call.durationSec ?? 0) >= 15 || /(user|kunde|anrufer)\s*:/i.test(call.transcript ?? "");
   if (tickets.length === 0 && meaningful) await createCallbackTicket(ctx.tenant, ctx.cfg, call);
   return call;
+}
+
+/**
+ * Schließt Anrufe, zu denen der KI-Anbieter nie ein Ende gemeldet hat: entweder hat Twilio das
+ * Ende gemeldet und seitdem kam 10 Minuten nichts, oder es gibt gar kein Lebenszeichen mehr
+ * (älter als Höchstdauer + 30 Minuten). Danach greifen Abrechnung und Löschfristen wieder.
+ * Bei einem echten Gespräch ohne Vorgang entsteht ein Rückruf-Ticket. Läuft jede Minute.
+ */
+export async function closeStaleCalls(maxCallSec: number, now = new Date()) {
+  const stale = await prisma.call.findMany({
+    where: {
+      status: { in: ["RINGING", "IN_PROGRESS"] },
+      OR: [
+        { endedAt: { lt: new Date(now.getTime() - 10 * 60_000) } },
+        { endedAt: null, startedAt: { lt: new Date(now.getTime() - maxCallSec * 1000 - 30 * 60_000) } },
+      ],
+    },
+    include: { tenant: true, tickets: { select: { id: true } } },
+    take: 100,
+  });
+  let callbacks = 0;
+  for (const c of stale) {
+    const updated = await prisma.call.update({
+      where: { id: c.id },
+      data: { status: "ENDED", endedAt: c.endedAt ?? now, endReason: c.endReason ?? "no_provider_event", durationSec: c.durationSec ?? c.twilioDurationSec ?? null },
+    });
+    logger.warn("call.closed_without_provider_event", { tenantId: c.tenantId, callId: c.id, twilioEnded: !!c.endedAt });
+    if (c.tickets.length === 0 && (c.twilioDurationSec ?? 0) >= 15) {
+      await createCallbackTicket(c.tenant, resolveConfig(c.tenant), updated, "Gespräch ohne Abschlussmeldung des KI-Anbieters – bitte zurückrufen.");
+      callbacks++;
+    }
+  }
+  return { closed: stale.length, callbacks };
 }

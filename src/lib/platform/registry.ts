@@ -301,11 +301,11 @@ export const PROVIDERS: Provider[] = [
     setup: [
       "Twilio-Konto anlegen und aufladen.",
       "Deutsche Ortsnummern kaufen (Phone Numbers → Buy). Für Deutschland ist ein „Regulatory Bundle“ mit Adressnachweis nötig.",
-      "Je Nummer unter Voice Configuration: „A call comes in“ = Twilio-Voice-URL (POST). „Primary handler fails“ = eine TwiML Bin bei Twilio (Inhalt: Verwaltung → Kunde → Rufnummer → „Ersatzziel bei Twilio“) – NICHT die eigene Fallback-URL, sonst fällt sie mit dem Server aus. Die Überwachung prüft das stündlich.",
+      "Je Nummer unter Voice Configuration: „A call comes in“ = Twilio-Voice-URL (POST), „Call status changes“ = Twilio-Status-URL (POST, für Gesprächsende und Abrechnung). „Primary handler fails“ = eine TwiML Bin bei Twilio (Inhalt: Verwaltung → Kunde → Rufnummer → „Ersatzziel bei Twilio“) – NICHT die eigene Fallback-URL, sonst fällt sie mit dem Server aus. Die Überwachung prüft das stündlich.",
       "Nummer in der Verwaltung dem Kunden zuordnen.",
       "Der Kunde leitet seine bisherige Nummer (Festnetz/VoIP) auf die Twilio-Nummer um – siehe „VoIP / Rufumleitung“.",
     ],
-    webhooks: ["twilioVoice", "twilioFallback"],
+    webhooks: ["twilioVoice", "twilioStatus", "twilioFallback"],
   },
   {
     id: "voip",

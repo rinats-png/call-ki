@@ -12,6 +12,10 @@ import { recordHeartbeat, runMonitor } from "@/lib/services/monitor";
 import { checkTwilioNumbers } from "@/lib/voice/twilio-config";
 import { callAdmission, enforceCallLimits } from "@/lib/cost-guard";
 import { runQuotaWarnings } from "@/lib/services/usage-alerts";
+import { closeStaleCalls } from "@/lib/services/calls";
+import { usageForMonth, currentMonth } from "@/lib/billing";
+import { computeTwilioSignature } from "@/lib/security";
+import { POST as twilioStatus } from "@/app/api/twilio/status/route";
 import { retryDueMessages, MAX_ATTEMPTS } from "@/lib/notify";
 import { resetEnvCache } from "@/lib/env";
 import { vi } from "vitest";
@@ -248,7 +252,7 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
       expect(r.problems.join("\n")).toContain("keine Weiterleitungsnummer");
       expect(r.problems.join("\n")).toContain(`${B.number} (${B.tenant.name}): nicht im Twilio-Konto`);
       // korrekt eingerichtet → keine Probleme für A
-      fetchMock.mockResolvedValue(new Response(JSON.stringify({ incoming_phone_numbers: [{ phone_number: A.number, voice_url: "https://app.example.de/api/twilio/voice", voice_fallback_url: "https://handler.twilio.com/twiml/EH123" }], next_page_uri: null }), { status: 200 }));
+      fetchMock.mockResolvedValue(new Response(JSON.stringify({ incoming_phone_numbers: [{ phone_number: A.number, voice_url: "https://app.example.de/api/twilio/voice", voice_fallback_url: "https://handler.twilio.com/twiml/EH123", status_callback: "https://app.example.de/api/twilio/status" }], next_page_uri: null }), { status: 200 }));
       await prisma.phoneNumber.update({ where: { e164: A.number }, data: { fallbackNumber: "+4915199999999" } });
       expect((await checkTwilioNumbers())!.problems.filter((p) => p.startsWith(A.number))).toEqual([]);
     } finally {
@@ -323,6 +327,40 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
     expect(mails.map((m) => m.subject)).toEqual(["80 % Ihrer Minutengrenze verbraucht", "100 % Ihrer Minutengrenze verbraucht"]);
     expect(mails[1].body).toContain("keine Anrufe mehr an");
     await prisma.tenant.update({ where: { id: B.tenant.id }, data: { monthlyMinuteLimit: null } });
+  });
+
+  it("übernimmt Gesprächsende und Dauer von Twilio, schließt Anrufe ohne Anbieter-Ereignis und rechnet nach Twilio-Dauer ab", async () => {
+    Object.assign(process.env, { TWILIO_AUTH_TOKEN: "tok", PUBLIC_BASE_URL: "https://app.example.de" });
+    resetEnvCache();
+    try {
+      const sid = "CA" + "e".repeat(32);
+      const call = await prisma.call.create({ data: { tenantId: A.tenant.id, twilioCallSid: sid, fromNumber: "+4915000000070", toNumber: A.number, status: "IN_PROGRESS", startedAt: new Date(Date.now() - 20 * 60_000) } });
+      const params = { CallSid: sid, CallStatus: "completed", CallDuration: "95" };
+      const send = (sig: string) => twilioStatus(new Request("https://app.example.de/api/twilio/status", { method: "POST", headers: { "x-twilio-signature": sig, "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams(params) }));
+      expect((await send("falsch")).status).toBe(403);
+      expect((await send(computeTwilioSignature("tok", "https://app.example.de/api/twilio/status", params))).status).toBe(204);
+      let c = (await prisma.call.findUnique({ where: { id: call.id } }))!;
+      expect(c.twilioDurationSec).toBe(95);
+      expect(c.endedAt).not.toBeNull();
+      expect(c.status).toBe("IN_PROGRESS"); // Anbieter-Ereignis kann noch kommen
+
+      // 10 Minuten ohne Anbieter-Ereignis → geschlossen + Rückruf-Ticket
+      await prisma.call.update({ where: { id: call.id }, data: { endedAt: new Date(Date.now() - 11 * 60_000) } });
+      const r = await closeStaleCalls(20 * 60);
+      expect(r.closed).toBeGreaterThanOrEqual(1);
+      c = (await prisma.call.findUnique({ where: { id: call.id } }))!;
+      expect(c).toMatchObject({ status: "ENDED", endReason: "no_provider_event", durationSec: 95 });
+      expect(await prisma.callTicket.count({ where: { callId: call.id, category: "Rückruf" } })).toBe(1);
+
+      // Abrechnung nimmt die Twilio-Dauer, auch wenn der Anbieter eine kürzere meldet
+      const before = await usageForMonth(A.tenant, currentMonth(A.tenant.timezone).year, currentMonth(A.tenant.timezone).month, 1);
+      await prisma.call.update({ where: { id: call.id }, data: { durationSec: 30 } });
+      const after = await usageForMonth(A.tenant, currentMonth(A.tenant.timezone).year, currentMonth(A.tenant.timezone).month, 1);
+      expect(after.seconds).toBe(before.seconds);
+    } finally {
+      for (const k of ["TWILIO_AUTH_TOKEN", "PUBLIC_BASE_URL"]) delete process.env[k];
+      resetEnvCache();
+    }
   });
 
   it("löscht einen Mandanten nur nach Anbieter-Löschung (oder ausdrücklich erzwungen) und lässt andere unberührt", async () => {

@@ -5,6 +5,7 @@ export function webhookUrls(): Record<string, string> {
   const base = env().PUBLIC_BASE_URL.replace(/\/$/, "");
   return {
     twilioVoice: `${base}/api/twilio/voice`,
+    twilioStatus: `${base}/api/twilio/status`,
     twilioFallback: `${base}/api/twilio/fallback`,
     retellTools: `${base}/api/voice/tools/{name}`,
     retellEvents: `${base}/api/voice/events`,

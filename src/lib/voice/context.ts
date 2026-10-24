@@ -4,6 +4,7 @@ import { normalizePhone } from "../phone";
 import { fromZoned, zonedParts } from "../time";
 import { resolveConfig, type TenantConfig } from "../tenant/settings";
 import { setting } from "../platform/config";
+import { billableSeconds } from "../billing";
 import type { CustomerType } from "../constants";
 
 const DAY = ["", "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
@@ -94,8 +95,8 @@ export function selectAgent(numberAgentId: string | null, cfg: TenantConfig): { 
 export async function minutesThisMonth(tenant: Pick<Tenant, "id" | "timezone">): Promise<number> {
   const p = zonedParts(new Date(), tenant.timezone);
   const start = fromZoned(p.year, p.month, 1, 0, 0, tenant.timezone);
-  const agg = await prisma.call.aggregate({ where: { tenantId: tenant.id, startedAt: { gte: start } }, _sum: { durationSec: true } });
-  return Math.ceil((agg._sum.durationSec ?? 0) / 60);
+  const calls = await prisma.call.findMany({ where: { tenantId: tenant.id, startedAt: { gte: start } }, select: { status: true, durationSec: true, twilioDurationSec: true } });
+  return Math.ceil(calls.reduce((sum, c) => sum + billableSeconds(c), 0) / 60);
 }
 
 export type VoiceCallContext = {

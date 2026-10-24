@@ -67,18 +67,28 @@ export function currentMonth(tz: string) {
   return { year: p.year, month: p.month };
 }
 
+/**
+ * Abrechenbare Sekunden eines Anrufs. Gespräche mit der KI: Dauer laut Twilio (unabhängig davon,
+ * ob der KI-Anbieter ein Ende meldet), sonst laut Anbieter. Weiterleitung/Mailbox wie bisher.
+ */
+export function billableSeconds(c: { status: string; durationSec: number | null; twilioDurationSec: number | null }): number {
+  if (c.status === "FALLBACK" || c.status === "VOICEMAIL") return c.durationSec ?? 0;
+  return c.twilioDurationSec ?? c.durationSec ?? 0;
+}
+const BILLING_SELECT = { status: true, durationSec: true, twilioDurationSec: true } as const;
+
 export type Usage = { calls: number; seconds: number; minutes: number; sms: number; emails: number; tickets: number; emergencies: number };
 
 export async function usageForMonth(tenant: Pick<Tenant, "id" | "timezone">, year: number, month: number, incrementSec: number): Promise<Usage> {
   const { start, end } = monthRange(year, month, tenant.timezone);
   const [calls, sms, emails, tickets, emergencies] = await Promise.all([
-    prisma.call.findMany({ where: { tenantId: tenant.id, startedAt: { gte: start, lt: end } }, select: { durationSec: true } }),
+    prisma.call.findMany({ where: { tenantId: tenant.id, startedAt: { gte: start, lt: end } }, select: BILLING_SELECT }),
     prisma.message.count({ where: { tenantId: tenant.id, channel: "SMS", status: "SENT", createdAt: { gte: start, lt: end } } }),
     prisma.message.count({ where: { tenantId: tenant.id, channel: "EMAIL", status: { in: ["SENT", "DRAFT"] }, createdAt: { gte: start, lt: end } } }),
     prisma.callTicket.count({ where: { tenantId: tenant.id, createdAt: { gte: start, lt: end } } }),
     prisma.callTicket.count({ where: { tenantId: tenant.id, urgency: "CRITICAL", createdAt: { gte: start, lt: end } } }),
   ]);
-  const durations = calls.map((c) => c.durationSec ?? 0);
+  const durations = calls.map(billableSeconds);
   return {
     calls: calls.length,
     seconds: durations.reduce((a, b) => a + b, 0),
@@ -128,13 +138,13 @@ export function costSettingsConfigured(): boolean {
 /** Tägliche Minuten des Monats (für Verbrauchsgrafiken) */
 export async function dailyMinutes(tenant: Pick<Tenant, "id" | "timezone">, year: number, month: number): Promise<{ day: number; minutes: number; calls: number }[]> {
   const { start, end } = monthRange(year, month, tenant.timezone);
-  const calls = await prisma.call.findMany({ where: { tenantId: tenant.id, startedAt: { gte: start, lt: end } }, select: { startedAt: true, durationSec: true } });
+  const calls = await prisma.call.findMany({ where: { tenantId: tenant.id, startedAt: { gte: start, lt: end } }, select: { startedAt: true, ...BILLING_SELECT } });
   const days = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const out = Array.from({ length: days }, (_, i) => ({ day: i + 1, minutes: 0, calls: 0 }));
   for (const c of calls) {
     const d = zonedParts(c.startedAt, tenant.timezone).day;
     out[d - 1].calls++;
-    out[d - 1].minutes += Math.round(((c.durationSec ?? 0) / 60) * 10) / 10;
+    out[d - 1].minutes += Math.round((billableSeconds(c) / 60) * 10) / 10;
   }
   return out;
 }

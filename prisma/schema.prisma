@@ -215,6 +215,8 @@ model Call {
   startedAt      DateTime    @default(now())
   endedAt        DateTime?
   durationSec    Int?
+  /// Gesprächsdauer laut Twilio (StatusCallback) – unabhängig vom KI-Anbieter, Grundlage der Abrechnung
+  twilioDurationSec Int?
   transcript     String?
   summary        String?
   recordingUrl   String?
