@@ -7,6 +7,10 @@ import { handleCallEvent } from "@/lib/services/calls";
 import { resolveVoiceContext } from "@/lib/voice/context";
 import { runTool } from "@/lib/voice/tools";
 import { processToolBody } from "@/lib/voice/handle-tools";
+import { settleDeferred } from "@/lib/defer";
+import { retryDueMessages, MAX_ATTEMPTS } from "@/lib/notify";
+import { resetEnvCache } from "@/lib/env";
+import { vi } from "vitest";
 import { findAvailableSlots } from "@/lib/calendar";
 import { deleteTenant, exportTenantData } from "@/lib/services/tenants";
 
@@ -33,7 +37,10 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
     A = await mk("Alpha Schädlinge", "+493011111111", "pest_control");
     B = await mk("Beta Sanitär", "+493022222222", "trades");
   });
-  afterAll(async () => prisma.$disconnect());
+  afterAll(async () => {
+    await settleDeferred();
+    await prisma.$disconnect();
+  });
 
   it("ordnet Anrufe über die angerufene Nummer dem richtigen Mandanten zu", async () => {
     expect((await resolveVoiceContext(null, A.number, SAME_CALLER))?.tenant.id).toBe(A.tenant.id);
@@ -147,6 +154,52 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
   it("lehnt Funktionsaufrufe im Format eines anderen Anbieters ab", async () => {
     expect(await processToolBody({ name: "identify_caller", args: {}, call: { call_id: "retell-fremd" } }, "elevenlabs")).toBeNull();
     expect(await processToolBody({ name: "identify_caller", args: {}, call: { call_id: "retell-fremd" } }, "retell")).not.toBeNull();
+  });
+
+  it("lässt die Sprach-KI nicht auf den Versand warten und versendet danach", async () => {
+    await prisma.call.create({ data: { tenantId: A.tenant.id, providerCallId: "retell-defer", fromNumber: "+4915000000020", toNumber: A.number } });
+    const ctx = (await resolveVoiceContext("retell-defer", null, null))!;
+    const res = (await runTool("book_appointment", { description: "Wespennest am Dach", category: "Wespen", email: "kunde@example.org" }, ctx)) as { ok: boolean; say: string };
+    expect(res.ok).toBe(true);
+    expect(res.say).toContain("meldet sich"); // ohne Termin: Rückmeldung angekündigt
+    await settleDeferred();
+    const ticket = await prisma.callTicket.findFirst({ where: { callId: (await prisma.call.findUnique({ where: { providerCallId: "retell-defer" } }))!.id } });
+    // Kundenbestätigung wurde nach der Antwort protokolliert (ohne SMTP als SKIPPED)
+    expect(await prisma.message.findFirst({ where: { ticketId: ticket!.id, purpose: "CUSTOMER_CONFIRMATION" } })).toMatchObject({ status: "SKIPPED", recipient: "kunde@example.org" });
+  });
+
+  it("wiederholt fehlgeschlagene SMS mit Pause und gibt nach der Höchstzahl auf", async () => {
+    Object.assign(process.env, { TWILIO_ACCOUNT_SID: "AC" + "0".repeat(32), TWILIO_AUTH_TOKEN: "t", TWILIO_SMS_FROM: "+4930000000" });
+    resetEnvCache();
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    try {
+      const msg = await prisma.message.create({ data: { tenantId: A.tenant.id, channel: "SMS", recipient: "+4915000000030", body: "Notfall", purpose: "EMERGENCY_ALERT", status: "FAILED", attempts: 1, nextAttemptAt: new Date(Date.now() - 1000) } });
+      // noch nicht fällig → kein Versuch
+      await prisma.message.update({ where: { id: msg.id }, data: { nextAttemptAt: new Date(Date.now() + 60_000) } });
+      fetchMock.mockResolvedValue(new Response(JSON.stringify({ message: "down" }), { status: 503 }));
+      expect((await retryDueMessages()).due).toBe(0);
+      // fällig, schlägt fehl → nächster Versuch geplant
+      await prisma.message.update({ where: { id: msg.id }, data: { nextAttemptAt: new Date(Date.now() - 1000) } });
+      expect((await retryDueMessages()).failed).toBe(1);
+      let m = (await prisma.message.findUnique({ where: { id: msg.id } }))!;
+      expect(m.attempts).toBe(2);
+      expect(m.nextAttemptAt!.getTime()).toBeGreaterThan(Date.now());
+      // letzter erlaubter Versuch schlägt fehl → aufgegeben
+      await prisma.message.update({ where: { id: msg.id }, data: { attempts: MAX_ATTEMPTS - 1, nextAttemptAt: new Date(Date.now() - 1000) } });
+      await retryDueMessages();
+      m = (await prisma.message.findUnique({ where: { id: msg.id } }))!;
+      expect(m.status).toBe("FAILED");
+      expect(m.nextAttemptAt).toBeNull();
+      // zweite Nachricht: Wiederholung klappt
+      const ok = await prisma.message.create({ data: { tenantId: A.tenant.id, channel: "SMS", recipient: "+4915000000031", body: "Termin", purpose: "CUSTOMER_CONFIRMATION", status: "FAILED", attempts: 1, nextAttemptAt: new Date(Date.now() - 1000) } });
+      fetchMock.mockResolvedValue(new Response(JSON.stringify({ sid: "SM1" }), { status: 201 }));
+      expect((await retryDueMessages()).sent).toBe(1);
+      expect((await prisma.message.findUnique({ where: { id: ok.id } }))?.status).toBe("SENT");
+    } finally {
+      fetchMock.mockRestore();
+      for (const k of ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_SMS_FROM"]) delete process.env[k];
+      resetEnvCache();
+    }
   });
 
   it("löscht einen Mandanten nur nach Anbieter-Löschung (oder ausdrücklich erzwungen) und lässt andere unberührt", async () => {

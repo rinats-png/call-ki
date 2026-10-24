@@ -117,6 +117,7 @@ const handlers: { [K in ToolName]: Handler<K> } = {
     const res = await processServiceRequest(ctx.tenant, ctx.cfg, {
       customer: { phone, onlyFillMissing: !verified, name: args.name, companyName: args.companyName, email: args.email, address: args.address, postalCode: args.postalCode, customerType: args.customerType },
       category: args.category, description: args.description, urgency: args.urgency, appointmentStart: args.appointmentStart, employeeId: args.employeeId, callId: ctx.callRowId,
+      deferNotify: true,
     });
     const tz = ctx.tenant.timezone;
     const emp = res.ticket.assignedEmployee?.name;
@@ -125,12 +126,12 @@ const handlers: { [K in ToolName]: Handler<K> } = {
       const slots = r.slots.map((s) => ({ start: s.start.toISOString(), label: formatGermanDateTime(s.start, tz) }));
       return { ok: false, slotTaken: true, slots, say: `Dieser Termin wurde gerade vergeben. ${slots.length ? `Alternativen: ${slots.map((s) => s.label).join("; ")}.` : "Bitte Rückruf anbieten."}` };
     }
-    const confirmParts = [...res.notify.customer].filter((x) => x.includes("SENT") || x.includes("Entwurf"));
+    const confirmFollows = res.notify.deferred ? !!res.notify.confirmationPlanned : res.notify.customer.some((x) => x.includes("SENT") || x.includes("Entwurf"));
     return {
       ok: true, reference: res.ticket.id.slice(-8).toUpperCase(), urgency: res.ticket.urgency, employee: emp ?? null,
       appointment: res.appointment ? res.appointment.start.toISOString() : null,
       say: res.appointment
-        ? `Termin am ${formatGermanDateTime(res.appointment.start, tz)}${emp ? ` mit ${emp}` : ""} ist eingetragen.${confirmParts.length ? " Eine Bestätigung folgt." : ""}`
+        ? `Termin am ${formatGermanDateTime(res.appointment.start, tz)}${emp ? ` mit ${emp}` : ""} ist eingetragen.${confirmFollows ? " Eine Bestätigung folgt." : ""}`
         : `Anliegen ist aufgenommen${emp ? `, ${emp} meldet sich` : ", wir melden uns"} zur Terminabstimmung.`,
     };
   },
@@ -140,6 +141,7 @@ const handlers: { [K in ToolName]: Handler<K> } = {
     const res = await processServiceRequest(ctx.tenant, ctx.cfg, {
       customer: { phone, onlyFillMissing: !verified, name: args.name, address: args.address, postalCode: args.postalCode },
       category: args.category, description: args.description, escalate: true, callId: ctx.callRowId,
+      deferNotify: true,
     });
     const emp = res.ticket.assignedEmployee;
     const transferNumber = emp?.directPhone ?? (ctx.cfg.settings.emergency.transferNumber || null);

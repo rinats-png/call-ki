@@ -13,6 +13,7 @@ import { URGENCIES, type Urgency } from "../constants";
 import type { TenantConfig } from "../tenant/settings";
 import { customerConfirmationEmail, customerSms, technicianBriefingEmail, technicianSms, type MailCtx } from "./emails";
 import { markCustomerExisting, upsertCustomer, type CustomerInput } from "./customers";
+import { runAfterResponse } from "../defer";
 
 type T = Pick<Tenant, "id" | "name" | "timezone">;
 
@@ -51,6 +52,8 @@ export type ServiceRequestInput = {
   employeeId?: string | null;
   callId?: string | null;
   escalate?: boolean;
+  /** Kalender & Benachrichtigungen erst nach der Antwort ausführen (Sprach-KI wartet nicht darauf) */
+  deferNotify?: boolean;
 };
 
 export type ServiceRequestResult = {
@@ -111,7 +114,13 @@ export async function processServiceRequest(tenant: T, cfg: TenantConfig, input:
 
   if (input.callId) await prisma.call.updateMany({ where: { id: input.callId, tenantId: tenant.id }, data: { customerId: customer.id } });
 
-  const notify = slotTaken ? emptyNotify() : await notifyForTicket(tenant, cfg, ticket, employee, appointment, { isUpdate: !!existing });
+  let notify = emptyNotify();
+  if (!slotTaken && input.deferNotify) {
+    runAfterResponse("ticket.notify", () => notifyForTicket(tenant, cfg, ticket, employee, appointment, { isUpdate: !!existing }));
+    notify = { ...notify, deferred: true, confirmationPlanned: confirmationPlanned(cfg, ticket.customer, urgency === "CRITICAL", hasFeature((await planForTenant(tenant.id)).plan, "sms")) };
+  } else if (!slotTaken) {
+    notify = await notifyForTicket(tenant, cfg, ticket, employee, appointment, { isUpdate: !!existing });
+  }
   await markCustomerExisting(tenant.id, customer.id);
 
   const fresh = await prisma.callTicket.findUniqueOrThrow({ where: { id: ticket.id }, include: { customer: true, assignedEmployee: true } });
@@ -119,7 +128,19 @@ export async function processServiceRequest(tenant: T, cfg: TenantConfig, input:
   return { ticket: fresh, routing, appointment, slotTaken, notify };
 }
 
-export type NotifyResult = { calendarEvent: boolean; customer: string[]; technician: string[]; errors: string[] };
+export type NotifyResult = {
+  calendarEvent: boolean; customer: string[]; technician: string[]; errors: string[];
+  /** Versand läuft erst nach der Antwort; dann nur die Vorhersage confirmationPlanned */
+  deferred?: boolean;
+  confirmationPlanned?: boolean;
+};
+
+/** Bekommt der Kunde laut Einstellungen eine Bestätigung? (Vorhersage für die Ansage am Telefon) */
+export function confirmationPlanned(cfg: TenantConfig, customer: Pick<Customer, "email">, critical: boolean, smsAllowed: boolean): boolean {
+  const mode = cfg.settings.notifications.customerConfirmation;
+  if (mode === "off" || critical) return false;
+  return ((mode === "email" || mode === "both") && !!customer.email) || ((mode === "sms" || mode === "both") && smsAllowed);
+}
 const emptyNotify = (): NotifyResult => ({ calendarEvent: false, customer: [], technician: [], errors: [] });
 
 /**

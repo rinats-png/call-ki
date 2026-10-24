@@ -60,13 +60,15 @@ services:
       db:
         condition: service_healthy
 
-  # Täglicher Aufruf des Löschfristen-Jobs (DSGVO) und Aufräumen abgelaufener Sitzungen
+  # Zeitgesteuerte Aufgaben: Wiederholung fehlgeschlagener Nachrichten (minütlich), Löschfristen (täglich)
   cron:
     image: alpine:3.20
     restart: unless-stopped
     environment:
       CRON_SECRET: ${CRON_SECRET:?CRON_SECRET fehlt in .env}
-    entrypoint: ["/bin/sh", "-c", "apk add --no-cache curl >/dev/null && while true; do sleep 3600; [ \"$$(date +%H)\" = \"03\" ] && curl -fsS -X POST -H \"Authorization: Bearer $$CRON_SECRET\" http://app:3000/api/cron/retention || true; done"]
+    volumes:
+      - ./deploy/cron.sh:/cron.sh:ro
+    entrypoint: ["/bin/sh", "-c", "apk add --no-cache curl >/dev/null && exec /bin/sh /cron.sh"]
     depends_on: [app]
 
 volumes:

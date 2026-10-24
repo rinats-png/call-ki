@@ -53,6 +53,8 @@ Secrets erzeugen: `openssl rand -hex 24`. Updates: `git pull && docker compose u
 
 **Backups**: Der Dienst `backup` legt täglich einen Dump nach `./backups` (14 Tage). Zusätzlich extern sichern, z. B. per `rclone` auf IONOS S3 Object Storage oder das IONOS-Server-Backup aktivieren. Wiederherstellen: `gunzip -c backups/<datei>.sql.gz | docker compose exec -T db psql -U callki -d callki`.
 
+**Zeitgesteuerte Aufgaben** (Dienst `cron`, `deploy/cron.sh`): jede Minute werden fehlgeschlagene E-Mails und SMS erneut gesendet (bis zu 5 Versuche, Notfall-Alarme nach 1, 2, 5, 10 Minuten, sonst nach 2, 10, 30, 120 Minuten), täglich um 3 Uhr laufen die Löschfristen. Die Sprach-KI wartet während des Gesprächs nicht auf den Versand – Kalender, E-Mail und SMS laufen direkt nach der Antwort an den Anbieter.
+
 ## Testumgebung auf Netlify
 
 Zum Ausprobieren der Oberfläche (ohne echte Anrufe) baut Netlify jeden Push dieses Branches (`netlify.toml`). Datenbank ist die Netlify Database; ihre Migrationen in `netlify/database/migrations` sind Kopien von `prisma/migrations` (Test `tests/netlify-migrations.test.ts`). Nötige Umgebungsvariablen bei Netlify: `APP_ENCRYPTION_KEY`, `SETUP_TOKEN`, `CRON_SECRET`, `PUBLIC_BASE_URL`. Als „geheim“ markierte Variablen brauchen bei Netlify einen eigenen Kontext (z. B. Production) – mit „alle Kontexte“ werden sie nicht angelegt.
