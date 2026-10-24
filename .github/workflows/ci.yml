@@ -54,6 +54,10 @@ jobs:
         run: npm audit --omit=dev --audit-level=critical
       - name: Build
         run: npm run build
+      - name: Browser für E2E-Tests
+        run: npx playwright install --with-deps chromium
+      - name: HTTP- und Browser-Tests gegen den Build (Zugriffsregeln, CSRF, 2FA, Re-Auth, Header)
+        run: E2E_SKIP_BUILD=1 bash scripts/e2e.sh
 
   secrets:
     runs-on: ubuntu-24.04

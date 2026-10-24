@@ -49,7 +49,11 @@ export async function POST(req: Request) {
 
   if (tenant.status === "PAUSED") return fallback("FALLBACK");
   // Spam-/Kostenschutz: derselbe Anrufer sehr oft hintereinander → keine KI-Minuten verbrauchen
-  if (from !== "anonymous" && (await hitShared(`calls:${number.e164}:${from}`, LIMITS.callsPerCaller)) > 0) {
+  // Unterdrückte Nummern teilen sich ein gemeinsames, großzügigeres Kontingent je Rufnummer
+  const callerLimited = from === "anonymous"
+    ? (await hitShared(`calls:${number.e164}:anonymous`, LIMITS.anonymousCallsPerNumber)) > 0
+    : (await hitShared(`calls:${number.e164}:${from}`, LIMITS.callsPerCaller)) > 0;
+  if (callerLimited) {
     logger.warn("twilio.caller_rate_limited", { tenantId: tenant.id, from: maskPhone(from) });
     return fallback("FALLBACK");
   }

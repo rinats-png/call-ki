@@ -107,4 +107,6 @@ export const LIMITS = {
   webhookPerIp: { limit: 600, windowMs: 60_000 },
   /** Gleicher Anrufer an dieselbe Nummer (Spam/Kostenschutz) */
   callsPerCaller: { limit: 10, windowMs: 3600_000 },
+  /** Alle Anrufe mit unterdrückter Nummer an dieselbe Nummer zusammen */
+  anonymousCallsPerNumber: { limit: 30, windowMs: 3600_000 },
 } satisfies Record<string, Limit>;
