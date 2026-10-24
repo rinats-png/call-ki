@@ -34,7 +34,7 @@ Gemeinsame Merkliste. Erledigtes bitte hier abhaken oder streichen.
 - [x] Externe, verschlüsselte Backups mit monatlichem Wiederherstellungstest und Twilio-Ersatzziel sind gebaut (`docs/betrieb.md`). Offen: auf dem Produktionsserver einrichten (age-Schlüssel, S3-Bucket, TwiML Bin je Nummer) und den ersten Wiederherstellungstest dort nachweisen.
 - [ ] IONOS-VPS aufsetzen und härten (`deploy/harden.sh`), externen Lebenszeichen-Dienst und Uptime-Check einrichten.
 - [ ] Testanrufe nach `docs/testanrufe.md` je Anbieter, Ergebnisse eintragen; Launch-Gate `docs/idea-to-app/23-launch.md`.
-- [ ] Dependabot-Major-Updates (Prisma 7, Next 16, TypeScript 7, Tailwind 4, vitest 5) später gezielt. Produktionsabhängigkeiten sind seit 2026-10-24 ohne bekannte Schwachstelle (zod 4).
+- [ ] Dependabot-Major-Updates (Prisma 7, Next 16, TypeScript 7, Tailwind 4) später gezielt. `npm audit` meldet seit 2026-10-24 keine Schwachstelle mehr (zod 4, vitest 5, Overrides).
 - [ ] 2FA auf allen Betreiberkonten nachweisen (`docs/betreiber-konten.md`), Branch-Schutz für `main`, Repository privat (E-022).
 - [ ] Incident-Kontakte eintragen und einmal üben (`docs/recht/incident-plan.md`), Rollback einmal auf dem Server üben (`bash deploy/deploy.sh --rollback`), Support- und Feedback-Kanal festlegen (`docs/support-playbook.md`).
 - [ ] Bereitschaft/SLA festlegen (wer reagiert nachts auf kritische Alarme?).
