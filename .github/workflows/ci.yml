@@ -50,10 +50,17 @@ jobs:
       - name: Tests (inkl. Mandantentrennung gegen Postgres)
         run: npm test
       - name: Abhängigkeiten prüfen
-        # Schwelle "critical": bekannte "high"-Befunde (prisma 6, next 15) sind in docs/sicherheit.md als E-003 dokumentiert
         run: npm audit --omit=dev --audit-level=high
-      - name: Build
+      - name: Build (Server-Geheimnisse mit Kanarienwerten)
+        env:
+          BUILD_CANARY: canary-7c1e0f9b2d4a
+          APP_ENCRYPTION_KEY: canary-7c1e0f9b2d4a
+          CRON_SECRET: canary-7c1e0f9b2d4a
+          TWILIO_AUTH_TOKEN: canary-7c1e0f9b2d4a
+          RETELL_API_KEY: canary-7c1e0f9b2d4a
         run: npm run build
+      - name: Build-Scan auf Geheimnisse im Browser-Code
+        run: BUILD_CANARY=canary-7c1e0f9b2d4a bash scripts/scan-build.sh
       - name: Browser für E2E-Tests
         run: npx playwright install --with-deps chromium
       - name: HTTP- und Browser-Tests gegen den Build (Zugriffsregeln, CSRF, 2FA, Re-Auth, Header)

@@ -1,5 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/db";
+import { randomToken, sha256 } from "@/lib/auth/crypto";
 import { BASE, Client, seed, type Seed } from "./helpers";
 
 /**
@@ -81,5 +82,60 @@ describe.skipIf(!BASE)("HTTP: Zugriffsregeln und Schutzmechanismen", () => {
     expect(unknown.status).toBe(401);
     expect(wrong.status).toBe(401);
     expect(await unknown.text()).toBe(await wrong.text());
+  });
+
+  it("T-SEC-HTTP-10: Ändern und Löschen fremder Datensätze → 404, Daten unverändert (T-SEC-02)", async () => {
+    const c = await new Client().login("admin@alpha.example");
+    expect((await c.req(`/api/tickets/${s.B.ticket.id}`, { method: "PATCH", json: { summary: "manipuliert" } })).status).toBe(404);
+    expect((await c.req(`/api/customers/${s.B.customer.id}`, { method: "PATCH", json: { name: "manipuliert" } })).status).toBe(404);
+    expect((await c.req(`/api/customers/${s.B.customer.id}`, { method: "DELETE", headers: { origin: BASE } })).status).toBe(404);
+    expect((await prisma.callTicket.findUnique({ where: { id: s.B.ticket.id } }))?.summary).toBe("Vorgang Beta GmbH");
+    expect((await prisma.customer.findUnique({ where: { id: s.B.customer.id } }))?.name).toBe("Kunde Beta GmbH");
+  });
+
+  it("T-SEC-HTTP-11: Rolle und Mandant lassen sich nicht über den Body setzen (T-SEC-03)", async () => {
+    const c = await new Client().login("admin@alpha.example");
+    const r = await c.req("/api/users", { method: "POST", json: { email: "neu@alpha.example", role: "PLATFORM_ADMIN", tenantId: s.B.tenant.id } });
+    expect(r.status).toBe(400);
+    const ok = await c.req("/api/users", { method: "POST", json: { email: "neu2@alpha.example", role: "TENANT_USER", tenantId: s.B.tenant.id } });
+    expect(ok.status).toBe(201);
+    expect((await prisma.user.findUnique({ where: { email: "neu2@alpha.example" } }))?.tenantId).toBe(s.A.tenant.id);
+  });
+
+  it("T-SEC-HTTP-12: Reset-Link gilt einmal und nicht nach Ablauf; Reset beendet alle Sitzungen (T-SEC-06)", async () => {
+    const other = await new Client().login("mitarbeiter@alpha.example");
+    expect((await other.req("/api/dashboard")).status).toBe(200);
+    const mk = async (expiresAt: Date) => {
+      const token = randomToken();
+      await prisma.authToken.create({ data: { id: sha256(token), userId: s.userA.id, type: "PASSWORD_RESET", expiresAt } });
+      return token;
+    };
+    const token = await mk(new Date(Date.now() + 30 * 60_000));
+    const body = { token, password: "Neues-Passwort-sehr-lang-2026", type: "PASSWORD_RESET" };
+    expect((await new Client().req("/api/auth/reset", { method: "POST", json: body })).status).toBe(200);
+    expect((await new Client().req("/api/auth/reset", { method: "POST", json: body })).status).toBe(410);
+    expect((await other.req("/api/dashboard")).status).toBe(401);
+    const expired = await mk(new Date(Date.now() - 60_000));
+    expect((await new Client().req("/api/auth/reset", { method: "POST", json: { ...body, token: expired } })).status).toBe(410);
+    // Passwort für die folgenden Tests zurücksetzen
+    await prisma.user.update({ where: { id: s.userA.id }, data: { passwordHash: s.adminA.passwordHash } });
+  });
+
+  it("T-SEC-HTTP-13: „Passwort vergessen“ antwortet gleich, ob das Konto existiert oder nicht (T-SEC-09)", async () => {
+    const c = new Client();
+    const a = await c.req("/api/auth/forgot", { method: "POST", json: { email: "gibtsnicht@example.org" } });
+    const b = await c.req("/api/auth/forgot", { method: "POST", json: { email: "admin@alpha.example" } });
+    expect(a.status).toBe(b.status);
+    expect(await a.text()).toBe(await b.text());
+  });
+
+  it("T-SEC-HTTP-14: Reset-/Einladungslink für Kollegen nur mit frischer Bestätigung (T-SEC-29)", async () => {
+    const c = await new Client().login("admin@alpha.example");
+    await prisma.session.updateMany({ where: { userId: s.adminA.id }, data: { authAt: new Date(Date.now() - 20 * 60_000) } });
+    const r = await c.req(`/api/users/${s.userA.id}`, { method: "PATCH", json: { action: "reset_password" } });
+    expect(r.status).toBe(403);
+    const j = (await r.json()) as { link?: string; details?: { code?: string } };
+    expect(j.details?.code).toBe("REAUTH_REQUIRED");
+    expect(j.link).toBeUndefined();
   });
 });
