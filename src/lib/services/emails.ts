@@ -15,6 +15,9 @@ export type MailCtx = {
   summary: string;
   appointment?: { start: Date; end: Date } | null;
   ticketId: string;
+  /** false = keine Zusammenfassung (Gesprächsinhalt) in E-Mail/Kalender, stattdessen Link ins Portal */
+  includeSummary?: boolean;
+  portalUrl?: string;
 };
 
 const URG: Record<string, string> = { LOW: "Niedrig", MEDIUM: "Mittel", HIGH: "Hoch", CRITICAL: "NOTFALL" };
@@ -60,7 +63,10 @@ export function technicianBriefingEmail(c: MailCtx) {
       `<h2 style="margin:0 0 8px">Neuer ${h(c.cfg.template.jobNoun)} aus der KI-Telefonzentrale</h2>` +
         `<table cellpadding="4" style="border-collapse:collapse">` +
         rows.map(([k, v]) => `<tr><td style="color:#6b7484">${h(k)}</td><td><b>${h(v)}</b></td></tr>`).join("") +
-        `</table><h3>Zusammenfassung</h3><p>${h(c.summary)}</p>`,
+        `</table>` +
+        (c.includeSummary === false
+          ? `<p>Details zum Anliegen${c.portalUrl ? ` im Portal: <a href="${h(c.portalUrl)}">${h(c.portalUrl)}</a>` : " im Portal"}.</p>`
+          : `<h3>Zusammenfassung</h3><p>${h(c.summary)}</p>`),
       h(c.tenant.name),
     ),
   };

@@ -54,6 +54,11 @@ export default function Page() {
           <Field label="Mit Microsoft 365" hint="Nur wirksam, wenn Outlook verbunden und ein Entwurfs-Postfach gesetzt ist.">
             <label className="flex h-[38px] items-center gap-2 text-sm text-zinc-300"><input type="checkbox" checked={n.microsoftDraftsOnly} onChange={(e) => set({ microsoftDraftsOnly: e.target.checked })} />Kundenbestätigung nur als Outlook-Entwurf ablegen</label>
           </Field>
+          <div className="sm:col-span-2">
+            <Field label="Gesprächsinhalt in E-Mails und Kalender" help={["Die Zusammenfassung des Gesprächs kann Gesundheitsangaben oder andere sensible Details enthalten.", "Ausgeschaltet stehen in Mitarbeiter-E-Mails und Kalendereinträgen nur Kunde, Adresse, Anliegen und Termin – die Zusammenfassung gibt es dann nur im Portal."]}>
+              <label className="flex h-[38px] items-center gap-2 text-sm text-zinc-300"><input type="checkbox" checked={n.summaryInNotifications} onChange={(e) => set({ summaryInNotifications: e.target.checked })} />Zusammenfassung in Mitarbeiter-E-Mails und Kalendereinträge übernehmen</label>
+            </Field>
+          </div>
         </div>
       </Panel>
       <SaveBar {...s} />

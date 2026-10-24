@@ -21,6 +21,11 @@ export function Hub() {
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [open, setOpen] = useState<string | null>(null);
+  // Link aus Benachrichtigungen: /?ticket=<id> öffnet den Vorgang direkt
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("ticket");
+    if (id) setOpen(id);
+  }, []);
   const [simulate, setSimulate] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 

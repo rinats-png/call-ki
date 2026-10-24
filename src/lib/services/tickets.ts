@@ -16,6 +16,7 @@ import type { TenantConfig } from "../tenant/settings";
 import { customerConfirmationEmail, customerSms, technicianBriefingEmail, technicianSms, type MailCtx } from "./emails";
 import { markCustomerExisting, upsertCustomer, type CustomerInput } from "./customers";
 import { runAfterResponse } from "../defer";
+import { env } from "../env";
 
 type T = Pick<Tenant, "id" | "name" | "timezone">;
 
@@ -168,7 +169,9 @@ export async function notifyForTicket(
   const ctx: MailCtx = {
     tenant, cfg, customer: ticket.customer, employee,
     category: ticket.category ?? "Sonstiges", urgency: ticket.urgency, summary: ticket.summary ?? "", appointment, ticketId: ticket.id,
+    includeSummary: n.summaryInNotifications, portalUrl: `${env().PUBLIC_BASE_URL.replace(/\/$/, "")}/?ticket=${ticket.id}`,
   };
+  const calendarText = n.summaryInNotifications ? (ticket.summary ?? "") : "Details im Portal";
   const update: Partial<CallTicket> = {};
   const location = [ticket.customer.address, ticket.customer.postalCode].filter(Boolean).join(", ") || undefined;
 
@@ -192,7 +195,7 @@ export async function notifyForTicket(
     try {
       const ev = await googleCreateEvent(tenant.id, employee.email, {
         subject: `${urgent ? "⚠ " : ""}${ctx.category} – ${ticket.customer.companyName ?? ticket.customer.name ?? ticket.customer.phone}`,
-        bodyText: [ticket.summary, `Kunde: ${ticket.customer.name ?? ""} ${ticket.customer.phone}`, location].filter(Boolean).join("\n"),
+        bodyText: [calendarText, `Kunde: ${ticket.customer.name ?? ""} ${ticket.customer.phone}`, location].filter(Boolean).join("\n"),
         start: appointment.start, end: appointment.end, location, timeZone: tenant.timezone,
       });
       update.calendarEventId = `google:${ev.id}`;
@@ -215,7 +218,7 @@ export async function notifyForTicket(
       if ((mode === "email" || mode === "both") && employee.email && (emailAllowed || critical)) {
         const mail = technicianBriefingEmail(ctx);
         const ics = appointment && !update.calendarEventId && !ticket.calendarEventId
-          ? { filename: "termin.ics", content: buildIcs({ uid: `ticket-${ticket.id}@ki-telefonzentrale`, start: appointment.start, end: appointment.end, summary: mail.subject, description: ticket.summary ?? "", location }) }
+          ? { filename: "termin.ics", content: buildIcs({ uid: `ticket-${ticket.id}@ki-telefonzentrale`, start: appointment.start, end: appointment.end, summary: mail.subject, description: calendarText, location }) }
           : undefined;
         const r = await sendEmail({ tenantId: tenant.id, ticketId: ticket.id, to: employee.email, subject: mail.subject, html: mail.html, purpose: critical ? "EMERGENCY_ALERT" : "TECHNICIAN_BRIEFING", fromName: tenant.name, ics });
         res.technician.push(`E-Mail ${r.status}`);

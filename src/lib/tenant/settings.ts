@@ -62,6 +62,8 @@ export const tenantSettingsSchema = z.object({
       reminderHoursBefore: z.number().int().min(2).max(72).default(24),
       /** Rufnummer in der Erinnerung zum Verschieben/Absagen (die bekannte Firmennummer) */
       contactPhone: z.string().trim().max(30).default(""),
+      /** Gesprächszusammenfassung in Techniker-E-Mail, Kalendereintrag und ICS (aus = nur Link ins Portal; Datensparsamkeit) */
+      summaryInNotifications: z.boolean().default(true),
     })
     .prefault({}),
   emergency: z
