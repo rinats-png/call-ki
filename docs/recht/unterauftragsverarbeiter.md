@@ -6,7 +6,7 @@
 
 | # | Anbieter | Leistung | Daten | Ort | Transfergrundlage | AVV/DPA abgeschlossen |
 |---|---|---|---|---|---|---|
-| 1 | **IONOS SE**, Montabaur | VPS-Hosting (App, Datenbank, Backups) | alle Plattformdaten | Deutschland **[PRÜFEN: Rechenzentrum]** | – (EU) | ☐ `<Datum>` |
+| 1 | **IONOS SE**, Montabaur | VPS-Hosting (App, Datenbank, lokale Backups 14 Tage) und Object Storage (S3-kompatibel) für die verschlüsselten externen Backups (30 Tage) | alle Plattformdaten (im Object Storage nur age-verschlüsselt) | Deutschland **[PRÜFEN: Rechenzentrum und Region des Buckets]** | – (EU) | ☐ `<Datum>` |
 | 2 | **Twilio Inc.** (Vertragspartner für EU-Kunden ggf. Twilio Ireland Ltd. **[PRÜFEN]**) | Telefonnummern, Anrufannahme/-weiterleitung (SIP), SMS, optional Aufnahme | Rufnummern, Verbindungsdaten, Audio-Strom, SMS-Inhalt, ggf. Aufnahme | USA/global | Binding Corporate Rules (seit 2018) + DPA mit SCC **[PRÜFEN: zusätzlich DPF?]** | ☐ `<Datum>` |
 | 3 | **Retell AI, Inc.**, Delaware, USA | KI-Sprachagent: Spracherkennung, Gesprächsführung (LLM), Sprachsynthese, Gesprächsprotokoll | Audio-Strom, Transkript, Zusammenfassung, dynamische Variablen (Name, Adresse bekannter Kunden), Funktionsaufrufe | USA (laut Retell kein Betrieb in der EU) | DPA mit SCC (Retell DPA, Stand 08.07.2026); **keine DPF-Zertifizierung gefunden** → Transfer Impact Assessment nötig **[PRÜFEN]** | ☐ `<Datum>` |
 | 3a | Unterauftragnehmer von Retell (LLM-, STT-, TTS-Anbieter, Cloud) | wie 3 | wie 3 | USA **[PRÜFEN]** | über Retell-DPA | Liste bei Retell anfordern ☐ |
@@ -41,3 +41,4 @@
 | Datum | Änderung | Kunden informiert am |
 |---|---|---|
 | 2026-10-23 | Erstfassung | – |
+| 2026-10-24 | IONOS: Object Storage für Backups ergänzt (wird ein anderer S3-Anbieter genutzt, eigene Zeile anlegen) | `<Datum>` |

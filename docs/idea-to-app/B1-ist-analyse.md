@@ -110,3 +110,51 @@ Ziel laut Gespräch: **Weiterentwickeln + Absichern** für den Verkauf an mehrer
 | 5 | 12 + 19 Rechte & Tests | Berechtigungsmatrix formal, Tests je Endpunkt, Rückverfolgungsmatrix | BF-11, 13 |
 | 6 | 10 Barrierefreiheit (verkürzt) | Labels, Fokus, reduzierte Bewegung | BF-18 |
 | 7 | 23 Launch | Checkliste mit Nachweisen, Pilot mit echtem Konto | BF-05, 17 |
+
+## Nachtrag 2026-10-24
+
+> Ergänzung ohne Änderung der Analyse oben (OP-00-03). Geprüfter Stand: Commit `ae31147` (41 Commits seit `5515082`). Seit der Erstanalyse sind dazugekommen: Sprach-KI frei wählbar je Mandant (**Retell, Vapi, ElevenLabs**, generisch per SIP), **Google Kalender**, **Pakete & Abrechnung**, Netlify-Testumgebung. Grundlage der neuen Punkte: Prüfung „Offene Punkte bis zur Produktions- und Verkaufsreife“ vom 2026-10-24 (Top 15).
+
+### Was seitdem behoben ist
+
+| Befund / Punkt | Status | Nachweis (Commit) |
+|---|---|---|
+| BF-06 CI | ✅ eingerichtet und grün (Lint, Typen, Tests mit Postgres, `npm audit`, gitleaks, Docker-Build; Lauf `40065897007`) | `daff5c1`, `9ea56a4` |
+| BF-07 Rechtsunterlagen | ✅ angelegt (AVV, TOM, VVT, DSFA, Löschkonzept, Incident-Plan, KI-VO …); am 2026-10-24 um Vapi, ElevenLabs, Google, Microsoft, S3-Backup, Erinnerungen, Überwachung, Twilio-Gesprächsende ergänzt; Prüfung durch Fachperson offen | `32a1c85`, `docs/recht/*` |
+| BF-08 Monitoring | ✅ Überwachung alle 5 Min. mit Alarm per E-Mail/SMS/Webhook; externer Lebenszeichen-Dienst noch einzurichten | `9e3df2d` |
+| BF-09 Backups | ✅ age-verschlüsselt, externer S3-Speicher, monatlicher automatischer Wiederherstellungstest; auf Produktion noch einzurichten | `815c26c` |
+| BF-10 Kosten | ✅ Kostenschutz (gleichzeitige Anrufe, Höchstdauer, Tagesbudget, Notschalter), Kontingent-Warnungen 80/100 %; Kostenrechnung je Minute in `17-kosten.md` | `cbcdb54` |
+| BF-15 Offboarding | ✅ Gesamtexport und endgültige Mandanten-Löschung inkl. Anbieter | `32a1c85` |
+| BF-22 Rollback | ◐ dokumentiert (`docs/release-checkliste.md`), nicht geübt; Staging und Image-Registry fehlen | Doku 2026-10-24 |
+| Top 1 `identify_caller` gab Stammdaten zu beliebiger genannter Nummer heraus | ✅ nur zur echten Anrufernummer | `8bdaa52` |
+| Top 2 Mandantenbindung der Tool-/Event-Aufrufe, ein gemeinsames Tool-Geheimnis | ✅ Tools nur für laufende Anrufe, Geheimnis je Anbieter | `8bdaa52` |
+| Top 3 `B2B_HACCP` ↔ `BUSINESS` | ✅ alter Wert wird als Gewerbekunde gelesen; automatische Agenten-Versionierung offen | `src/lib/voice/tools.ts` |
+| Top 5 Benachrichtigungen synchron im Gespräch | ✅ nach der Antwort, bis zu 5 Zustellversuche; Latenztest mit echten Anbietern offen | `4a1309e` |
+| Top 6 Server-Härtung | ◐ Skript vorhanden, auf Produktion nicht ausgeführt | `a338588` |
+| Top 7 Ersatzziel unabhängig vom Server | ◐ TwiML Bin je Nummer + stündliche Prüfung gebaut, je Nummer einzurichten | `929c3ff` |
+| Top 13 Kostenschutz | ✅ (Budget-Alarme bei den Anbietern noch einzurichten) | `cbcdb54` |
+| Top 14 Gesprächsende über Twilio-StatusCallback | ✅ Abrechnung und Löschung auch ohne Anbieter-Ereignis; echte Rechnungen/Zahlung offen | `7175b50` |
+| Twilio-Signaturprüfung abschaltbar | ✅ in Produktion erzwungen | `bc90bbd` |
+| Rate-Limits nur im Prozessspeicher | ✅ sicherheitsrelevante Limits gemeinsam in PostgreSQL (E-002 angepasst) | `136bc7f` |
+| Paketgrenzen nur Etiketten | ✅ serverseitig durchgesetzt (außer Aufzeichnung) | `91e56ea` |
+| `APP_ENCRYPTION_KEY` ohne Rotation | ✅ Schlüsselwechsel ohne Ausfall; Incident-Plan korrigiert | `fa49bd4` |
+| Aufzeichnung ohne Einwilligung | ✅ Variante C (Einwilligung abfragen) und SMS-Einwilligung/-Widerspruch gebaut; Standard bleibt offene Entscheidung | `ae31147` |
+| Weitere | Terminerinnerungen (`9a1d28d`), Termine per Telefon verschieben/absagen (`eb9dcbd`), Zeitumstellungstests (`0887e53`), vollständige `.env.example` (`f605d85`), Testanruf-Protokoll und Launch-Checkliste (`251dcc3`) | – |
+
+### Neue Befunde aus dem Nachtrag
+
+| ID | Schwere | Bereich | Fundstelle | Beschreibung | Empfehlung |
+|---|---|---|---|---|---|
+| BF-24 | mittel | Abrechnung / Recht | `src/lib/services/retention.ts`, `src/lib/billing.ts` (`usageForMonth`), `eraseCustomer`, `deleteTenant` | Die Monatsminuten werden aus den Anrufdatensätzen gezählt. Anrufe ohne Kundenbezug werden nach `retentionDays` (ab 7 Tagen) gelöscht, Endkunden- und Mandanten-Löschung entfernen Anrufe ebenfalls → Minuten fehlen in der Abrechnung, Rechnungen sind nicht nachvollziehbar; Konflikt mit Aufbewahrungspflichten (OP-16-13). | Regeln R1–R8 in `docs/recht/loeschkonzept.md` Abschnitt 5: Monatsabschluss mit festgeschriebenen Werten ohne Anruferdaten, Metadaten bis Monatsabschluss halten. |
+| BF-25 | niedrig | Datenschutz | `src/lib/services/retention.ts` | Plattform-Alarme (`Message` ohne Mandant) werden vom Löschjob nicht erfasst. | Löschfrist (Vorschlag 90 Tage) ergänzen. |
+| BF-26 | mittel | Kosten | `pricing.json` (Prototyp), `src/lib/billing.ts` (`costFor`) | SMS-Preise der Module (0,08–0,09 €) liegen unter dem Einkauf (≈ 9,9 ct je Segment); Weiterleitungen ins Mobilnetz kosten laut Quelle ≈ 33 ct/min und sind nicht bepreist; `costFor` kennt nur einen KI-Preis für alle Anbieter. | Siehe `17-kosten.md`: SMS-Preise anheben, Weiterleitungsminuten erfassen, Kosten je Anbieter. |
+
+### Was offen bleibt (Auswahl, P0 zuerst)
+
+- **Ende-zu-Ende-Test mit echten Konten** je Anbieter (Twilio-DE-Nummer, Retell, Vapi, ElevenLabs, Google, Microsoft): Signaturformate, ElevenLabs-Tool-Hülle, Vapi-`x-call_ref`, Löschung beim Anbieter, Latenz und Gleichzeitigkeit (BF-17, Top 4/5) – `docs/testanrufe.md`.
+- **Produktionsserver** aufsetzen und härten, Ersatzziel je Nummer, Backups mit erstem Wiederherstellungstest, Lebenszeichen-Dienst und Uptime-Check einrichten (OP-20-01 bis OP-20-05).
+- **AVV/DPA** mit IONOS, Twilio, Retell, Vapi, ElevenLabs, SMTP abschließen; Retell-TIA; rechtliche Prüfung aller `[PRÜFEN]`-Stellen; AGB/SLA final inkl. Bereitschaft für die Notfall-Weiterleitung (OP-20-06).
+- **Repository:** öffentlich, kein Branch-Schutz, Standard-Branch ist ein Feature-Branch.
+- **Echte Rechnungen**, Zahlung, Mahnwesen, Abgleich mit der Anbieter-Abrechnung (OP-17-03/-04) und BF-24.
+- BF-05 (Major-Updates, E-003), BF-11 (Tests je Endpunkt, E2E in Arbeit), BF-13 (RLS, E-004), BF-18 (Barrierefreiheit) unverändert offen.
+- Prüfskript: `pruefe-projekt.mjs --launch` muss ohne FEHLER laufen; Übergabepaket `handoff/` fehlt (OP-22-03).

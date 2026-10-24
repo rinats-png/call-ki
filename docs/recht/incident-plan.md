@@ -1,6 +1,6 @@
 # Notfall- und Datenpannen-Plan
 
-> Arbeitshilfe nach `idea-to-app/templates/incident-plan.md`, **keine Rechtsberatung**. **Ausdrucken oder offline speichern.** Stand: 2026-10-23 · Verantwortlich: `<Name>` · Nächste Übung: `<Datum>`
+> Arbeitshilfe nach `idea-to-app/templates/incident-plan.md`, **keine Rechtsberatung**. **Ausdrucken oder offline speichern.** Stand: 2026-10-24 (Schlüsselrotation korrigiert, Anbieter ergänzt) · Verantwortlich: `<Name>` · Nächste Übung: `<Datum>`
 
 ## 1. Rollen und Kontakte
 
@@ -16,6 +16,11 @@
 | IONOS | Kundenportal / Support `<Nummer>` |
 | Twilio | Konsole → Support; Schlüssel rotieren: Console → API Keys |
 | Retell | Dashboard → API Keys; Support `<E-Mail>` |
+| Vapi | Dashboard → API Keys; Support `<E-Mail>` |
+| ElevenLabs | Einstellungen → API Keys, Webhook-Geheimnis; Support `<E-Mail>` |
+| Google Cloud (OAuth-App) | Console → APIs & Services → Credentials (Client-Secret erneuern) |
+| Microsoft Entra (App-Registrierung) | Entra Admin Center → App-Registrierungen → Zertifikate & Geheimnisse |
+| S3-Backup-Speicher (IONOS Object Storage) | Cloud Panel → Object Storage → Zugangsschlüssel |
 | Domain/DNS | `<Registrar>` |
 | Aufsichtsbehörde Betreiber | `<Landesbehörde am Sitz des Betreibers>` – Online-Meldeformular `<URL>` |
 
@@ -39,8 +44,11 @@
 
 1. `SESSION`: alle Sitzungen löschen (`DELETE FROM "Session";`) – alle Nutzer werden abgemeldet.
 2. `CRON_SECRET`, `SETUP_TOKEN` und das Webhook-Geheimnis des betroffenen Sprach-KI-Anbieters (`VOICE_TOOL_SECRET_RETELL` / `_VAPI` / `_ELEVENLABS` / `_SIP`): neu erzeugen (`openssl rand -hex 32`, oder in der Oberfläche „Erzeugen“), Neustart; das neue Geheimnis beim Anbieter in den Tools bzw. der Server-URL eintragen. Die Geheimnisse der anderen Anbieter bleiben gültig.
-3. `TWILIO_AUTH_TOKEN`, `RETELL_API_KEY`, `MS_CLIENT_SECRET`, SMTP-Passwort: beim Anbieter widerrufen und neu erzeugen.
-4. `APP_ENCRYPTION_KEY`: **nur** bei Verdacht auf Abfluss – dann werden alle 2FA-Einrichtungen ungültig; Nutzer müssen 2FA neu einrichten (`totpSecretEnc`/`totpEnabledAt` leeren).
+3. `TWILIO_AUTH_TOKEN`, `RETELL_API_KEY`, `VAPI_API_KEY`, `ELEVENLABS_API_KEY` (+ `ELEVENLABS_WEBHOOK_SECRET`), `MS_CLIENT_SECRET`, `GOOGLE_CLIENT_SECRET`, SMTP-Passwort, `BACKUP_S3_SECRET_KEY`: beim Anbieter widerrufen und neu erzeugen; neuen Wert in `.env` **oder** in Verwaltung → Plattform eintragen (dort gespeicherte Werte überschreiben die `.env`).
+4. `APP_ENCRYPTION_KEY`: Der Schlüssel verschlüsselt **drei** Arten von Geheimnissen in der Datenbank: (a) 2FA-Geheimnisse der Portal-Nutzer (`User.totpSecretEnc`), (b) die in der Oberfläche gespeicherten **Anbieter-Schlüssel** (`PlatformSetting` mit `secret = true`, z. B. Twilio-Token, Retell-/Vapi-/ElevenLabs-Schlüssel, SMTP-Passwort, Microsoft-/Google-Client-Secret) und (c) die **Google-Refresh-Tokens** der Kunden-Kalender (`Integration.secretEnc`).
+   - **Geordneter Wechsel** (z. B. Person mit Zugriff verlässt das Team, kein Verdacht auf Abfluss der Datenbank): Verfahren „Schlüsselwechsel“ in `docs/betrieb.md` – neuer Schlüssel in `APP_ENCRYPTION_KEY`, alter in `APP_ENCRYPTION_KEYS_OLD`, `/api/cron/rekey` bis `remaining: 0`, dann alten Schlüssel entfernen. Kein Nutzer verliert 2FA, keine Verbindung bricht ab. Alten Schlüssel im Tresor behalten, solange Backups von vor dem Wechsel existieren (30 Tage).
+   - **Verdacht, dass Schlüssel und Datenbank (oder ein Backup samt Schlüssel) abgeflossen sind:** Umschlüsseln allein genügt nicht, weil die Klartexte bereits als bekannt gelten müssen. Zusätzlich: alle unter (b) gespeicherten Anbieter-Schlüssel beim Anbieter widerrufen und neu eintragen (Schritt 3); alle Google-Verbindungen trennen und die Kunden um Neuverbindung bitten (beim Trennen widerruft die Plattform den Refresh-Token per `oauth2.googleapis.com/revoke`, `src/lib/google.ts`; schlägt das fehl, widerruft der Kunde den Zugriff selbst in seinem Google-Konto); 2FA aller Nutzer zurücksetzen (`totpSecretEnc`/`totpEnabledAt` leeren, `recoveryCodes` leeren) – Nutzer richten 2FA neu ein.
+   - **Schlüssel verloren** (kein Abfluss, aber kein Wert mehr vorhanden): Die verschlüsselten Werte sind unlesbar. Folgen: 2FA aller Nutzer neu einrichten, alle Anbieter-Schlüssel aus der Oberfläche neu eintragen (sonst fallen Telefonie, Sprach-KI, E-Mail aus, soweit sie nicht zusätzlich in der `.env` stehen), alle Google-Kalender neu verbinden. Deshalb Schlüssel immer im Tresor (`docs/betreiber-konten.md`).
 5. `POSTGRES_PASSWORD`: im Container ändern (`ALTER USER`) und `.env`.
 
 ## 4. Bewertungshilfe
