@@ -14,6 +14,7 @@ import { TicketDrawer } from "./TicketDrawer";
 import { SimulateCall } from "./SimulateCall";
 import { LiveDot } from "./Primitives";
 import { UsageHero } from "./UsageHero";
+import { PageHero } from "../PageHero";
 
 export function Hub() {
   const [status, setStatus] = useState("");
@@ -28,6 +29,9 @@ export function Hub() {
     return () => clearTimeout(t);
   }, [query]);
   useEffect(() => {
+    if (new URLSearchParams(location.search).get("erfassen") === "1") setSimulate(true);
+  }, []);
+  useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
   }, []);
@@ -38,19 +42,31 @@ export function Hub() {
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-5">
-      <UsageHero error={!!error} />
+      <PageHero
+        title={<span className="flex items-center gap-2">Hub<span className={cn("chip border-transparent text-[11px]", error ? "bg-amber-400/15 text-amber-300" : "bg-emerald-400/15 text-emerald-300")}><LiveDot color={error ? "amber" : "emerald"} />{error ? "Verbindung unterbrochen" : "Live"}</span></span>}
+        value={data?.stats.callsToday ?? "–"}
+        valueLabel="Anrufe heute"
+        stats={[
+          { label: "Offene Vorgänge", value: data?.stats.pendingCount ?? "–" },
+          { label: "Notfälle offen", value: data?.stats.escalatedOpen ?? "–" },
+        ]}
+        action={<button className="btn-primary" onClick={() => setSimulate(true)}><Plus className="h-4 w-4" />Anruf erfassen</button>}
+      />
+
+      <div className="xl:hidden"><UsageHero error={!!error} /></div>
+
+      {data && <WeekChart week={data.week} />}
+
+      <KpiCards data={data} />
 
       <div className="flex flex-wrap items-center gap-2">
         <Integration label="Rufnummer" ok={i?.phone} />
         <Integration label="KI-Agent" ok={i?.voice} ai />
         <Integration label="Outlook" ok={i?.outlook} optional />
         <Integration label="E-Mail" ok={i?.email} />
-        <button className="btn-primary ml-auto" onClick={() => setSimulate(true)}><Plus className="h-4 w-4" />Anruf erfassen</button>
       </div>
 
-      <KpiCards data={data} />
-
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
         <TicketFeed
           tickets={data?.tickets ?? null}
           status={status}
@@ -61,9 +77,8 @@ export function Hub() {
           selectedId={open}
           now={now}
         />
-        <div className="space-y-5">
+        <div className="grid content-start gap-5 md:grid-cols-2 2xl:grid-cols-1">
           <RoutingSimulator />
-          {data && <WeekChart week={data.week} />}
           {data && <TeamLoad employees={data.employees} />}
         </div>
       </div>

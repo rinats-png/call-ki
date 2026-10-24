@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, X, Loader2, Copy, ArrowRight } from "lucide-react";
 import { usePoll } from "@/lib/use-poll";
 import { cn, eur, TENANT_STATUS_LABEL, TENANT_STATUS_STYLE } from "@/lib/ui";
 import { Panel, Skeleton } from "@/components/hub/Primitives";
+import { PageHero } from "@/components/PageHero";
 import { apiFetch } from "@/components/session";
 
 type TenantRow = {
@@ -14,7 +15,7 @@ type TenantRow = {
   _count: { users: number; employees: number; customers: number };
   usage: { calls: number; minutes: number; tickets: number };
 };
-type Totals = { totals: { netCents: number; costCents: number; marginCents: number; minutes: number; calls: number }; rows: { usage: { minutes: number }; usagePercent: number | null }[] };
+type Totals = { totals: { netCents: number; costCents: number; marginCents: number; minutes: number; calls: number }; rows: { tenantId: string; tenantName: string; plan: { name: string; includedMinutes: number }; usage: { minutes: number }; usagePercent: number | null }[] };
 type Overview = { templates: { key: string; label: string }[] };
 
 export default function AdminPage() {
@@ -22,33 +23,46 @@ export default function AdminPage() {
   const { data: bill } = usePoll<Totals>("/api/admin/billing", 60_000);
   const { data: ov } = usePoll<Overview>("/api/admin/overview", 0);
   const [create, setCreate] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get("neu") === "1") setCreate(true);
+  }, []);
   const label = (k: string) => ov?.templates.find((t) => t.key === k)?.label ?? k;
   const totals = data?.reduce((a, t) => ({ minutes: a.minutes + t.usage.minutes, calls: a.calls + t.usage.calls }), { minutes: 0, calls: 0 });
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-5">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-zinc-50">Leitstand</h1>
-          <p className="text-sm text-zinc-500">{data ? `${data.length} Kunden · ${totals?.calls ?? 0} Anrufe · ${totals?.minutes ?? 0} Minuten diesen Monat` : "Lade…"}</p>
+      <PageHero
+        title="Leitstand"
+        eyebrow={data ? `${data.length} Kunden · ${totals?.calls ?? 0} Anrufe · ${totals?.minutes ?? 0} Minuten diesen Monat` : "Lade…"}
+        value={bill ? eur(bill.totals.netCents, { decimals: 0 }) : "–"}
+        valueLabel="Umsatz netto"
+        stats={[
+          { label: "Marge", value: bill ? `${bill.totals.netCents > 0 ? Math.round((bill.totals.marginCents / bill.totals.netCents) * 100) : 0} %` : "–" },
+          { label: "Minuten", value: bill?.totals.minutes ?? "–" },
+          { label: "Über Kontingent", value: bill?.rows.filter((r) => (r.usagePercent ?? 0) > 100).length ?? "–" },
+        ]}
+        action={
+          <>
+            <button className="btn-ghost" title="Test-Kunde mit Beispieldaten (Anrufe, Vorgänge, Verbrauch)" onClick={async () => { const r = await apiFetch<{ id: string }>("/api/admin/demo", { method: "POST" }); location.href = `/admin/tenants/${r.id}`; }}>Test-Kunde</button>
+            <button className="btn-primary" onClick={() => setCreate(true)}><Plus className="h-4 w-4" />Neuer Kunde</button>
+          </>
+        }
+      />
+      {bill && bill.rows.length > 0 && (
+        <div className="grid gap-3 md:grid-cols-3">
+          {[...bill.rows].sort((x, y) => (y.usagePercent ?? -1) - (x.usagePercent ?? -1)).slice(0, 3).map((r) => {
+            const p = r.usagePercent ?? 0;
+            return (
+              <Link key={r.tenantId} href={`/admin/tenants/${r.tenantId}`} className="glass block p-4 transition hover:brightness-110">
+                <div className="flex items-center justify-between gap-2"><span className="truncate text-sm font-bold text-zinc-100">{r.tenantName}</span><span className={cn("chip border-transparent", p > 100 ? "bg-rose-400/15 text-rose-400" : p >= 85 ? "bg-amber-400/15 text-amber-300" : "bg-cyan-400/15 text-cyan-300")}>{r.usagePercent == null ? "ohne Limit" : `${p} %`}</span></div>
+                <div className="mt-1 text-2xl font-extrabold tabular-nums text-zinc-50">{Math.round(r.usage.minutes)}<span className="text-xs font-medium text-zinc-500"> / {r.plan.includedMinutes || "–"} Min.</span></div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className={cn("h-full rounded-full", p > 100 ? "bg-rose-400" : p >= 85 ? "bg-amber-400" : "bg-cyan-400 glow-accent")} style={{ width: `${Math.min(100, p)}%` }} /></div>
+                <div className="mt-1.5 text-[11px] text-zinc-500">Paket {r.plan.name}</div>
+              </Link>
+            );
+          })}
         </div>
-        <div className="flex gap-2">
-          <button className="btn-ghost" title="Test-Kunde mit Beispieldaten (Anrufe, Vorgänge, Verbrauch)" onClick={async () => { const r = await apiFetch<{ id: string }>("/api/admin/demo", { method: "POST" }); location.href = `/admin/tenants/${r.id}`; }}>Test-Kunden anlegen</button>
-          <button className="btn-primary" onClick={() => setCreate(true)}><Plus className="h-4 w-4" />Neuer Kunde</button>
-        </div>
-      </header>
-      <section className="hero grid gap-4 p-5 md:grid-cols-[1fr_1.3fr] md:items-center md:px-8 md:py-6">
-        <div>
-          <div className="text-sm opacity-90">Umsatz netto · laufender Monat</div>
-          <div className="text-5xl font-extrabold leading-tight tracking-tight tabular-nums">{bill ? eur(bill.totals.netCents, { decimals: 0 }) : "–"}</div>
-          <div className="text-sm opacity-95">{bill ? `Kosten ${eur(bill.totals.costCents, { decimals: 0 })} · Marge ${bill.totals.netCents > 0 ? Math.round((bill.totals.marginCents / bill.totals.netCents) * 100) : 0} %` : ""}</div>
-        </div>
-        <div className="grid grid-cols-3 gap-3 text-center">
-          {[["Minuten", bill?.totals.minutes], ["Anrufe", bill?.totals.calls], ["Über Kontingent", bill?.rows.filter((r) => (r.usagePercent ?? 0) > 100).length]].map(([l, v]) => (
-            <div key={String(l)} className="rounded-2xl bg-white/15 px-3 py-3"><div className="text-3xl font-extrabold tabular-nums">{v ?? "–"}</div><div className="text-xs opacity-90">{l}</div></div>
-          ))}
-        </div>
-      </section>
+      )}
       <Panel>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[820px] text-left text-sm">

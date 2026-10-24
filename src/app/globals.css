@@ -3,9 +3,9 @@
 @tailwind utilities;
 
 /*
- * Farbkonzept „Mint auf Glas“ (Design 17): ruhig, klar, warm.
- *  Hell:   mint-graue Fläche, weiße Glaskarten, tiefes Teal (#0f766e) für Hero und Buttons.
- *  Dunkel: tiefes Petrol (#13262a), Glaskarten, Türkis (#2dd4bf) als Akzent.
+ * „Glas“ (Entwurf G01–G13): Mint-Farbwelt, schwebendes Glasfenster über einer weichen Licht-Szene.
+ *  Dunkel: Petrol-Szene mit Mint-Leuchten, Glasflächen mit feinen hellen Kanten, Türkis (#2dd4bf) als Akzent.
+ *  Hell:   mint-graue Szene mit warmem Hauch, milchiges Glas, tiefes Teal (#0f766e) als Akzent.
  * Werte sind RGB-Tripel, damit Tailwind-Alpha (bg-zinc-900/80) funktioniert.
  * Tailwind-Namen bleiben (zinc = Neutral, cyan = Akzent, emerald = gut/live, amber = Warnung/Notfall, rose = Fehler).
  */
@@ -14,32 +14,38 @@
   --font-sans: "Figtree Variable", "Figtree", "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
 
-  --page: 234 241 238;          /* #eaf1ee */
-  --blob-1: 201 228 221;        /* #c9e4dd Mint */
-  --blob-2: 240 230 216;        /* #f0e6d8 warmer Hauch */
-  --blob-alpha: 0.85;
-  --scrim: 22 48 44;
-  --glass: 255 255 255;
-  --glass-alpha: 0.76;
-  --glass-border: 255 255 255;
-  --glass-border-alpha: 0.95;
-  --header: 234 241 238;
+  --page: 223 234 230;          /* #dfeae6 */
+  --scene: radial-gradient(60% 50% at 12% 18%, rgb(45 212 191 / 0.30), transparent 70%),
+           radial-gradient(50% 45% at 92% 88%, rgb(240 196 150 / 0.50), transparent 70%),
+           radial-gradient(70% 60% at 50% 118%, rgb(15 118 110 / 0.22), transparent 70%),
+           linear-gradient(160deg, #edf5f2, #d9e6e2);
+  --scrim: 19 48 43;
+  --win: 255 255 255;  --win-alpha: 0.48;      /* das große Glasfenster */
+  --glass: 255 255 255; --glass-alpha: 0.62;   /* Karten im Fenster */
+  --glass-border: 255 255 255; --glass-border-alpha: 0.9;
+  --field: 15 60 55; --field-alpha: 0.07;      /* Eingabefelder, Spuren */
+  --hl: 255 255 255;  --hl-alpha: 0.95;        /* Glanzkante oben */
+  --glow-1: 45 212 191; --glow-1-alpha: 0.32;  /* Leuchten unten im Fenster */
+  --glow-2: 240 190 130; --glow-2-alpha: 0.40;
+  --acg: 13 148 136; --acg-alpha: 0.32;        /* Leuchten von Akzent-Elementen */
+  --header: 223 234 230;
   --header-alpha: 0;
-  --hairline: 22 48 44;
+  --hairline: 19 48 43;
   --hairline-alpha: 0.1;
   --on-accent: 255 255 255;
   --accent-hover: 13 100 93;
-  --shadow-card: 0 1px 2px rgb(22 48 44 / 0.04), 0 10px 30px -18px rgb(22 48 44 / 0.18);
-  --hero-from: 15 118 110;      /* #0f766e */
-  --hero-to: 19 130 122;        /* #13827a */
+  --shadow-card: inset 0 1px 0 rgb(var(--hl) / var(--hl-alpha)), 0 8px 22px -14px rgb(15 60 55 / 0.28);
+  --shadow-win: 0 30px 80px -30px rgb(15 60 55 / 0.35), inset 0 1px 0 rgb(var(--hl) / var(--hl-alpha));
+  --hero-from: 19 135 126;      /* #13877e – leuchtende Karten */
+  --hero-to: 11 79 74;          /* #0b4f4a */
   --mark-from: 15 118 110;
-  --mark-to: 19 130 122;
+  --mark-to: 11 79 74;
   --mark-ring: 15 118 110;
 
   /* Neutrals: 50 = stärkster Text … 950 = Einlage-Fläche */
-  --z-50: 22 48 44;   --z-100: 28 58 53;   --z-200: 36 68 63;   --z-300: 52 84 79;
-  --z-400: 76 102 97; --z-500: 88 114 109; --z-600: 140 163 158; --z-700: 196 214 208;
-  --z-800: 212 227 222; --z-900: 255 255 255; --z-950: 227 238 234;
+  --z-50: 19 48 43;   --z-100: 26 58 52;   --z-200: 34 68 62;   --z-300: 52 84 78;
+  --z-400: 79 106 101; --z-500: 88 114 109; --z-600: 140 163 158; --z-700: 196 214 208;
+  --z-800: 212 227 222; --z-900: 255 255 255; --z-950: 232 240 237;
   /* Akzent (Teal) */
   --a-50: 10 60 56; --a-200: 15 90 84; --a-300: 15 107 99; --a-400: 13 148 136; --a-500: 15 118 110;
   /* gut / live */
@@ -52,30 +58,36 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --page: 19 38 42;             /* #13262a */
-  --blob-1: 31 74 75;           /* #1f4a4b */
-  --blob-2: 58 49 40;           /* #3a3128 */
-  --blob-alpha: 0.7;
+  --page: 11 26 29;             /* #0b1a1d */
+  --scene: radial-gradient(60% 50% at 12% 18%, rgb(45 212 191 / 0.20), transparent 70%),
+           radial-gradient(50% 45% at 92% 88%, rgb(232 180 120 / 0.16), transparent 70%),
+           radial-gradient(70% 60% at 50% 118%, rgb(15 118 110 / 0.55), transparent 70%),
+           linear-gradient(160deg, #10262a, #081416);
   --scrim: 2 10 10;
-  --glass: 30 52 57;
-  --glass-alpha: 0.74;
-  --glass-border: 255 255 255;
-  --glass-border-alpha: 0.08;
-  --header: 19 38 42;
+  --win: 16 34 38;  --win-alpha: 0.56;
+  --glass: 255 255 255; --glass-alpha: 0.045;
+  --glass-border: 255 255 255; --glass-border-alpha: 0.09;
+  --field: 255 255 255; --field-alpha: 0.07;
+  --hl: 255 255 255; --hl-alpha: 0.06;
+  --glow-1: 45 212 191; --glow-1-alpha: 0.30;
+  --glow-2: 232 180 120; --glow-2-alpha: 0.14;
+  --acg: 45 212 191; --acg-alpha: 0.45;
+  --header: 11 26 29;
   --header-alpha: 0;
   --hairline: 255 255 255;
   --hairline-alpha: 0.09;
   --on-accent: 4 35 30;
   --accent-hover: 94 234 212;
-  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.1), 0 14px 34px -20px rgb(0 0 0 / 0.5);
-  --hero-from: 15 118 110;
-  --hero-to: 17 94 89;
+  --shadow-card: inset 0 1px 0 rgb(var(--hl) / var(--hl-alpha));
+  --shadow-win: 0 30px 80px -30px rgb(0 0 0 / 0.6), inset 0 1px 0 rgb(var(--hl) / var(--hl-alpha));
+  --hero-from: 19 135 126;
+  --hero-to: 11 79 74;
   --mark-from: 15 118 110;
-  --mark-to: 17 94 89;
+  --mark-to: 11 79 74;
   --mark-ring: 45 212 191;
 
-  --z-50: 227 242 240; --z-100: 214 232 229; --z-200: 195 216 213; --z-300: 175 198 195;
-  --z-400: 164 190 187; --z-500: 138 165 162; --z-600: 100 128 125; --z-700: 56 84 88;
+  --z-50: 230 244 241; --z-100: 214 232 229; --z-200: 195 216 213; --z-300: 175 198 195;
+  --z-400: 148 177 173; --z-500: 133 160 157; --z-600: 100 128 125; --z-700: 56 84 88;
   --z-800: 43 69 73;   --z-900: 30 52 57;    --z-950: 19 38 42;
   --a-50: 220 250 246; --a-200: 160 240 228; --a-300: 126 232 216; --a-400: 45 212 191; --a-500: 45 212 191;
   --g-200: 190 240 215; --g-300: 140 224 182; --g-400: 95 208 154; --g-500: 95 208 154;
@@ -86,11 +98,10 @@
 html, body { background: rgb(var(--page)); color: rgb(var(--z-200)); }
 
 body {
-  background-image:
-    radial-gradient(ellipse 60rem 40rem at -8% -12%, rgb(var(--blob-1) / var(--blob-alpha)), transparent 70%),
-    radial-gradient(ellipse 52rem 36rem at 108% 108%, rgb(var(--blob-2) / var(--blob-alpha)), transparent 70%);
+  background-image: var(--scene);
   background-repeat: no-repeat;
   background-attachment: fixed;
+  background-size: cover;
   font-feature-settings: "tnum";
   transition: background-color 0.2s ease, color 0.2s ease;
 }
@@ -104,30 +115,39 @@ body {
 }
 
 @layer components {
-  /* Flächen: Glaskarte (Radius 24 px) und Einlage */
-  .glass { @apply rounded-3xl border backdrop-blur-xl; background: rgb(var(--glass) / var(--glass-alpha)); border-color: rgb(var(--glass-border) / var(--glass-border-alpha)); box-shadow: var(--shadow-card); }
-  .glass-soft { @apply rounded-2xl bg-zinc-950/80; }
-  /* Hero-Fläche: ruhiger Teal-Verlauf, weißer Text */
-  .hero { @apply rounded-[28px] text-white; background: linear-gradient(120deg, rgb(var(--hero-from)), rgb(var(--hero-to))); box-shadow: var(--shadow-card); }
+  /* Das große schwebende Glasfenster (App-Rahmen) */
+  .window { @apply relative rounded-[28px] border backdrop-blur-2xl; background: rgb(var(--win) / var(--win-alpha)); border-color: rgb(var(--glass-border) / var(--glass-border-alpha)); box-shadow: var(--shadow-win); }
+  .window-glow { position: absolute; pointer-events: none; border-radius: 9999px; }
+  /* Karten im Fenster (Radius 20 px, Glanzkante) und Einlagen */
+  .glass { @apply rounded-[20px] border backdrop-blur-xl; background: rgb(var(--glass) / var(--glass-alpha)); border-color: rgb(var(--glass-border) / var(--glass-border-alpha)); box-shadow: var(--shadow-card); }
+  .glass-soft { @apply rounded-2xl border; background: rgb(var(--glass) / var(--glass-alpha)); border-color: rgb(var(--glass-border) / var(--glass-border-alpha)); }
+  /* Leuchtende Teal-Karte (Kontingent, Umsatz, Anmeldung) */
+  .hero { @apply relative overflow-hidden rounded-[20px] text-white; background: radial-gradient(110% 80% at 0% 0%, rgb(255 255 255 / 0.26), transparent 50%), radial-gradient(80% 90% at 100% 100%, rgb(240 196 138 / 0.5), transparent 60%), linear-gradient(135deg, rgb(var(--hero-from)), rgb(var(--hero-to)) 72%); box-shadow: 0 18px 40px -18px rgb(15 118 110 / 0.8), inset 0 1px 0 rgb(255 255 255 / 0.3); }
   .label { @apply text-[11px] font-semibold uppercase tracking-[0.1em] text-zinc-500; }
-  .input { @apply w-full rounded-xl border border-zinc-700 bg-zinc-950/70 px-3.5 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500/80 outline-none transition focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-400/20; }
+  .input { @apply w-full rounded-xl border px-3.5 py-2.5 text-sm text-zinc-100 placeholder:text-zinc-500/80 outline-none transition focus:border-cyan-400/70 focus:ring-2 focus:ring-cyan-400/20; background: rgb(var(--field) / var(--field-alpha)); border-color: rgb(var(--glass-border) / var(--glass-border-alpha)); }
   .btn { @apply inline-flex items-center justify-center gap-2 rounded-full border border-transparent px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50; }
-  .btn-primary { @apply btn bg-cyan-500; color: rgb(var(--on-accent)); }
+  .btn-primary { @apply btn bg-cyan-500; color: rgb(var(--on-accent)); box-shadow: 0 0 18px rgb(var(--acg) / var(--acg-alpha)); }
   .btn-primary:not(:disabled):hover { background-color: rgb(var(--accent-hover)); }
-  .btn-ghost { @apply btn border-zinc-700/80 bg-zinc-900/60 font-semibold text-zinc-200 hover:bg-zinc-950 hover:text-zinc-50; }
-  .chip { @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold; }
+  .btn-ghost { @apply btn font-semibold text-zinc-200 hover:text-zinc-50; background: rgb(var(--glass) / var(--glass-alpha)); border-color: rgb(var(--glass-border) / var(--glass-border-alpha)); }
+  .btn-ghost:not(:disabled):hover { background: rgb(var(--field) / calc(var(--field-alpha) * 2)); }
+  .chip { @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-semibold; }
+  .glow-accent { box-shadow: 0 0 18px rgb(var(--acg) / var(--acg-alpha)); }
 
-  /* Kopfleiste (Kunde) */
-  .app-header { background: rgb(var(--header) / var(--header-alpha)); @apply backdrop-blur-xl; }
-  .brand-mark { @apply grid place-items-center overflow-hidden rounded-xl text-white; background: linear-gradient(145deg, rgb(var(--mark-from)), rgb(var(--mark-to))); }
-  .header-btn { @apply inline-flex h-10 items-center justify-center gap-2 rounded-full border border-zinc-700/70 bg-zinc-900/60 px-3 text-xs font-semibold text-zinc-300 transition hover:bg-zinc-950 hover:text-zinc-50; }
+  /* Kennzahlen als Pille neben der Überschrift */
+  .stat-pill { @apply flex flex-wrap items-center gap-0.5 rounded-[22px] border p-1; background: rgb(var(--glass) / var(--glass-alpha)); border-color: rgb(var(--glass-border) / var(--glass-border-alpha)); }
+
+  .app-header { background: rgb(var(--header) / var(--header-alpha)); }
+  .brand-mark { @apply grid place-items-center overflow-hidden rounded-xl text-white; background: linear-gradient(145deg, rgb(var(--mark-from)), rgb(var(--mark-to))); box-shadow: 0 0 18px rgb(var(--acg) / var(--acg-alpha)); }
+  .header-btn { @apply inline-flex h-10 items-center justify-center gap-2 rounded-full border px-3 text-xs font-semibold text-zinc-300 transition hover:text-zinc-50; background: rgb(var(--glass) / var(--glass-alpha)); border-color: rgb(var(--glass-border) / var(--glass-border-alpha)); }
   .divider-v { @apply h-6 w-px bg-zinc-700/70; }
-  /* Navigation: Pillen */
+  /* Navigation: Pillen (Tabs, Dock) */
   .nav-item { @apply flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-semibold text-zinc-400 transition hover:text-zinc-50; }
-  .nav-item-active { background: rgb(var(--z-50)); color: rgb(var(--page)) !important; }
-  .dock { @apply fixed bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 gap-1 overflow-x-auto rounded-full border p-1.5 backdrop-blur-xl; background: rgb(var(--glass) / 0.82); border-color: rgb(var(--glass-border) / var(--glass-border-alpha)); box-shadow: 0 10px 30px rgb(0 0 0 / 0.14); }
-  .rail-item { @apply flex h-10 items-center gap-3 rounded-2xl px-3 text-sm font-semibold text-zinc-400 transition hover:text-zinc-50; }
-  .rail-item-active { background: rgb(var(--z-50)); color: rgb(var(--page)) !important; }
+  .nav-item-active { @apply bg-cyan-500; color: rgb(var(--on-accent)) !important; box-shadow: 0 0 14px rgb(var(--acg) / var(--acg-alpha)); }
+  .dock { @apply fixed bottom-4 left-1/2 z-40 flex max-w-[calc(100vw-1.5rem)] -translate-x-1/2 gap-1 overflow-x-auto rounded-full border p-1.5 backdrop-blur-xl; background: rgb(var(--win) / 0.85); border-color: rgb(var(--glass-border) / var(--glass-border-alpha)); box-shadow: 0 10px 30px rgb(0 0 0 / 0.2); }
+  /* Schwebende Icon-Leiste links */
+  .rail { @apply flex flex-col items-center gap-2 rounded-full border px-[7px] py-2.5 backdrop-blur-xl; background: rgb(var(--glass) / calc(var(--glass-alpha) + 0.02)); border-color: rgb(var(--glass-border) / var(--glass-border-alpha)); box-shadow: 0 10px 30px rgb(0 0 0 / 0.18); }
+  .rail-item { @apply grid h-10 w-10 place-items-center rounded-full text-zinc-400 transition hover:text-zinc-50; }
+  .rail-item-active { @apply bg-cyan-500; color: rgb(var(--on-accent)) !important; box-shadow: 0 0 22px rgb(var(--acg) / var(--acg-alpha)); }
   .dot-grid { background-image: radial-gradient(rgb(var(--a-400) / 0.16) 0.7px, transparent 0.7px); background-size: 14px 14px; }
 }
 

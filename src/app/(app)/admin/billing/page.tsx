@@ -56,7 +56,7 @@ export default function Page() {
         ]}
         action={
           <div className="flex flex-wrap gap-2">
-            <select className="rounded-full border-0 bg-white/15 px-4 py-2 text-sm font-semibold text-white outline-none [&>option]:text-zinc-900" value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Monat">
+            <select className="input w-auto rounded-full py-2 font-semibold" value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Monat">
               {months.map((m) => <option key={m} value={m}>{new Date(`${m}-01T12:00:00`).toLocaleDateString("de-DE", { month: "long", year: "numeric" })}</option>)}
             </select>
             <button className={heroBtn} onClick={() => apiDownload(`/api/admin/billing?month=${month}&format=csv`, `abrechnung-${month}.csv`)}><Download className="h-4 w-4" />CSV</button>

@@ -14,8 +14,9 @@ const WAVE = [4, 6, 5, 8, 7, 3, 2, 7, 9, 8, 7, 10, 4, 3, 8, 11, 10, 9, 10, 5, 4,
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col">
-      <div className="grid flex-1 gap-4 p-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:p-5">
+    <div className="flex min-h-screen flex-col p-2 sm:p-4 lg:p-5">
+      <div className="window grid flex-1 gap-4 overflow-hidden p-3 sm:p-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+        <span aria-hidden className="window-glow bottom-[-35%] left-[45%] h-[70vh] w-[60%]" style={{ background: "radial-gradient(closest-side, rgb(var(--glow-1) / var(--glow-1-alpha)), transparent)" }} />
         <aside className="hero relative hidden flex-col justify-between overflow-hidden p-10 lg:flex xl:p-12">
           <div className="flex items-center gap-3">
             <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/20"><Zap className="h-5 w-5" /></span>
@@ -39,7 +40,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           </div>
         </aside>
 
-        <div className="flex min-w-0 flex-col">
+        <div className="relative flex min-w-0 flex-col p-1 sm:p-2">
           <header className="flex items-center justify-between gap-3">
             <span className="flex items-center gap-3 lg:invisible">
               <span className="brand-mark h-10 w-10"><Zap className="h-[18px] w-[18px]" /></span>

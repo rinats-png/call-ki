@@ -26,15 +26,15 @@ function AccountInner() {
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-5">
-      <section className="hero flex flex-wrap items-center gap-5 p-5 md:px-8 md:py-6">
-        <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-white/20 text-xl font-extrabold">{initials || "–"}</span>
+      <section className="glass flex flex-wrap items-center gap-5 p-5 md:px-7 md:py-6">
+        <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-gradient-to-br from-cyan-400 to-cyan-500 text-xl font-extrabold text-white glow-accent">{initials || "–"}</span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm opacity-90">Mein Konto</div>
-          <h1 className="truncate text-2xl font-extrabold md:text-3xl">{me?.user.name ?? me?.user.email ?? "…"}</h1>
-          <div className="truncate text-sm opacity-90">{me ? `${me.user.email} · ${USER_ROLE_LABEL[me.user.role as UserRole] ?? me.user.role}` : ""}</div>
+          <div className="text-sm text-zinc-500">Mein Konto</div>
+          <h1 className="truncate text-2xl font-extrabold text-zinc-50 md:text-3xl">{me?.user.name ?? me?.user.email ?? "…"}</h1>
+          <div className="truncate text-sm text-zinc-500">{me ? `${me.user.email} · ${USER_ROLE_LABEL[me.user.role as UserRole] ?? me.user.role}` : ""}</div>
         </div>
         {me && (
-          <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-semibold">
+          <span className={cn("chip border-transparent px-3 py-1.5 text-xs", me.mfa.enabled ? "bg-emerald-400/15 text-emerald-300" : "bg-amber-400/15 text-amber-300")}>
             {me.mfa.enabled ? <ShieldCheck className="h-4 w-4" /> : <ShieldAlert className="h-4 w-4" />}
             {me.mfa.enabled ? "Zwei-Faktor aktiv" : "Zwei-Faktor aus"}
           </span>

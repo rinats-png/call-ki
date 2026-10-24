@@ -1,39 +1,37 @@
-/** Ruhiges Teal-Band oben auf einer Seite: Titel, eine große Kennzahl und bis zu drei Nebenwerte. */
+/**
+ * Seitenkopf im Glas-Stil: Titel links, Kennzahlen als Glas-Pille rechts (wie im Entwurf G01–G13).
+ * „value“ ist die wichtigste Kennzahl und steht als erste in der Pille.
+ */
 export function PageHero({ eyebrow, title, value, valueLabel, stats, action }: {
-  eyebrow?: string; title: string; value: React.ReactNode; valueLabel?: string;
+  eyebrow?: string; title: React.ReactNode; value?: React.ReactNode; valueLabel?: string;
   stats?: { label: string; value: React.ReactNode }[]; action?: React.ReactNode;
 }) {
+  const pills = [...(value !== undefined ? [{ label: valueLabel ?? "", value }] : []), ...(stats ?? [])];
   return (
-    <section className="hero grid gap-5 p-5 md:px-8 md:py-6 lg:grid-cols-[1fr_1.3fr] lg:items-center">
+    <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
       <div className="min-w-0">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            {eyebrow && <div className="text-sm opacity-90">{eyebrow}</div>}
-            <h1 className="text-2xl font-extrabold md:text-3xl">{title}</h1>
-          </div>
-          {action && <div className="lg:hidden">{action}</div>}
-        </div>
-        <div className="mt-3 flex flex-wrap items-baseline gap-x-3">
-          <span className="text-5xl font-extrabold leading-none tracking-tight tabular-nums">{value}</span>
-          {valueLabel && <span className="text-base opacity-90">{valueLabel}</span>}
-        </div>
+        <h1 className="text-2xl font-extrabold tracking-tight text-zinc-50 md:text-[26px]">{title}</h1>
+        {eyebrow && <p className="text-sm text-zinc-500">{eyebrow}</p>}
       </div>
-      <div className="flex flex-col gap-3">
-        {action && <div className="hidden justify-end lg:flex">{action}</div>}
-        {stats && stats.length > 0 && (
-          <div className="grid grid-cols-3 gap-3 text-center">
-            {stats.map((s) => (
-              <div key={s.label} className="rounded-2xl bg-white/15 px-2 py-3">
-                <div className="text-2xl font-extrabold tabular-nums md:text-3xl">{s.value}</div>
-                <div className="text-xs opacity-90">{s.label}</div>
+      <div className="flex flex-wrap items-center gap-2">
+        {pills.length > 0 && (
+          <div className="stat-pill">
+            {pills.map((s, i) => (
+              <div key={s.label + i} className="flex items-center gap-2 rounded-full py-1 pl-1.5 pr-3.5">
+                <span className={i === 0 ? "h-2 w-2 rounded-full bg-cyan-400 glow-accent" : "h-2 w-2 rounded-full bg-zinc-600"} />
+                <span className="leading-tight">
+                  <span className="block whitespace-nowrap text-[10px] text-zinc-500">{s.label}</span>
+                  <b className="block whitespace-nowrap text-sm tabular-nums text-zinc-50">{s.value}</b>
+                </span>
               </div>
             ))}
           </div>
         )}
+        {action}
       </div>
-    </section>
+    </header>
   );
 }
 
-/** Heller Button auf dem Teal-Band */
-export const heroBtn = "inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-[rgb(var(--hero-from))] transition hover:bg-white/90";
+/** Hauptaktion im Seitenkopf */
+export const heroBtn = "btn-primary";
