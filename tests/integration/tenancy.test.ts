@@ -20,6 +20,7 @@ import { assertNumberSlot, assertUserSlot } from "@/lib/plan-limits";
 import { applyPlanToConfig } from "@/lib/voice/context";
 import { effectivePlan } from "@/lib/billing";
 import { runAppointmentReminders } from "@/lib/services/reminders";
+import { hitShared } from "@/lib/rate-limit";
 import { retryDueMessages, MAX_ATTEMPTS } from "@/lib/notify";
 import { resetEnvCache } from "@/lib/env";
 import { vi } from "vitest";
@@ -45,7 +46,7 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
   }
 
   beforeAll(async () => {
-    await prisma.$executeRawUnsafe('TRUNCATE "Tenant", "User", "Message", "SystemState", "Plan" CASCADE');
+    await prisma.$executeRawUnsafe('TRUNCATE "Tenant", "User", "Message", "SystemState", "Plan", "RateLimitHit" CASCADE');
     A = await mk("Alpha Schädlinge", "+493011111111", "pest_control");
     B = await mk("Beta Sanitär", "+493022222222", "trades");
   });
@@ -460,6 +461,21 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
     row = (await prisma.callTicket.findUnique({ where: { id: t.id } }))!;
     expect(row).toMatchObject({ status: "CLOSED", appointmentStart: null });
     expect(row.notes).toContain("abgesagt: Problem hat sich erledigt");
+  });
+
+  it("zählt sicherheitsrelevante Limits gemeinsam in der Datenbank", async () => {
+    const l = { limit: 3, windowMs: 60_000 };
+    const t0 = Math.floor(Date.now() / 60_000) * 60_000 + 1000;
+    expect(await hitShared("login:ip:203.0.113.7", l, t0)).toBe(0);
+    expect(await hitShared("login:ip:203.0.113.7", l, t0 + 1)).toBe(0);
+    expect(await hitShared("login:ip:203.0.113.7", l, t0 + 2)).toBe(0);
+    expect(await hitShared("login:ip:203.0.113.7", l, t0 + 3)).toBeGreaterThan(0);
+    expect(await hitShared("login:ip:203.0.113.8", l, t0 + 3)).toBe(0); // andere IP
+    // Schlüssel wird nicht im Klartext gespeichert
+    expect(await prisma.rateLimitHit.count({ where: { key: { contains: "203.0.113" } } })).toBe(0);
+    // nächstes Fenster: Vorfenster zählt anteilig weiter
+    expect(await hitShared("login:ip:203.0.113.7", l, t0 + 60_000)).toBeGreaterThan(0);
+    expect(await hitShared("login:ip:203.0.113.7", l, t0 + 119_000)).toBe(0);
   });
 
   it("löscht einen Mandanten nur nach Anbieter-Löschung (oder ausdrücklich erzwungen) und lässt andere unberührt", async () => {

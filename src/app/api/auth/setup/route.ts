@@ -5,7 +5,7 @@ import { env } from "@/lib/env";
 import { api, HttpError, readJson } from "@/lib/http";
 import { hashPassword } from "@/lib/auth/crypto";
 import { checkNewPassword } from "@/lib/auth/pwned";
-import { clientIp, enforce, LIMITS } from "@/lib/rate-limit";
+import { clientIp, enforceShared, LIMITS } from "@/lib/rate-limit";
 import { safeEqual } from "@/lib/security";
 import { createSession } from "@/lib/auth/session";
 import { audit } from "@/lib/audit";
@@ -26,7 +26,7 @@ const schema = z.object({
 });
 
 export const POST = api(async (req) => {
-  enforce(`setup:ip:${await clientIp(req)}`, LIMITS.setupPerIp);
+  await enforceShared(`setup:ip:${await clientIp(req)}`, LIMITS.setupPerIp);
   const data = schema.parse(await readJson(req));
   const expected = env().SETUP_TOKEN;
   if (!expected) throw new HttpError(503, "SETUP_TOKEN ist auf dem Server nicht gesetzt.");

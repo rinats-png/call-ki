@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { api, HttpError, readJson } from "@/lib/http";
 import { hashPassword } from "@/lib/auth/crypto";
 import { checkNewPassword } from "@/lib/auth/pwned";
-import { clientIp, enforce, LIMITS } from "@/lib/rate-limit";
+import { clientIp, enforceShared, LIMITS } from "@/lib/rate-limit";
 import { createSession } from "@/lib/auth/session";
 import { consumeAuthToken } from "@/lib/services/users";
 import { audit } from "@/lib/audit";
@@ -15,7 +15,7 @@ const schema = z.object({ token: z.string().min(10), password: z.string(), name:
 
 /** Einladung annehmen bzw. Passwort zurücksetzen – setzt Passwort, beendet alte Sitzungen, meldet an. */
 export const POST = api(async (req) => {
-  enforce(`resetuse:ip:${await clientIp(req)}`, LIMITS.resetPerIp);
+  await enforceShared(`resetuse:ip:${await clientIp(req)}`, LIMITS.resetPerIp);
   const data = schema.parse(await readJson(req));
   const problem = await checkNewPassword(data.password);
   if (problem) throw new HttpError(400, problem);

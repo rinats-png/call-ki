@@ -89,6 +89,6 @@ Nur serverseitig in `.env` (nicht im Repository, `.env.example` mit Platzhaltern
 | ID | Risiko | Begründung | Neu prüfen |
 |---|---|---|---|
 | E-001 | CSP erlaubt `'unsafe-inline'` für Skripte und Styles | Next.js-Inline-Bootstrap und Theme-Skript; keine Ausgabe von Nutzer-HTML. Umstellung auf Nonces geplant. Bei Stufe 2 zulässig. | vor Launch |
-| E-002 | Rate-Limits im Prozessspeicher | Ein Server, eine Instanz; Neustart setzt Zähler zurück (Kontosperre bleibt in der DB) | bei Skalierung |
+| E-002 | Rate-Limits für Webhooks und API-Aufrufe je Nutzer im Prozessspeicher (sicherheitsrelevante Limits – Anmeldung, 2FA, Passwort-Reset, Re-Auth, Einrichtung, Anrufer – seit 2026-10-24 gemeinsam in PostgreSQL) | Hohe Frequenz, kein Sicherheitsgewinn durch Teilen; Neustart setzt nur diese Zähler zurück | bei Skalierung |
 | E-003 | `npm audit`: hoch bei prisma 6 (CLI) und next 15 (postcss) | Behebung nur per Major-Update (Prisma 7, Next 16); CI blockiert ab „critical“. Update als eigene Aufgabe | 2026-11-15 |
 | E-004 | Keine zweite Schutzschicht per Postgres-RLS | Mandantentrennung im Code + Integrationstest; RLS als Erweiterung | vor 10 Kunden |

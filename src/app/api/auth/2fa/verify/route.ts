@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { api, HttpError, readJson, unauthorized } from "@/lib/http";
 import { createSession, destroySession, getPendingMfaSession } from "@/lib/auth/session";
 import { verifySecondFactor } from "@/lib/auth/mfa";
-import { clientIp, enforce, LIMITS } from "@/lib/rate-limit";
+import { clientIp, enforceShared, LIMITS } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -14,9 +14,9 @@ export const POST = api(async (req) => {
   const pending = await getPendingMfaSession();
   if (!pending) throw unauthorized();
   const ip = await clientIp(req);
-  enforce(`mfa:ip:${ip}`, LIMITS.mfaPerIp);
+  await enforceShared(`mfa:ip:${ip}`, LIMITS.mfaPerIp);
   try {
-    enforce(`mfa:session:${pending.id}`, LIMITS.mfaPerSession);
+    await enforceShared(`mfa:session:${pending.id}`, LIMITS.mfaPerSession);
   } catch (e) {
     await destroySession(); // zu viele Versuche → zurück zum Passwort
     throw e;

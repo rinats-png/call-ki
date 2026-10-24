@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { api, HttpError, readJson } from "@/lib/http";
 import { verifyPassword } from "@/lib/auth/crypto";
 import { createSession } from "@/lib/auth/session";
-import { clientIp, enforce, LIMITS } from "@/lib/rate-limit";
+import { clientIp, enforceShared, LIMITS } from "@/lib/rate-limit";
 import { audit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ const DUMMY_HASH = "scrypt$131072$8$1$AAAAAAAAAAAAAAAAAAAAAA==$AAAA";
  */
 export const POST = api(async (req) => {
   const ip = await clientIp(req);
-  enforce(`login:ip:${ip}`, LIMITS.loginPerIp, "Zu viele Anmeldeversuche von dieser Adresse. Bitte später erneut versuchen.");
+  await enforceShared(`login:ip:${ip}`, LIMITS.loginPerIp, "Zu viele Anmeldeversuche von dieser Adresse. Bitte später erneut versuchen.");
   const { email, password } = schema.parse(await readJson(req));
   const user = await prisma.user.findUnique({ where: { email } });
 

@@ -326,3 +326,13 @@ model SystemState {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+/// Anfrage-Zähler für sicherheitsrelevante Limits (Anmeldung, 2FA, Passwort-Reset …), gemeinsam für alle Instanzen.
+model RateLimitHit {
+  key         String
+  windowStart DateTime
+  count       Int      @default(1)
+
+  @@id([key, windowStart])
+  @@index([windowStart])
+}

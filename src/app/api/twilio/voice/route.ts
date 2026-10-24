@@ -13,7 +13,7 @@ import { applyPlanToConfig, buildDynamicVariables, selectAgent } from "@/lib/voi
 import { effectivePlan, minuteGate } from "@/lib/billing";
 import { callAdmission } from "@/lib/cost-guard";
 import { tenantForCalledNumber, twilioParams } from "@/lib/voice/inbound";
-import { hit, LIMITS } from "@/lib/rate-limit";
+import { hitShared, LIMITS } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +49,7 @@ export async function POST(req: Request) {
 
   if (tenant.status === "PAUSED") return fallback("FALLBACK");
   // Spam-/Kostenschutz: derselbe Anrufer sehr oft hintereinander → keine KI-Minuten verbrauchen
-  if (from !== "anonymous" && hit(`calls:${number.e164}:${from}`, LIMITS.callsPerCaller) > 0) {
+  if (from !== "anonymous" && (await hitShared(`calls:${number.e164}:${from}`, LIMITS.callsPerCaller)) > 0) {
     logger.warn("twilio.caller_rate_limited", { tenantId: tenant.id, from: maskPhone(from) });
     return fallback("FALLBACK");
   }

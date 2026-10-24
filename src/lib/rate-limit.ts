@@ -1,11 +1,14 @@
+import { createHash } from "node:crypto";
 import { headers } from "next/headers";
+import { prisma } from "./db";
 import { HttpError } from "./http";
 import { logger } from "./logger";
 
 /**
- * Rate-Limiter mit gleitendem Fenster (security/standardwerte.md §6).
- * Speicher im Prozess – passend für den Betrieb als EINE Instanz (Docker auf dem VPS).
- * Für mehrere Instanzen den Store gegen Redis o. ä. tauschen (gleiche Schnittstelle).
+ * Rate-Limiter (security/standardwerte.md §6).
+ *  - hit/enforce: gleitendes Fenster im Prozessspeicher – für hohe Frequenz (Webhooks, API je Nutzer).
+ *  - hitShared/enforceShared: in PostgreSQL, gemeinsam für alle Instanzen und über Neustarts
+ *    hinweg – für sicherheitsrelevante Limits (Anmeldung, 2FA, Passwort-Reset, Re-Auth, Anrufer).
  */
 type Bucket = number[];
 const store = new Map<string, Bucket>();
@@ -43,6 +46,45 @@ export function enforce(key: string, l: Limit, message = "Zu viele Anfragen. Bit
 
 export function resetLimit(key: string) {
   store.delete(key);
+}
+
+/**
+ * Gemeinsamer Zähler in PostgreSQL. Feste Fenster, gewichtet mit dem Vorfenster (Näherung an
+ * ein gleitendes Fenster). Schlüssel werden gehasht gespeichert (keine IP-Adressen in der DB).
+ * Ist die Datenbank nicht erreichbar, greift der Speicher-Limiter – niemand wird ausgesperrt.
+ */
+export async function hitShared(key: string, { limit, windowMs }: Limit, now = Date.now()): Promise<number> {
+  const k = createHash("sha256").update(key).digest("hex").slice(0, 40);
+  const ws = Math.floor(now / windowMs) * windowMs;
+  try {
+    const rows = await prisma.$queryRaw<{ count: number }[]>`
+      INSERT INTO "RateLimitHit" ("key", "windowStart", "count") VALUES (${k}, ${new Date(ws)}, 1)
+      ON CONFLICT ("key", "windowStart") DO UPDATE SET "count" = "RateLimitHit"."count" + 1
+      RETURNING "count"`;
+    const current = Number(rows[0]?.count ?? 1);
+    const prev = await prisma.rateLimitHit.findUnique({ where: { key_windowStart: { key: k, windowStart: new Date(ws - windowMs) } }, select: { count: true } });
+    const weight = 1 - (now - ws) / windowMs;
+    const estimate = current - 1 + (prev?.count ?? 0) * weight; // Treffer vor diesem
+    if (estimate >= limit) return Math.max(1, Math.ceil((ws + windowMs - now) / 1000));
+    return 0;
+  } catch (err) {
+    logger.warn("rate_limit.shared_unavailable", { error: (err as Error).message });
+    return hit(key, { limit, windowMs }, now);
+  }
+}
+
+/** Wie hitShared(), wirft aber HTTP 429 mit Retry-After. */
+export async function enforceShared(key: string, l: Limit, message = "Zu viele Anfragen. Bitte versuchen Sie es später erneut.") {
+  const wait = await hitShared(key, l);
+  if (wait > 0) {
+    logger.warn("rate_limit.hit", { key: key.replace(/[^:]+$/, "…") });
+    throw new HttpError(429, message, { retryAfter: wait });
+  }
+}
+
+/** Alte Zähler entfernen (Löschfristen-Job). */
+export async function purgeRateLimitHits(now = Date.now()) {
+  return (await prisma.rateLimitHit.deleteMany({ where: { windowStart: { lt: new Date(now - 2 * 24 * 3600_000) } } })).count;
 }
 
 /** Client-IP: Caddy setzt X-Forwarded-For auf die echte Adresse (eingehende Werte werden verworfen). */
