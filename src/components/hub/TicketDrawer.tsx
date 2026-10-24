@@ -1,7 +1,9 @@
 "use client";
 
+import { WaveformPlayer } from "../WaveformPlayer";
+
 import { useCallback, useEffect, useState } from "react";
-import { X, Phone, MapPin, Mail, Building2, CalendarPlus, Loader2, Bot, User, Send, PlayCircle } from "lucide-react";
+import { X, Phone, MapPin, Mail, Building2, CalendarPlus, Loader2, Bot, User, Send } from "lucide-react";
 import type { CustomerType, EmployeeRole } from "@/lib/constants";
 import { cn, fmtDateTime, fmtDuration, MESSAGE_STATUS, PURPOSE_LABEL, STATUS_STYLE } from "@/lib/ui";
 import { apiFetch, useSession } from "../session";
@@ -183,10 +185,7 @@ export function TicketDrawer({ id, employees, onClose, onChanged }: { id: string
                 <h4 className="label mb-2">Anruf</h4>
                 <p className="mb-2 text-xs text-zinc-500">{fmtDateTime(t.call.startedAt)} · {fmtDuration(t.call.durationSec)}{t.call.endReason ? ` · ${t.call.endReason}` : ""}</p>
                 {t.call.recordingUrl && (
-                  <div className="mb-3 flex items-center gap-2">
-                    <PlayCircle className="h-4 w-4 shrink-0 text-zinc-500" />
-                    <audio controls preload="none" src={`/api/calls/${t.call.id}/recording`} className="h-9 w-full" />
-                  </div>
+                  <div className="mb-3"><WaveformPlayer src={`/api/calls/${t.call.id}/recording`} seed={t.call.id} durationSec={t.call.durationSec} /></div>
                 )}
               </section>
             )}

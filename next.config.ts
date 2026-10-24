@@ -12,7 +12,7 @@ const securityHeaders = [
       "script-src 'self' 'unsafe-inline'", // Next.js-Inline-Bootstrap + Theme-Skript
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
-      "media-src 'self' https:",
+      "media-src 'self' blob: https:", // blob: = Aufnahme, die der Wellenform-Player geladen hat
       "connect-src 'self'",
       "frame-ancestors 'none'",
       "base-uri 'self'",

@@ -7,6 +7,7 @@ import { cn, fmtDateTime, fmtDuration } from "@/lib/ui";
 import { PageHero } from "@/components/PageHero";
 import { LiveDot, Skeleton, UrgencyChip, StatusChip } from "@/components/hub/Primitives";
 import { Transcript } from "@/components/hub/TicketDrawer";
+import { WaveformPlayer } from "@/components/WaveformPlayer";
 
 type CallRow = {
   id: string; fromNumber: string; status: string; startedAt: string; durationSec: number | null; summary: string | null; endReason: string | null; recordingUrl: string | null;
@@ -139,7 +140,7 @@ function CallDrawer({ id, onClose }: { id: string; onClose: () => void }) {
         {data && (
           <div className="flex-1 space-y-5 overflow-y-auto p-5">
             {data.summary && <section><h4 className="label mb-2">Zusammenfassung</h4><p className="text-sm text-zinc-300">{data.summary}</p></section>}
-            {data.recordingUrl && <section><h4 className="label mb-2">Aufnahme</h4><audio controls preload="none" src={`/api/calls/${data.id}/recording`} className="w-full" /></section>}
+            {data.recordingUrl && <section><h4 className="label mb-2">Aufnahme</h4><WaveformPlayer src={`/api/calls/${data.id}/recording`} seed={data.id} durationSec={data.durationSec} /></section>}
             {data.tickets.length > 0 && (
               <section>
                 <h4 className="label mb-2">Vorgänge</h4>
