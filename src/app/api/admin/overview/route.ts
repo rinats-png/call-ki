@@ -5,6 +5,7 @@ import { requirePlatformAdmin } from "@/lib/auth/session";
 import { env, microsoftConfigured, retellConfigured, smsConfigured, smtpConfigured } from "@/lib/env";
 import { TEMPLATE_OPTIONS } from "@/lib/tenant/templates";
 import { webhookUrls } from "@/lib/platform/webhooks";
+import { demoAllowed } from "@/lib/services/demo";
 
 export const dynamic = "force-dynamic";
 
@@ -32,5 +33,6 @@ export const GET = api(async () => {
     failedMessages7d: failedMessages,
     webhooks: webhookUrls(),
     templates: TEMPLATE_OPTIONS,
+    demoAllowed: demoAllowed(),
   });
 });

@@ -90,6 +90,7 @@ const sipProvider = (id: string, name: string, tagline: string, website: string,
     zeroRetentionField(id, name),
   ],
   setup: [
+    "NICHT FREIGEGEBEN: Für SIP-Anbieter sind Ereignis- und Tool-Format noch nicht mit echten Anrufen geprüft, und die Plattform löscht Aufnahmen und Transkripte dort nicht automatisch. Nur nach eigenem Test (docs/testanrufe.md) und mit AVV einsetzen; Löschung beim Anbieter selbst einrichten.",
     `Konto bei ${name} anlegen und einen Agenten mit deutschem Sprachmodell und Stimme erstellen.`,
     "Als Systemprompt den Text aus voice-agent/system-prompt.md verwenden (Variablen wie {{company_name}} ggf. durch die Werte des Kunden ersetzen oder per SIP-Kopfzeile übernehmen).",
     "Funktionen (Tools) als HTTP-Aufrufe anlegen: URL = „Generische Tool-URL“ unten, Methode POST, Kopfzeile „x-tool-secret“ = „Webhook-Geheimnis SIP-Anbieter“ aus „Allgemein“. Jeder Aufruf muss die Anruf-Referenz aus der SIP-Kopfzeile X-Call-Ref als Feld call_ref mitschicken – ohne sie wird der Aufruf keinem Anruf zugeordnet.",
@@ -385,10 +386,10 @@ export const PROVIDERS: Provider[] = [
 ];
 
 for (const f of PROVIDERS.find((p) => p.id === "general")!.fields) {
-  if (f.key === "VOICE_PROVIDER") f.options = PROVIDERS.filter((p) => p.category === "voice").map((p) => ({ value: p.level === "sip" ? `sip:${p.id}` : p.id, label: p.name }));
+  if (f.key === "VOICE_PROVIDER") f.options = PROVIDERS.filter((p) => p.category === "voice").map((p) => ({ value: p.level === "sip" ? `sip:${p.id}` : p.id, label: p.level === "sip" ? `${p.name} (nicht freigegeben)` : p.name }));
 }
 
-export const VOICE_PROVIDER_OPTIONS = PROVIDERS.filter((p) => p.category === "voice").map((p) => ({ value: p.level === "sip" ? `sip:${p.id}` : p.id, label: p.name, level: p.level }));
+export const VOICE_PROVIDER_OPTIONS = PROVIDERS.filter((p) => p.category === "voice").map((p) => ({ value: p.level === "sip" ? `sip:${p.id}` : p.id, label: p.level === "sip" ? `${p.name} (nicht freigegeben)` : p.name, level: p.level }));
 
 export const SETTING_KEYS = new Set(PROVIDERS.flatMap((p) => p.fields.map((f) => f.key)).concat(["COST_TELEPHONY_CENTS_PER_MIN", "COST_VOICE_CENTS_PER_MIN", "COST_SMS_CENTS", "VAT_PERCENT"]));
 export const SECRET_KEYS = new Set(PROVIDERS.flatMap((p) => p.fields.filter((f) => f.type === "secret" || f.type === "generate").map((f) => f.key)));

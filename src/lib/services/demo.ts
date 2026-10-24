@@ -3,6 +3,11 @@ import { logger } from "../logger";
 
 export const DEMO_SLUG = "demo-schaedlingsbekaempfung";
 
+/** Test-Kunden mit erfundenen Daten nur in Entwicklung und Testumgebung (DEMO_SEED=true), nie in Produktion. */
+export function demoAllowed(): boolean {
+  return process.env.DEMO_SEED === "true" || process.env.NODE_ENV !== "production";
+}
+
 /**
  * Legt einen Test-Kunden mit Beispieldaten an (Mitarbeiter, Anrufer, Vorgänge, Anrufe der letzten Wochen),
  * damit Portal, Grafiken und Abrechnung sofort etwas zeigen. Keine echte Rufnummer, keine Zugänge –

@@ -16,7 +16,7 @@ type TenantRow = {
   usage: { calls: number; minutes: number; tickets: number };
 };
 type Totals = { totals: { netCents: number; costCents: number; marginCents: number; minutes: number; calls: number }; rows: { tenantId: string; tenantName: string; plan: { name: string; includedMinutes: number }; usage: { minutes: number }; usagePercent: number | null }[] };
-type Overview = { templates: { key: string; label: string }[] };
+type Overview = { templates: { key: string; label: string }[]; demoAllowed?: boolean };
 
 export default function AdminPage() {
   const { data, reload } = usePoll<TenantRow[]>("/api/admin/tenants", 30000);
@@ -43,7 +43,7 @@ export default function AdminPage() {
         ]}
         action={
           <>
-            <button className="btn-ghost" title="Test-Kunde mit Beispieldaten (Anrufe, Vorgänge, Verbrauch)" onClick={async () => { const r = await apiFetch<{ id: string }>("/api/admin/demo", { method: "POST" }); location.href = `/admin/tenants/${r.id}`; }}>Test-Kunde</button>
+{ov?.demoAllowed && <button className="btn-ghost" title="Test-Kunde mit Beispieldaten (Anrufe, Vorgänge, Verbrauch)" onClick={async () => { const r = await apiFetch<{ id: string }>("/api/admin/demo", { method: "POST" }); location.href = `/admin/tenants/${r.id}`; }}>Test-Kunde</button>}
             <button className="btn-primary" onClick={() => setCreate(true)}><Plus className="h-4 w-4" />Neuer Kunde</button>
           </>
         }
