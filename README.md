@@ -40,10 +40,11 @@ Voraussetzung: VPS mit Ubuntu 24.04, min. 2 vCPU / 4 GB RAM, eine (Sub-)Domain.
 
 ```bash
 # 1. DNS: A-Record app.deine-domain.de → IP des VPS
-# 2. Auf dem Server:
-sudo apt update && sudo apt install -y docker.io docker-compose-v2 git ufw
-sudo ufw allow 22 && sudo ufw allow 80 && sudo ufw allow 443 && sudo ufw enable
-git clone https://github.com/rinats-png/call-ki.git && cd call-ki
+# 2. Auf dem Server (als root, SSH-Schlüssel muss hinterlegt sein): härten – SSH nur mit Schlüssel,
+#    Firewall, fail2ban, automatische Sicherheitsupdates, Docker (docs/betrieb.md → „Server einrichten“)
+git clone https://github.com/rinats-png/call-ki.git /opt/call-ki && cd /opt/call-ki
+ADMIN_USER=betrieb bash deploy/harden.sh
+# danach nur noch als „betrieb“ per SSH anmelden
 cp .env.example .env && nano .env      # DOMAIN, POSTGRES_PASSWORD, APP_ENCRYPTION_KEY, SETUP_TOKEN, CRON_SECRET, VOICE_TOOL_SECRET_<ANBIETER>, SMTP, Twilio, Retell
 docker compose up -d --build
 # 3. https://app.deine-domain.de/setup öffnen → Setup-Token eingeben → Plattform-Admin anlegen

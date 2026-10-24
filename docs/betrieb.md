@@ -2,6 +2,24 @@
 
 Wie die Plattform in Produktion (IONOS-VPS, `docker-compose.yml`) betrieben, gesichert und überwacht wird. Ergänzt `README.md` (Installation) und `docs/sicherheit.md` (Sicherheitswerte).
 
+## Server einrichten
+
+Ubuntu 24.04 auf dem IONOS-VPS, SSH-Schlüssel beim Anlegen hinterlegen.
+
+1. Als root anmelden, Projekt holen und härten:
+   ```bash
+   apt-get update && apt-get install -y git
+   git clone https://github.com/rinats-png/call-ki.git /opt/call-ki && cd /opt/call-ki
+   ADMIN_USER=betrieb bash deploy/harden.sh
+   ```
+   Das Skript (`deploy/harden.sh`, wiederholbar) installiert Docker, legt den Admin-Benutzer an (übernimmt den SSH-Schlüssel von root), erlaubt SSH nur noch mit Schlüssel und ohne Root-Login, schaltet die Firewall auf 22/80/443, aktiviert fail2ban und automatische Sicherheitsupdates (Neustart bei Bedarf um 05:00 Uhr; die Container starten von selbst wieder). Ohne hinterlegten Schlüssel bricht es ab, bevor der Passwort-Login abgeschaltet wird.
+2. **Bevor du die Root-Sitzung schließt:** in einem zweiten Fenster `ssh betrieb@SERVER` testen.
+3. `sudo chown -R betrieb: /opt/call-ki`, als `betrieb` weiter mit README → Installation (`.env`, `docker compose up -d --build`).
+4. Backups (unten) und Überwachung einrichten, Ersatzziel je Rufnummer bei Twilio setzen.
+5. IONOS-Firewall im Cloud Panel zusätzlich auf 22/80/443 beschränken (zweite Schicht), SSH nach Möglichkeit nur von festen IPs.
+
+**Nachweis für den Launch:** Ausgabe von `sudo ufw status verbose`, `sudo sshd -T | grep -E 'permitrootlogin|passwordauthentication'`, `sudo fail2ban-client status sshd` und `systemctl is-enabled unattended-upgrades` mit Datum ablegen.
+
 ## Dienste
 
 | Dienst | Aufgabe |
