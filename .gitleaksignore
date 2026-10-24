@@ -1,0 +1,9 @@
+# Geprüfte Fehlalarme (keine echten Geheimnisse): Kanarienwerte im CI-Build-Scan,
+# Test-Geheimnisse und -Passwörter für E2E-Tests, Beziehungstext im ER-Diagramm.
+33c0708d7c644caa031dadebcf70ea8644eb9a48:tests/e2e/http.test.ts:generic-api-key:114
+33c0708d7c644caa031dadebcf70ea8644eb9a48:.github/workflows/ci.yml:generic-api-key:57
+33c0708d7c644caa031dadebcf70ea8644eb9a48:.github/workflows/ci.yml:generic-api-key:58
+33c0708d7c644caa031dadebcf70ea8644eb9a48:.github/workflows/ci.yml:generic-api-key:59
+33c0708d7c644caa031dadebcf70ea8644eb9a48:.github/workflows/ci.yml:generic-api-key:60
+f338f4f71d9fc52a89272e5d8c08aa4014ce7993:docs/idea-to-app/11-daten.md:generic-api-key:23
+7404f55b999787fa88ac2602a9e83805b7bce3e3:scripts/e2e.sh:generic-api-key:12
