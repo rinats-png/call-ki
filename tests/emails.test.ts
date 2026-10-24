@@ -27,4 +27,12 @@ describe("Mitarbeiter-E-Mail", () => {
     expect(html).not.toContain("Kind allergisch");
     expect(html).toContain("https://app.example/?ticket=x");
   });
+
+  it("maskiert HTML aus Gesprächsinhalt und Kundendaten (T-SEC-11)", () => {
+    const evil = '<script>alert(1)</script><img src=x onerror=alert(2)>';
+    const html = technicianBriefingEmail(ctx({ summary: evil, customer: { ...ctx().customer, name: evil } as Customer })).html;
+    expect(html).not.toContain("<script>");
+    expect(html).not.toContain("<img src=x");
+    expect(html).toContain("&lt;script&gt;");
+  });
 });

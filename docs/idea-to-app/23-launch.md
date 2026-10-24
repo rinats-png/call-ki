@@ -72,12 +72,12 @@ Stand: 2026-10-24 · Risikostufe 2 (Tendenz 3, siehe `B1-ist-analyse.md`). Ein H
 | ☑ | Neue Abhängigkeiten geprüft: Paket existiert, Herausgeber und Pflegestand plausibel (Regel 9.5) | 1 | Neu seit Projektstart: `@playwright/test` 1.56.1 (Microsoft, devDependency), `zod` 4 (bestehendes Paket, Major-Update); Herausgeber und Pflegestand geprüft 2026-10-24, Commits 7404f55, 859b8e0 |
 | ☑ | CI-Workflows: Aktionen mit festgelegter Version, minimale Rechte, keine Geheimnisse in Protokollen (Regel 9.6) | 2 | `.github/workflows/ci.yml`: Aktionen auf Commit-SHA, `permissions: contents: read`, `persist-credentials: false`, keine Geheimnisse; geprüft 2026-10-24 |
 | ☑ | Schema-Änderungen nur über versionierte Migrationen, Backup vor Migration (Regel 9.7) | 2 | `prisma/migrations/` (+ Kopie `netlify/database/migrations`, `tests/netlify-migrations.test.ts`); Backup vor Migration in `deploy/deploy.sh` (Commit a37f425) |
-| ☐ | Lizenzliste bzw. Software-Stückliste (SBOM) der Abhängigkeiten erzeugt (`guides/lieferkette.md`) | 3 |  |
+| ☑ | Lizenzliste bzw. Software-Stückliste (SBOM) der Abhängigkeiten erzeugt (`guides/lieferkette.md`) | 3 | `scripts/sbom.sh` (CycloneDX, 67 Produktionspakete: MIT/ISC/Apache/LGPL/OFL, kein GPL/AGPL), CI-Schritt „Software-Stückliste und Lizenzprüfung“, 2026-10-24 |
 | ☑ | Preis und Freischaltung nur serverseitig; Webhook-Signatur geprüft | 1 | Twilio-Signatur `src/lib/security.ts` (`validateTwilioRequest`) + Test „validiert Requests mit gesetztem Token“ (`tests/security.test.ts`); Sprach-KI-Webhooks `verifyVoiceRequest` + `tests/voice-auth.test.ts`, Commit 8bdaa52 |
 | ☑ | Mobile: keine Geheimnisse im Paket; Tokens im Keychain/Keystore | 2 | n/a – keine Mobile-App |
 | ☑ | KI: Ausgaben nicht ungeprüft ausgeführt; nur erlaubte Daten im Kontext; Limits | 1 | Tool-Argumente per zod geprüft, Mandant und Anrufer nur aus dem Anrufkontext (`src/lib/voice/tools.ts` `runTool`, `src/lib/voice/context.ts`); Tests in `tests/integration/tenancy.test.ts`, Commit 8bdaa52 |
 | ☑ | KI: Einordnung nach EU-KI-Verordnung dokumentiert, Transparenzhinweise für Nutzer vorhanden (`guides/recht-eu-ueberblick.md`) | 1 | `docs/recht/ki-verordnung.md`; KI-Offenlegung serverseitig in der Begrüßung erzwungen (`src/lib/voice/context.ts` `AI_DISCLOSURE`) |
-| ☐ | Abgleich mit OWASP ASVS Level 1 | 2 |  |
+| ☑ | Abgleich mit OWASP ASVS Level 1 | 2 | `14-sicherheit.md` Abschnitt „OWASP ASVS Level 1 – Abgleich“ (alle Gruppen erfüllt; V11 Geschäftslogik teilweise, V14.4 Styles E-001), Tests T-SEC-HTTP-01…19, 2026-10-24 |
 | ☐ | Abgleich mit OWASP ASVS Level 2 | 3 |  |
 | ☐ | Externe Fachprüfung (Pentest / Code-Review) durchgeführt, Bericht in `pruefungen/externe-pruefung-….md` – oder Risiko bewusst akzeptiert (`E-…`, Stichwort „extern“) | 3 |  |
 
@@ -104,7 +104,7 @@ Stand: 2026-10-24 · Risikostufe 2 (Tendenz 3, siehe `B1-ist-analyse.md`). Ein H
 | Bereich | Pflichtpunkte | mit Nachweis | n/a | offen | akzeptiert (E-…) |
 |---|---|---|---|---|---|
 | Sprach-KI | 9 | 4 | 0 | 5 | 0 |
-| Sicherheit | 55 | 42 | 2 | 11 | 0 |
+| Sicherheit | 55 | 44 | 2 | 9 | 0 |
 | Betrieb, Recht, Qualität | 15 | 1 | 0 | 14 | 0 |
 
 **Freigabestatus:** Nicht freigabefähig (Stand 2026-10-24, Prüfskript `--launch`: 43 von 71 Pflichtpunkten mit Nachweis, 2 n/a, 26 offen). Alles, was ohne echte Konten, Produktionsserver oder rechtliche Prüfung nachweisbar war, ist belegt. Die offenen Punkte brauchen:

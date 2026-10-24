@@ -51,6 +51,8 @@ jobs:
         run: npm test
       - name: Abhängigkeiten prüfen
         run: npm audit --omit=dev --audit-level=high
+      - name: Software-Stückliste und Lizenzprüfung
+        run: bash scripts/sbom.sh
       - name: Build (Server-Geheimnisse mit Kanarienwerten)
         env:
           BUILD_CANARY: canary-7c1e0f9b2d4a

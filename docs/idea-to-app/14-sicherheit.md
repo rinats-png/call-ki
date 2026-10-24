@@ -158,10 +158,10 @@ Grundlage: Kapitelstruktur von ASVS 4.0.3 (V1–V14), auf Ebene der Level-1-Anfo
 | V4 (frühere Lücke) | Kollegen-Reset/Einladung nur mit Re-Auth | behoben | `src/app/api/users/[id]/route.ts` (Commit `0e0efc5`), T-SEC-HTTP-14 (Commit `33c0708`) |
 | V5.1 Eingabevalidierung | Allowlist-Validierung | erfüllt | zod in allen Routen und Tools |
 | V5.2 Sanitizing / SSRF | SSRF-Schutz für ausgehende URLs | erfüllt | Allowlist getestet; Weiterleitungen nur auf erlaubte Hosts (`fetchRecording`, Commit `0e0efc5`; `tests/recording-fetch.test.ts`) |
-| V5.3 Ausgabe-Encoding, Injection | Escaping, parametrisierte Abfragen | erfüllt | React, `xmlEscape`, Prisma; T-SEC-11 offen |
+| V5.3 Ausgabe-Encoding, Injection | Escaping, parametrisierte Abfragen | erfüllt, getestet | React, `xmlEscape`, Prisma; T-SEC-11: E-Mail-Maskierung (`tests/emails.test.ts`), HTML-Eingaben nur als Text + Längenlimit (T-SEC-HTTP-19) |
 | V6 Kryptografie | bewährte Verfahren, Schlüsselverwaltung | erfüllt / teilweise | AES-256-GCM (`tests/totp.test.ts`, `tests/secret-box.test.ts`), Rotation mit Schlüssel-ID |
-| V7 Fehler & Protokoll | keine sensiblen Daten in Logs, Sicherheitsereignisse protokolliert | teilweise | Audit-Log vollständig; Log-Aufbewahrung nicht festgelegt (OP-20-15) |
-| V8 Datenschutz | sensible Daten nicht gecacht, Löschung | teilweise | Aufnahme `no-store`; API-Antworten ohne ausdrückliches `Cache-Control`; Löschfrist leert jetzt auch `Message.subject` (Commit `0e0efc5`); `CallTicket.summary`/`notes` ohne automatische Frist – **offen, Entscheidung nötig** (`11-daten.md`) |
+| V7 Fehler & Protokoll | keine sensiblen Daten in Logs, Sicherheitsereignisse protokolliert | erfüllt | Audit-Log (2 Jahre), Alarm bei gehäuften Fehlanmeldungen; Server-Logs aller Dienste rotiert (5 × 20 MB, `docker-compose.yml`), Rufnummern maskiert |
+| V8 Datenschutz | sensible Daten nicht gecacht, Löschung | erfüllt | API-Antworten `Cache-Control: no-store` (`next.config.ts`, T-SEC-HTTP-19), Aufnahmen `no-store`; Löschfristen und Anbieter-Löschung (`retention.ts`) |
 | V9 Kommunikation | TLS überall, HSTS | erfüllt | Caddy; ausgehend nur HTTPS |
 | V10 Schadcode / Abhängigkeiten | aktuelle Komponenten | erfüllt (Produktion) | `npm audit --omit=dev` ohne Befund, CI bricht ab „high“ ab (Commit `859b8e0`); Restfunde nur in Entwicklungswerkzeugen (E-003) |
 | V11 Geschäftslogik | Missbrauch von Abläufen begrenzt | teilweise | Kostenschutz getestet; SMS-Zielländer und Limit je Vorgang (Commit `0e0efc5`); `transfer_call` beim Anbieter offen (BD-03) |

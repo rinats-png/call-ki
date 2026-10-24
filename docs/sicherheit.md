@@ -74,7 +74,7 @@ JSON-Anfragen 100 KB (`readJson`), Tool-Webhooks 256 KB, Gesprächs-Events 2 MB 
 `src/middleware.ts`: CSP mit Nonce je Anfrage für Skripte (`script-src 'self' 'nonce-…' 'strict-dynamic'`), `default-src 'self'`, `frame-ancestors 'none'`, `form-action 'self'`, `base-uri 'self'`), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`. Caddy: HSTS 1 Jahr. Kein CORS (nur gleiche Herkunft); CSRF über Origin-Prüfung (`src/middleware.ts`).
 
 ## Protokollierung
-Audit-Log (`AuditLog`, 2 Jahre): Logins und Fehlversuche, 2FA-Änderungen, Passwortwechsel, Sitzungen beendet, Support-Zugriffe, Admin-Aktionen, DSGVO-Auskunft/-Löschung, Abspielen von Aufnahmen. Server-Log: JSON, Rufnummern maskiert, keine Passwörter, Tokens oder Transkripte.
+Audit-Log (`AuditLog`, 2 Jahre): Logins und Fehlversuche, 2FA-Änderungen, Passwortwechsel, Sitzungen beendet, Support-Zugriffe, Admin-Aktionen, DSGVO-Auskunft/-Löschung, Abspielen von Aufnahmen. Server-Log: JSON, Rufnummern maskiert, keine Passwörter, Tokens oder Transkripte; je Dienst rotiert (höchstens 5 × 20 MB, `docker-compose.yml`). API-Antworten mit `Cache-Control: no-store`.
 
 ## Daten bei Anbietern
 Löschfrist je Kunde (Standard 365 Tage): Transkripte/Aufnahmen in der Datenbank **und** bei Retell (`DELETE /v2/delete-call`) und Twilio (Recording + Call) werden gelöscht. DSGVO-Löschung eines Anrufers löscht ebenfalls bei den Anbietern. Aufnahmen werden nur über `/api/calls/[id]/recording` nach Berechtigungsprüfung ausgeliefert (SSRF-Allowlist `RECORDING_HOSTS`, auch für jede Weiterleitung; Twilio-Zugangsdaten nur an Twilio). Abschalten der Aufzeichnung → Agent ohne Speicherung (`RETELL_AGENT_ID_NO_STORAGE`); fehlt er, wird aufgezeichnet **und angesagt** – nie still.

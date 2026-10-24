@@ -185,4 +185,16 @@ describe.skipIf(!BASE)("HTTP: Zugriffsregeln und Schutzmechanismen", () => {
     expect(html).toContain("Telefonannahme durch die KI");
     expect(html).not.toContain("Alpha GmbH");
   });
+
+  it("T-SEC-HTTP-19: Eingaben mit HTML werden nur als Text gespeichert, zu lange abgewiesen; API-Antworten nicht zwischengespeichert (T-SEC-11)", async () => {
+    const c = await new Client().login("admin@alpha.example");
+    const evil = "<script>alert(1)</script>";
+    const ok = await c.req(`/api/tickets/${s.A.ticket.id}`, { method: "PATCH", json: { notes: evil } });
+    expect(ok.status).toBe(200);
+    const get = await c.req(`/api/tickets/${s.A.ticket.id}`);
+    expect(get.headers.get("content-type")).toContain("application/json");
+    expect(get.headers.get("cache-control")).toContain("no-store");
+    expect(((await get.json()) as { notes: string }).notes).toBe(evil);
+    expect((await c.req(`/api/tickets/${s.A.ticket.id}`, { method: "PATCH", json: { notes: "x".repeat(8001) } })).status).toBe(400);
+  });
 });

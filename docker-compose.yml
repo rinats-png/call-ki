@@ -1,8 +1,14 @@
 # Produktion auf einem VPS (z. B. IONOS): App + PostgreSQL + Caddy (HTTPS) + Backups + Löschfristen.
 # Start:  cp .env.example .env  →  Werte setzen  →  docker compose up -d --build
+# Protokolle aller Dienste rotieren (höchstens 5 × 20 MB je Dienst) – begrenzt die Aufbewahrung von IP-Adressen
+x-logging: &log
+  driver: json-file
+  options: { max-size: "20m", max-file: "5" }
+
 services:
   db:
     image: postgres:16-alpine
+    logging: *log
     restart: unless-stopped
     environment:
       POSTGRES_DB: callki
@@ -31,12 +37,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    logging:
-      driver: json-file
-      options: { max-size: "20m", max-file: "5" }
+    logging: *log
 
   caddy:
     image: caddy:2-alpine
+    logging: *log
     restart: unless-stopped
     ports:
       - "80:80"
@@ -55,6 +60,7 @@ services:
   # Einrichtung: docs/betrieb.md → „Backups“.
   backup:
     image: postgres:16-alpine
+    logging: *log
     restart: unless-stopped
     environment:
       PGHOST: db
@@ -83,6 +89,7 @@ services:
   # Zeitgesteuerte Aufgaben: Wiederholung fehlgeschlagener Nachrichten (minütlich), Löschfristen (täglich)
   cron:
     image: alpine:3.20
+    logging: *log
     restart: unless-stopped
     environment:
       CRON_SECRET: ${CRON_SECRET:?CRON_SECRET fehlt in .env}

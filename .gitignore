@@ -12,3 +12,4 @@ coverage/
 backups/
 .claude/worktrees/
 secrets/
+sbom.cdx.json
