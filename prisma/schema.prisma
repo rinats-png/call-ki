@@ -343,3 +343,21 @@ model RateLimitHit {
   @@id([key, windowStart])
   @@index([windowStart])
 }
+
+/// Monatsabschluss je Kunde (GoBD, docs/recht/loeschkonzept.md §5): festgeschriebene Summen ohne
+/// Anruferdaten. Bewusst ohne Fremdschlüssel – bleibt auch nach Löschung des Kunden erhalten.
+model BillingSnapshot {
+  id         String   @id @default(cuid())
+  tenantId   String
+  tenantName String
+  year       Int
+  month      Int
+  planName   String
+  usage      Json
+  invoice    Json
+  /// Schlussabrechnung beim Löschen des Kunden (Monat noch nicht zu Ende)
+  partial    Boolean  @default(false)
+  closedAt   DateTime @default(now())
+
+  @@unique([tenantId, year, month])
+}

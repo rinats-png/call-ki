@@ -6,6 +6,8 @@ import { fromZoned, zonedParts } from "../time";
 import { sendInviteEmail } from "./users";
 import { logger } from "../logger";
 import { purgeCallAtProviders } from "../voice/providers";
+import { closeDueMonths, closeMonth } from "./billing-close";
+import { currentMonth } from "../billing";
 
 /** Legt einen neuen Kunden (Mandanten) inkl. Admin-Zugang und Startkonfiguration an. */
 export async function createTenant(input: {
@@ -110,6 +112,13 @@ export async function deleteTenant(tenantId: string, opts: { force?: boolean } =
     }
   }
   if (providerFailed > 0 && !opts.force) return { deleted: false, providerFailed };
+  // Schlussabrechnung festschreiben, bevor die Daten gehen (loeschkonzept.md §5 R6) – bleibt ohne Fremdschlüssel erhalten
+  const t = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { timezone: true } });
+  if (t) {
+    await closeDueMonths(tenantId);
+    const { year, month } = currentMonth(t.timezone);
+    await closeMonth(tenantId, year, month, { partial: true });
+  }
   await prisma.$transaction([
     // Admin-Sitzungen, die gerade in diesen Mandanten gewechselt sind, zurücksetzen
     prisma.session.updateMany({ where: { activeTenantId: tenantId }, data: { activeTenantId: null } }),

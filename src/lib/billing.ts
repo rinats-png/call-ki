@@ -79,7 +79,14 @@ const BILLING_SELECT = { status: true, durationSec: true, twilioDurationSec: tru
 
 export type Usage = { calls: number; seconds: number; minutes: number; sms: number; emails: number; tickets: number; emergencies: number };
 
+/** Verbrauch eines Monats: festgeschriebene Werte, wenn der Monat abgeschlossen ist, sonst live aus den Anrufen. */
 export async function usageForMonth(tenant: Pick<Tenant, "id" | "timezone">, year: number, month: number, incrementSec: number): Promise<Usage> {
+  const snap = await prisma.billingSnapshot.findUnique({ where: { tenantId_year_month: { tenantId: tenant.id, year, month } }, select: { usage: true, partial: true } });
+  if (snap && !snap.partial) return snap.usage as unknown as Usage;
+  return liveUsageForMonth(tenant, year, month, incrementSec);
+}
+
+export async function liveUsageForMonth(tenant: Pick<Tenant, "id" | "timezone">, year: number, month: number, incrementSec: number): Promise<Usage> {
   const { start, end } = monthRange(year, month, tenant.timezone);
   const [calls, sms, emails, tickets, emergencies] = await Promise.all([
     prisma.call.findMany({ where: { tenantId: tenant.id, startedAt: { gte: start, lt: end } }, select: BILLING_SELECT }),
@@ -127,7 +134,7 @@ export function costFor(usage: Usage): { telephonyCents: number; voiceCents: num
   const minutes = usage.seconds / 60;
   const telephonyCents = Math.round(minutes * settingNumber("COST_TELEPHONY_CENTS_PER_MIN", 1.5));
   const voiceCents = Math.round(minutes * settingNumber("COST_VOICE_CENTS_PER_MIN", 10));
-  const smsCents = Math.round(usage.sms * settingNumber("COST_SMS_CENTS", 8));
+  const smsCents = Math.round(usage.sms * settingNumber("COST_SMS_CENTS", 10));
   return { telephonyCents, voiceCents, smsCents, totalCents: telephonyCents + voiceCents + smsCents };
 }
 

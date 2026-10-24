@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { normalizePhone } from "../phone";
 import { normalizePostalCode } from "../postal";
@@ -93,16 +94,24 @@ export async function eraseCustomer(tenantId: string, customerId: string): Promi
   if (!c) return false;
   const calls = await prisma.call.findMany({ where: { tenantId, OR: [{ customerId: c.id }, { fromNumber: c.phone }], providerPurgedAt: null } });
   let providerComplete = true;
+  const purged: string[] = [];
   for (const call of calls) {
     const r = await purgeCallAtProviders(call);
-    if (!r.ok) {
+    if (r.ok) purged.push(call.id);
+    else {
       providerComplete = false;
       logger.warn("erase.provider_incomplete", { tenantId, callId: call.id, details: r.details });
     }
   }
+  // Anrufe und Nachrichten werden anonymisiert statt gelöscht: Dauer, Status und Kanal bleiben für die
+  // Abrechnung des laufenden Monats erhalten (loeschkonzept.md §5 R5); der Löschfristen-Job entfernt
+  // die anonymen Anrufe nach dem Monatsabschluss.
   await prisma.$transaction([
-    prisma.message.deleteMany({ where: { tenantId, OR: [{ ticket: { customerId: c.id } }, { recipient: c.phone }, ...(c.email ? [{ recipient: c.email }] : [])] } }),
-    prisma.call.deleteMany({ where: { tenantId, OR: [{ customerId: c.id }, { fromNumber: c.phone }] } }),
+    prisma.message.updateMany({ where: { tenantId, OR: [{ ticket: { customerId: c.id } }, { recipient: c.phone }, ...(c.email ? [{ recipient: c.email }] : [])] }, data: { recipient: "gelöscht", subject: null, body: "", ticketId: null, meta: Prisma.DbNull } }),
+    prisma.call.updateMany({ where: { tenantId, OR: [{ customerId: c.id }, { fromNumber: c.phone }] }, data: { fromNumber: "gelöscht", customerId: null, transcript: null, summary: null, endReason: null } }),
+    // Aufnahme-Link nur dort entfernen, wo die Löschung beim Anbieter geklappt hat – sonst versucht es der Löschfristen-Job erneut
+    prisma.call.updateMany({ where: { id: { in: purged } }, data: { recordingUrl: null, providerPurgedAt: new Date() } }),
+    prisma.callTicket.updateMany({ where: { tenantId, customerId: c.id }, data: { callId: null } }),
     prisma.customer.delete({ where: { id: c.id } }), // Tickets per Cascade
   ]);
   return { providerComplete };

@@ -21,6 +21,9 @@ import { applyPlanToConfig } from "@/lib/voice/context";
 import { effectivePlan } from "@/lib/billing";
 import { runAppointmentReminders } from "@/lib/services/reminders";
 import { hitShared } from "@/lib/rate-limit";
+import { closeDueMonths } from "@/lib/services/billing-close";
+import { eraseCustomer } from "@/lib/services/customers";
+import { monthRange } from "@/lib/billing";
 import { resealAll } from "@/lib/services/rekey";
 import { seal, open as unseal } from "@/lib/secret-box";
 import { retryDueMessages, MAX_ATTEMPTS } from "@/lib/notify";
@@ -48,7 +51,7 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
   }
 
   beforeAll(async () => {
-    await prisma.$executeRawUnsafe('TRUNCATE "Tenant", "User", "Message", "SystemState", "Plan", "RateLimitHit" CASCADE');
+    await prisma.$executeRawUnsafe('TRUNCATE "Tenant", "User", "Message", "SystemState", "Plan", "RateLimitHit", "BillingSnapshot" CASCADE');
     A = await mk("Alpha Schädlinge", "+493011111111", "pest_control");
     B = await mk("Beta Sanitär", "+493022222222", "trades");
   });
@@ -550,6 +553,32 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
     }
   });
 
+  it("schreibt Monate fest, bevor Anrufdaten verschwinden (GoBD), und anonymisiert statt zu löschen", async () => {
+    const tz = A.tenant.timezone;
+    const cur = currentMonth(tz);
+    const prev = cur.month === 1 ? { year: cur.year - 1, month: 12 } : { year: cur.year, month: cur.month - 1 };
+    const inPrev = new Date(monthRange(prev.year, prev.month, tz).start.getTime() + 2 * 86400_000);
+    await prisma.call.create({ data: { tenantId: A.tenant.id, fromNumber: "+4915000000110", toNumber: A.number, status: "ENDED", startedAt: inPrev, endedAt: inPrev, durationSec: 600, providerPurgedAt: new Date() } });
+    const before = await usageForMonth(A.tenant, prev.year, prev.month, 60);
+    const now = new Date(monthRange(cur.year, cur.month, tz).start.getTime() + 4 * 86400_000); // 5. des Monats
+    await closeDueMonths(A.tenant.id, now);
+    const snap = await prisma.billingSnapshot.findUnique({ where: { tenantId_year_month: { tenantId: A.tenant.id, ...prev } } });
+    expect(snap?.partial).toBe(false);
+    // Anrufe des abgeschlossenen Monats löschen → Abrechnung bleibt gleich
+    await prisma.call.deleteMany({ where: { tenantId: A.tenant.id, startedAt: { lt: monthRange(cur.year, cur.month, tz).start } } });
+    expect((await usageForMonth(A.tenant, prev.year, prev.month, 60)).minutes).toBe(before.minutes);
+
+    // DSGVO-Löschung eines Anrufers im laufenden Monat: Minuten bleiben, Personenbezug weg
+    const cust = await prisma.customer.create({ data: { tenantId: A.tenant.id, phone: "+4915000000111", name: "Lösch Mich" } });
+    await prisma.call.create({ data: { tenantId: A.tenant.id, customerId: cust.id, fromNumber: cust.phone, toNumber: A.number, status: "ENDED", endedAt: new Date(), durationSec: 300, transcript: "User: Hallo" } });
+    const liveBefore = await usageForMonth(A.tenant, cur.year, cur.month, 60);
+    await eraseCustomer(A.tenant.id, cust.id);
+    const liveAfter = await usageForMonth(A.tenant, cur.year, cur.month, 60);
+    expect(liveAfter.minutes).toBe(liveBefore.minutes);
+    expect(await prisma.call.count({ where: { fromNumber: cust.phone } })).toBe(0);
+    expect(await prisma.call.count({ where: { tenantId: A.tenant.id, fromNumber: "gelöscht", transcript: null } })).toBeGreaterThan(0);
+  });
+
   it("löscht einen Mandanten nur nach Anbieter-Löschung (oder ausdrücklich erzwungen) und lässt andere unberührt", async () => {
     const before = await prisma.call.count({ where: { tenantId: A.tenant.id } });
     // Ohne Retell-Schlüssel scheitert die Anbieter-Löschung → Abbruch ohne force
@@ -558,6 +587,7 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
     const r = await deleteTenant(B.tenant.id, { force: true });
     expect(r.deleted).toBe(true);
     expect(await prisma.tenant.findUnique({ where: { id: B.tenant.id } })).toBeNull();
+    expect(await prisma.billingSnapshot.count({ where: { tenantId: B.tenant.id, partial: true } })).toBe(1); // Schlussabrechnung bleibt
     expect(await prisma.call.count({ where: { tenantId: B.tenant.id } })).toBe(0);
     expect(await prisma.customer.count({ where: { tenantId: B.tenant.id } })).toBe(0);
     expect(await prisma.phoneNumber.count({ where: { tenantId: B.tenant.id } })).toBe(0);
