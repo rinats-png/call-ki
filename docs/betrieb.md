@@ -97,6 +97,7 @@ Alle 5 Minuten prüft `/api/cron/monitor`:
 | Kein erfolgreiches Backup seit 26 Stunden, Backup oder Wiederherstellungstest fehlgeschlagen | kritisch |
 | Speicherplatz unter 5 % | kritisch |
 | Andere Nachrichten endgültig nicht zugestellt, ≥ 10 Fehlschläge pro Stunde | Warnung |
+| ≥ 30 fehlgeschlagene Anmeldungen bzw. 2FA-Codes in einer Stunde (Passwort-Raten) | Warnung |
 | Anrufe seit über 2 Stunden ohne Gesprächsende (fehlt Abrechnung und Löschung beim Anbieter) | Warnung |
 | Wiederherstellungstest älter als 35 Tage, Speicherplatz unter 10 % | Warnung |
 | Rufnummer bei Twilio ohne unabhängiges Ersatzziel, ohne Status-URL, ohne Fallback-Nummer oder mit falschem Anrufziel (stündlich) | Warnung |

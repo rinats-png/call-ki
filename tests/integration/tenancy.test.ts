@@ -257,6 +257,13 @@ describe.skipIf(!enabled)("Mandantentrennung & Sprach-Pipeline", () => {
     }
   });
 
+  it("alarmiert bei einer Häufung fehlgeschlagener Anmeldungen", async () => {
+    await prisma.auditLog.createMany({ data: Array.from({ length: 30 }, () => ({ tenantId: A.tenant.id, action: "auth.login_failed" })) });
+    const r = await runMonitor();
+    expect(r.findings.some((f) => f.id.startsWith("auth-failures:"))).toBe(true);
+    await prisma.auditLog.deleteMany({ where: { action: "auth.login_failed" } });
+  });
+
   it("erkennt Rufnummern ohne unabhängiges Ersatzziel bei Twilio", async () => {
     Object.assign(process.env, { TWILIO_ACCOUNT_SID: "AC" + "0".repeat(32), TWILIO_AUTH_TOKEN: "t", PUBLIC_BASE_URL: "https://app.example.de" });
     resetEnvCache();

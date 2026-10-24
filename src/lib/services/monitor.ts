@@ -65,6 +65,10 @@ export async function collectFindings(now = new Date()): Promise<Finding[]> {
   const failingHour = await prisma.message.count({ where: { status: "FAILED", purpose: { not: "PLATFORM_ALERT" }, createdAt: { gte: new Date(now.getTime() - H) } } });
   if (failingHour >= 10) out.push({ id: `messages-failing:${now.toISOString().slice(0, 13)}`, level: "warning", title: "Versand gestört", detail: `${failingHour} fehlgeschlagene Nachrichten in der letzten Stunde. SMTP- bzw. Twilio-Zugang prüfen.` });
 
+  // 3b) Sicherheitsereignisse: Häufung fehlgeschlagener Anmeldungen bzw. 2FA-Codes (Passwort-Raten)
+  const authFails = await prisma.auditLog.count({ where: { action: { in: ["auth.login_failed", "auth.locked", "auth.mfa_failed"] }, createdAt: { gte: new Date(now.getTime() - H) } } });
+  if (authFails >= 30) out.push({ id: `auth-failures:${now.toISOString().slice(0, 13)}`, level: "warning", title: "Viele fehlgeschlagene Anmeldungen", detail: `${authFails} fehlgeschlagene Anmeldungen bzw. 2FA-Codes in der letzten Stunde. Protokoll prüfen (Plattform → Protokoll); Konten werden automatisch kurz pausiert.` });
+
   // 4) Hängende Anrufe: kein Gesprächsende gemeldet → weder abgerechnet noch beim Anbieter gelöscht
   const hanging = { endedAt: null, status: { in: ["RINGING", "IN_PROGRESS"] }, startedAt: { lt: new Date(now.getTime() - HANGING_AFTER_MS), gte: new Date(now.getTime() - 7 * 24 * H) } };
   const nHanging = await prisma.call.count({ where: hanging });
