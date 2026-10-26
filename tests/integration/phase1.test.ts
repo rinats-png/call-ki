@@ -497,3 +497,37 @@ describe.skipIf(!enabled)("Phase 2 – Online-Terminbuchung", () => {
     await expect(b.bookingInfo("gibt-es-nicht")).rejects.toMatchObject({ status: 404 });
   });
 });
+
+describe.skipIf(!enabled)("Phase 2 – Mein Tag & Aufgaben", () => {
+  let tenant: Awaited<ReturnType<typeof prisma.tenant.create>>;
+  beforeAll(async () => {
+    tenant = await prisma.tenant.create({ data: { name: `MeinTag ${uid}`, slug: `p2t-${uid}`, industry: "trades", status: "ACTIVE", addons: { create: [{ key: "planning", priceCents: 1900 }] } } });
+  });
+  afterAll(async () => { await prisma.tenant.delete({ where: { id: tenant.id } }); });
+
+  it("zeigt eigene Termine, Rückrufe und Aufgaben (eigene + für alle, nicht fremde)", async () => {
+    const { myDay } = await import("@/lib/services/today");
+    const me = await prisma.user.create({ data: { email: `emre-${uid}@example.org`, role: "TENANT_USER", tenantId: tenant.id } });
+    const other = await prisma.user.create({ data: { email: `hanna-${uid}@example.org`, role: "TENANT_USER", tenantId: tenant.id } });
+    const emre = await prisma.employee.create({ data: { tenantId: tenant.id, name: "Emre", role: "FIELD_TECH", email: `EMRE-${uid}@example.org` } });
+    const hanna = await prisma.employee.create({ data: { tenantId: tenant.id, name: "Hanna", role: "FIELD_TECH", email: other.email } });
+    const cust = await prisma.customer.create({ data: { tenantId: tenant.id, phone: "+4915112345801", name: "Jonas" } });
+    const day = new Date(Date.now() + 86400_000).toISOString().slice(0, 10);
+    const at = (h: number) => new Date(`${day}T${String(h - 1).padStart(2, "0")}:00:00Z`);
+    const mine = await prisma.callTicket.create({ data: { tenantId: tenant.id, customerId: cust.id, assignedEmployeeId: emre.id, status: "PROCESSED", appointmentStart: at(9), appointmentEnd: at(10) } });
+    await prisma.callTicket.create({ data: { tenantId: tenant.id, customerId: cust.id, assignedEmployeeId: hanna.id, status: "PROCESSED", appointmentStart: at(11), appointmentEnd: at(12) } });
+    const cb = await prisma.callTicket.create({ data: { tenantId: tenant.id, customerId: cust.id, status: "PENDING", category: "Rückruf" } });
+    await prisma.callTicket.create({ data: { tenantId: tenant.id, customerId: cust.id, assignedEmployeeId: hanna.id, status: "PENDING" } });
+    await prisma.task.createMany({ data: [
+      { tenantId: tenant.id, title: "meine", assigneeId: me.id, dueAt: at(16) },
+      { tenantId: tenant.id, title: "für alle" },
+      { tenantId: tenant.id, title: "fremde", assigneeId: other.id },
+      { tenantId: tenant.id, title: "später", assigneeId: me.id, dueAt: new Date(at(16).getTime() + 3 * 86400_000) },
+    ] });
+    const d = await myDay(tenant, resolveConfig(tenant), { id: me.id, email: me.email }, day);
+    expect(d.employee?.id).toBe(emre.id);
+    expect(d.appointments.map((a) => a.id)).toEqual([mine.id]);
+    expect(d.callbacks.map((c) => c.id)).toEqual([cb.id]);
+    expect(d.tasks.map((t) => t.title).sort()).toEqual(["für alle", "meine"]);
+  });
+});

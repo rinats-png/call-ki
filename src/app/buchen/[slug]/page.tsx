@@ -140,7 +140,7 @@ export default function BookingPage({ params }: { params: Promise<{ slug: string
           {err && <p className="mt-3 rounded-lg p-3 text-sm" style={{ background: "#fdecec", color: "#b42318" }}>{err}</p>}
         </section>
 
-        {info.phone && <p className="mt-4 flex items-center justify-center gap-2 text-sm" style={{ color: C.muted }}><Phone className="h-4 w-4" />Notfall oder Fragen? <a className="font-semibold" style={{ color: C.accent }} href={`tel:${info.phone.replace(/\s/g, "")}`}>{info.phone}</a> – auch nachts erreichbar.</p>}
+        {info.phone && <p className="mt-4 text-center text-sm" style={{ color: C.muted }}><Phone className="mr-1 inline h-4 w-4 align-[-3px]" />Notfall oder Fragen? <a className="whitespace-nowrap font-semibold" style={{ color: C.accent }} href={`tel:${info.phone.replace(/\s/g, "")}`}>{info.phone}</a> – auch nachts erreichbar.</p>}
       </div>
     </main>
   );

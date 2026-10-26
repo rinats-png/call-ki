@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { X, Phone, MapPin, Mail, Building2, CalendarPlus, Loader2, Bot, User, Send } from "lucide-react";
 import type { CustomerType, EmployeeRole } from "@/lib/constants";
 import { cn, fmtDateTime, fmtDuration, MESSAGE_STATUS, PURPOSE_LABEL, STATUS_STYLE } from "@/lib/ui";
-import { apiFetch, useSession } from "../session";
+import { apiFetch, useModule, useSession } from "../session";
 import type { EmployeeRow, JobReportRow, TicketDetail } from "./types";
 import { StatusChip, UrgencyChip } from "./Primitives";
 
@@ -47,6 +47,7 @@ export function TicketDrawer({ id, employees, onClose, onChanged }: { id: string
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [slot, setSlot] = useState("");
   const [notes, setNotes] = useState("");
+  const planning = useModule("planning");
 
   const load = useCallback(async () => {
     const r = await apiFetch<TicketDetail>(`/api/tickets/${id}`).catch(() => null);
@@ -173,6 +174,7 @@ export function TicketDrawer({ id, employees, onClose, onChanged }: { id: string
             </section>
 
             {t.jobReport && <JobReportView r={t.jobReport} />}
+            {planning && <QuickTask ticketId={t.id} />}
 
             <section>
               <h4 className="label mb-2">Interne Notizen</h4>
@@ -200,6 +202,24 @@ export function TicketDrawer({ id, employees, onClose, onChanged }: { id: string
         )}
       </aside>
     </div>
+  );
+}
+
+/** Aufgabe aus dem Vorgang (erscheint unter „Mein Tag“) */
+function QuickTask({ ticketId }: { ticketId: string }) {
+  const [title, setTitle] = useState("");
+  const [saved, setSaved] = useState(false);
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    await apiFetch("/api/tasks", { method: "POST", json: { title, ticketId } });
+    setTitle(""); setSaved(true);
+  }
+  return (
+    <form onSubmit={add} className="flex gap-2">
+      <input className="input" placeholder="Aufgabe dazu, z. B. Ersatzteil bestellen" value={title} onChange={(e) => { setTitle(e.target.value); setSaved(false); }} />
+      <button className="btn-ghost shrink-0 text-xs" disabled={!title.trim()}>{saved ? "Angelegt" : "Aufgabe"}</button>
+    </form>
   );
 }
 
