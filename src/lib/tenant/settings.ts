@@ -60,6 +60,8 @@ export const tenantSettingsSchema = z.object({
       /** Terminerinnerung an den Kunden vor dem Termin */
       reminder: z.enum(["off", "email", "sms", "both"]).default("off"),
       reminderHoursBefore: z.number().int().min(2).max(72).default(24),
+      /** Erinnerungs-SMS fragt „Passt es noch?“ (Antwort JA/NEIN per SMS) */
+      reminderAskConfirm: z.boolean().default(true),
       /** Rufnummer in der Erinnerung zum Verschieben/Absagen (die bekannte Firmennummer) */
       contactPhone: z.string().trim().max(30).default(""),
       /** Gesprächszusammenfassung in Techniker-E-Mail, Kalendereintrag und ICS (aus = nur Link ins Portal; Datensparsamkeit) */

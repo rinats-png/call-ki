@@ -114,6 +114,8 @@ Alarme gehen an `ALERT_EMAIL` (sonst alle Plattform-Admins), kritische zusätzli
 
 Jede Twilio-Nummer meldet das Gesprächsende an `/api/twilio/status` („Call status changes“). Die Dauer laut Twilio ist die Grundlage der Abrechnung – auch wenn der KI-Anbieter kein Ereignis schickt. Bleibt das Anbieter-Ereignis 10 Minuten nach dem Auflegen aus (oder fehlt jedes Lebenszeichen länger als Höchstdauer + 30 Minuten), schließt der Cron den Anruf (`endReason = no_provider_event`), legt bei einem echten Gespräch ein Rückruf-Ticket an und die Löschfristen greifen wieder. Ab drei solchen Anrufen in 24 Stunden meldet die Überwachung, dass der Ereignis-Webhook beim Anbieter fehlt oder falsch ist. Die stündliche Twilio-Prüfung meldet Nummern ohne Status-URL.
 
+Antworten auf die Erinnerungs-SMS („Passt es noch? JA/NEIN“) kommen über `/api/twilio/sms` der SMS-Absendernummer. Zugeordnet wird über die letzte Terminerinnerung an diese Handynummer (höchstens 4 Tage alt); JA bestätigt den Termin, NEIN eskaliert den Vorgang und mailt an die Büro-Adresse, STOP vermerkt den Widerspruch.
+
 ## Kostenschutz
 
 Einstellungen: Verwaltung → Plattform → „Kostenschutz“.

@@ -150,7 +150,7 @@ export function TicketDrawer({ id, employees, onClose, onChanged }: { id: string
             <section className="glass-soft p-4">
               <h4 className="label mb-3">Termin & Benachrichtigung</h4>
               <p className="mb-3 text-sm text-zinc-300">
-                {t.appointmentStart ? <>Termin: <b>{fmtDateTime(t.appointmentStart)}</b>{t.calendarEventId && <span className="ml-2 chip border-emerald-500/30 bg-emerald-500/10 text-emerald-300">Outlook</span>}</> : "Noch kein Termin vergeben."}
+                {t.appointmentStart ? <>Termin: <b>{fmtDateTime(t.appointmentStart)}</b>{t.calendarEventId && <span className="ml-2 chip border-emerald-500/30 bg-emerald-500/10 text-emerald-300">Outlook</span>}{t.confirmation === "CONFIRMED" && <span className="ml-2 chip border-emerald-500/30 bg-emerald-500/10 text-emerald-300">vom Kunden bestätigt</span>}{t.confirmation === "DECLINED" && <span className="ml-2 chip border-amber-500/30 bg-amber-500/10 text-amber-300">passt nicht – neu planen</span>}</> : "Noch kein Termin vergeben."}
               </p>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <input type="datetime-local" className="input sm:flex-1" value={slot} onChange={(e) => setSlot(e.target.value)} aria-label="Neuer Termin" />

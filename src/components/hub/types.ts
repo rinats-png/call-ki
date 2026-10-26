@@ -58,6 +58,7 @@ export type TicketDetail = Omit<TicketRow, "customer" | "assignedEmployee" | "me
   call: { id: string; startedAt: string; durationSec: number | null; recordingUrl: string | null; endReason: string | null } | null;
   messages: MessageRow[];
   jobReport: JobReportRow | null;
+  confirmation: "CONFIRMED" | "DECLINED" | null;
 };
 
 export type JobReportRow = {

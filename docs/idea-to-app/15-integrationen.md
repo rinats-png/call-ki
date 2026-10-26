@@ -58,7 +58,7 @@ sequenceDiagram
 | Punkt | Festlegung |
 |---|---|
 | Ausgehende Authentifizierung | Basic Auth mit `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` (SMS, Call beenden, Aufnahme/Call löschen, Nummernprüfung) |
-| Webhooks | `/api/twilio/voice` (A call comes in), `/api/twilio/status` (StatusCallback: Ende, Dauer [Q-007], Abrechnungsgrundlage E-006), `/api/twilio/fallback` (Fallback innerhalb der App), `/api/twilio/recording?call=<id>` (Mailbox) – alle mit `X-Twilio-Signature` (HMAC-SHA1 über `PUBLIC_BASE_URL` + Pfad + sortierte Parameter); in Produktion nicht abschaltbar |
+| Webhooks | `/api/twilio/voice` (A call comes in), `/api/twilio/status` (StatusCallback: Ende, Dauer [Q-007], Abrechnungsgrundlage E-006), `/api/twilio/fallback` (Fallback innerhalb der App), `/api/twilio/recording?call=<id>` (Mailbox), `/api/twilio/sms` (eingehende SMS an `TWILIO_SMS_FROM`: JA/NEIN/STOP auf Terminerinnerungen, Zuordnung über die letzte Erinnerung an die Absendernummer) – alle mit `X-Twilio-Signature` (HMAC-SHA1 über `PUBLIC_BASE_URL` + Pfad + sortierte Parameter); in Produktion nicht abschaltbar |
 | Ersatzziel | „Primary handler fails“ je Nummer als TwiML Bin bei Twilio [Q-006] (E-007) (nicht auf dem eigenen Server); die Überwachung prüft per API, dass es gesetzt ist und nicht auf die eigene Domain zeigt (`src/lib/voice/twilio-config.ts`) |
 | Konfiguration der Nummern | manuell in der Twilio-Konsole; App prüft nur (F-32 offen) |
 | Fehlerverhalten | Signatur falsch → `403`; unbekannte Nummer → Fallback-TwiML; KI-Übergabe scheitert → Fallback-Nummer bzw. Mailbox + Rückruf-Vorgang; Höchstdauer per `timeLimit` und Cron-Abbruch |

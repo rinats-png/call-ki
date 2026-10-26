@@ -173,46 +173,48 @@ model Integration {
 // ───────────────────────────── Fachdaten je Mandant
 
 model Customer {
-  id               String       @id @default(cuid())
-  tenantId         String
-  tenant           Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name             String?
-  companyName      String?
-  phone            String
-  email            String?
-  address          String?
-  postalCode       String?
-  customerType     String       @default("PRIVATE") // PRIVATE, BUSINESS, PROPERTY_MANAGEMENT
-  status           String       @default("NEW") // NEW, EXISTING
-  notes            String?
+  id                String       @id @default(cuid())
+  tenantId          String
+  tenant            Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name              String?
+  companyName       String?
+  phone             String
+  email             String?
+  address           String?
+  postalCode        String?
+  customerType      String       @default("PRIVATE") // PRIVATE, BUSINESS, PROPERTY_MANAGEMENT
+  status            String       @default("NEW") // NEW, EXISTING
+  notes             String?
   /// SMS-Einwilligung (Zeitpunkt + Quelle, z. B. call:<id>) und Widerspruch (z. B. „STOP“ bei Twilio)
-  smsConsentAt     DateTime?
-  smsConsentSource String?
-  smsOptOutAt      DateTime?
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-  tickets          CallTicket[]
-  calls            Call[]
+  smsConsentAt      DateTime?
+  smsConsentSource  String?
+  smsOptOutAt       DateTime?
+  /// Letzte Bitte um Bewertung (höchstens alle 90 Tage)
+  reviewRequestedAt DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  tickets           CallTicket[]
+  calls             Call[]
 
-  bills              Bill[]
+  bills Bill[]
 
   @@unique([tenantId, phone])
 }
 
 model Employee {
-  id                 String       @id @default(cuid())
+  id                 String            @id @default(cuid())
   tenantId           String
-  tenant             Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant             Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name               String
   role               String // FIELD_TECH, EMERGENCY_TECH, SPECIALIST, BACKOFFICE
   email              String? // Kalender (Microsoft 365) und Benachrichtigungen
-  servicePostalCodes String       @default("*") // Kommagetrennt: 10115, 12, 13000-13999, *
+  servicePostalCodes String            @default("*") // Kommagetrennt: 10115, 12, 13000-13999, *
   directPhone        String?
   /// Gewerke, kommagetrennt (z. B. "Sanitär, Heizung"); leer = alle Gewerke
-  trades             String       @default("")
-  active             Boolean      @default(true)
+  trades             String            @default("")
+  active             Boolean           @default(true)
   appToken           EmployeeAppToken?
-  createdAt          DateTime     @default(now())
+  createdAt          DateTime          @default(now())
   tickets            CallTicket[]
   jobReports         JobReport[]
 
@@ -251,20 +253,20 @@ model Call {
 }
 
 model CallTicket {
-  id                 String    @id @default(cuid())
+  id                 String     @id @default(cuid())
   tenantId           String
-  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant             Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   customerId         String
-  customer           Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer           Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
   callId             String?
-  call               Call?     @relation(fields: [callId], references: [id], onDelete: SetNull)
+  call               Call?      @relation(fields: [callId], references: [id], onDelete: SetNull)
   assignedEmployeeId String?
-  assignedEmployee   Employee? @relation(fields: [assignedEmployeeId], references: [id], onDelete: SetNull)
+  assignedEmployee   Employee?  @relation(fields: [assignedEmployeeId], references: [id], onDelete: SetNull)
   category           String? // Anliegen laut Branchenvorlage, z. B. Wespen, Rohrbruch
   /// Leistung aus dem Katalog (Dauer, Gewerk, Preis), falls die Kategorie einer Leistung entspricht
   serviceId          String?
-  service            Service?  @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-  urgency            String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  service            Service?   @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  urgency            String     @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
   summary            String?
   transcript         String?
   appointmentStart   DateTime?
@@ -273,10 +275,13 @@ model CallTicket {
   emailDraftId       String? // Microsoft-365-Entwurf (falls verbunden)
   /// Terminerinnerung versendet (bzw. bewusst übersprungen) für den Termin appointmentStart
   reminderSentAt     DateTime?
-  status             String    @default("PENDING") // PENDING, PROCESSED, ESCALATED, CLOSED
+  /// Antwort des Kunden auf „Passt es noch?“ (CONFIRMED, DECLINED) per SMS
+  confirmation       String?
+  confirmationAt     DateTime?
+  status             String     @default("PENDING") // PENDING, PROCESSED, ESCALATED, CLOSED
   notes              String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
   messages           Message[]
   bills              Bill[]
   jobReport          JobReport?
@@ -513,43 +518,43 @@ model Service {
  * (bezahlt, gemahnt) und Storno per Gutschrift. Beträge werden immer serverseitig berechnet.
  */
 model Bill {
-  id            String    @id @default(cuid())
-  tenantId      String
-  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id             String      @id @default(cuid())
+  tenantId       String
+  tenant         Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   /// QUOTE, INVOICE, CREDIT_NOTE
-  kind          String    @default("INVOICE")
+  kind           String      @default("INVOICE")
   /// DRAFT, ISSUED, PAID, CANCELLED (Rechnung storniert), ACCEPTED, DECLINED (Angebot)
-  status        String    @default("DRAFT")
-  number        String?
-  customerId    String
-  customer      Customer  @relation(fields: [customerId], references: [id], onDelete: NoAction)
-  ticketId      String?
-  ticket        CallTicket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  status         String      @default("DRAFT")
+  number         String?
+  customerId     String
+  customer       Customer    @relation(fields: [customerId], references: [id], onDelete: NoAction)
+  ticketId       String?
+  ticket         CallTicket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
   /// Gutschrift → stornierte Rechnung; Rechnung → Angebot, aus dem sie entstand
-  relatedId     String?
-  issueDate     DateTime?
-  serviceDate   DateTime?
-  dueAt         DateTime?
-  issuer        Json?
-  recipient     Json?
-  lines         Json      @default("[]")
-  netCents      Int       @default(0)
-  taxCents      Int       @default(0)
-  grossCents    Int       @default(0)
-  taxes         Json      @default("[]")
-  smallBusiness Boolean   @default(false)
-  introText     String?
-  note          String?
-  paidAt        DateTime?
-  paymentMethod String?
-  reminderLevel Int       @default(0)
+  relatedId      String?
+  issueDate      DateTime?
+  serviceDate    DateTime?
+  dueAt          DateTime?
+  issuer         Json?
+  recipient      Json?
+  lines          Json        @default("[]")
+  netCents       Int         @default(0)
+  taxCents       Int         @default(0)
+  grossCents     Int         @default(0)
+  taxes          Json        @default("[]")
+  smallBusiness  Boolean     @default(false)
+  introText      String?
+  note           String?
+  paidAt         DateTime?
+  paymentMethod  String?
+  reminderLevel  Int         @default(0)
   lastReminderAt DateTime?
-  sentAt        DateTime?
+  sentAt         DateTime?
   /// Link für den Kunden (Ansicht, Druck, GiroCode) – zufällig, nicht erratbar
-  publicToken   String    @unique
-  createdById   String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  publicToken    String      @unique
+  createdById    String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
   @@unique([tenantId, number])
   @@index([tenantId, kind, status])
@@ -568,29 +573,31 @@ model BillCounter {
 
 /// Einsatzbericht aus der Techniker-App (ein Bericht je Vorgang)
 model JobReport {
-  id            String     @id @default(cuid())
-  tenantId      String
-  tenant        Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  ticketId      String     @unique
-  ticket        CallTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  employeeId    String?
-  employee      Employee?  @relation(fields: [employeeId], references: [id], onDelete: SetNull)
-  status        String     @default("OPEN") // OPEN, EN_ROUTE, ON_SITE, DONE
-  enRouteAt     DateTime?
-  arrivedAt     DateTime?
-  finishedAt    DateTime?
-  findings      String     @default("")
-  workDone      String     @default("")
+  id              String     @id @default(cuid())
+  tenantId        String
+  tenant          Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ticketId        String     @unique
+  ticket          CallTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  employeeId      String?
+  employee        Employee?  @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  status          String     @default("OPEN") // OPEN, EN_ROUTE, ON_SITE, DONE
+  enRouteAt       DateTime?
+  arrivedAt       DateTime?
+  finishedAt      DateTime?
+  findings        String     @default("")
+  workDone        String     @default("")
   /// [{ description, quantity, unit, unitCents, serviceId? }]
-  materials     Json       @default("[]")
-  hoursWorked   Float      @default(0)
-  signatureName String?
-  signaturePng  Bytes?
-  signedAt      DateTime?
-  billId        String?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  photos        JobPhoto[]
+  materials       Json       @default("[]")
+  hoursWorked     Float      @default(0)
+  signatureName   String?
+  signaturePng    Bytes?
+  signedAt        DateTime?
+  billId          String?
+  /// Bewertungsanfrage geprüft (gesendet oder bewusst übersprungen)
+  reviewHandledAt DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  photos          JobPhoto[]
 
   @@index([tenantId, updatedAt])
 }

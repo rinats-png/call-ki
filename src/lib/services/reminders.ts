@@ -53,7 +53,8 @@ export async function runAppointmentReminders(now = new Date()) {
       any = true;
     }
     if ((n.reminder === "sms" || n.reminder === "both") && hasFeature(plan, "sms") && !t.customer.smsOptOutAt) {
-      await sendSms({ tenantId: t.tenantId, ticketId: t.id, to: t.customer.phone, body: `${t.tenant.name}: Erinnerung an Ihren Termin am ${when}.${change}`, purpose: "APPOINTMENT_REMINDER" });
+      const ask = n.reminderAskConfirm ? " Passt es noch? Antworten Sie mit JA oder NEIN." : "";
+      await sendSms({ tenantId: t.tenantId, ticketId: t.id, to: t.customer.phone, body: `${t.tenant.name}: Erinnerung an Ihren Termin am ${when}.${ask}${change}`, purpose: "APPOINTMENT_REMINDER" });
       any = true;
     }
     await prisma.callTicket.update({ where: { id: t.id }, data: { reminderSentAt: now } });

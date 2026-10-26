@@ -185,3 +185,75 @@ describe.skipIf(!enabled)("Phase 1 – Techniker-App & Einsatzbericht", () => {
     await expect(j.finishJob(tech, ticketId, {})).rejects.toMatchObject({ status: 409 });
   });
 });
+
+describe.skipIf(!enabled)("Phase 1 – Kundenkontakt", () => {
+  let tenant: Awaited<ReturnType<typeof prisma.tenant.create>>;
+  let tech: { id: string; tenantId: string; name: string };
+  const phone = "+4915112345301";
+  let customerId: string;
+  beforeAll(async () => {
+    tenant = await prisma.tenant.create({ data: { name: `Kontakt P1 ${uid}`, slug: `p1k-${uid}`, industry: "trades", status: "ACTIVE", settings: { notifications: { backofficeEmail: "buero@example.org", contactPhone: "06131 123456" }, contact: { enRoute: "both", reviewRequest: "both", reviewUrl: "https://g.page/r/test", reviewDelayHours: 2 } } } });
+    tech = await prisma.employee.create({ data: { tenantId: tenant.id, name: "Emre Yilmaz", role: "FIELD_TECH" } });
+    customerId = (await prisma.customer.create({ data: { tenantId: tenant.id, phone, name: "Jonas Weber", email: "jonas@example.org" } })).id;
+  });
+  afterAll(async () => {
+    await prisma.message.deleteMany({ where: { tenantId: tenant.id } });
+    await prisma.callTicket.deleteMany({ where: { tenantId: tenant.id } });
+    await prisma.customer.deleteMany({ where: { tenantId: tenant.id } });
+    await prisma.tenant.delete({ where: { id: tenant.id } });
+  });
+  const mkTicket = (h: number) => {
+    const start = new Date(Date.now() + h * 3600_000);
+    return prisma.callTicket.create({ data: { tenantId: tenant.id, customerId, assignedEmployeeId: tech.id, category: "Rohrbruch", status: "PROCESSED", appointmentStart: start, appointmentEnd: new Date(start.getTime() + 3600_000) } });
+  };
+  const remind = (ticketId: string) => prisma.message.create({ data: { tenantId: tenant.id, ticketId, channel: "SMS", recipient: phone, body: "Erinnerung … Passt es noch?", purpose: "APPOINTMENT_REMINDER", status: "SENT" } });
+
+  it("JA bestätigt den Termin, NEIN eskaliert und meldet ans Büro", async () => {
+    const { handleInboundSms } = await import("@/lib/services/sms-replies");
+    const a = await mkTicket(20);
+    await remind(a.id);
+    expect(await handleInboundSms("0151 12345301", "Ja, passt")).toMatchObject({ intent: "YES", matched: true, ticketId: a.id });
+    expect((await prisma.callTicket.findUniqueOrThrow({ where: { id: a.id } })).confirmation).toBe("CONFIRMED");
+
+    const b = await mkTicket(30);
+    await remind(b.id);
+    await handleInboundSms(phone, "Nein, bin krank");
+    const tb = await prisma.callTicket.findUniqueOrThrow({ where: { id: b.id } });
+    expect(tb).toMatchObject({ confirmation: "DECLINED", status: "ESCALATED" });
+    expect(tb.notes).toContain("bin krank");
+    expect(await prisma.message.count({ where: { ticketId: b.id, channel: "EMAIL", recipient: "buero@example.org" } })).toBe(1);
+    expect((await prisma.message.findFirstOrThrow({ where: { ticketId: b.id, channel: "SMS", purpose: "JOB_UPDATE" } })).body).toContain("06131 123456");
+
+    // Unbekannte Nummer → keine Zuordnung
+    expect(await handleInboundSms("+4915199999999", "Ja")).toMatchObject({ matched: false });
+    // STOP → Widerspruch
+    await handleInboundSms(phone, "STOP");
+    expect((await prisma.customer.findUniqueOrThrow({ where: { id: customerId } })).smsOptOutAt).not.toBeNull();
+    await prisma.customer.update({ where: { id: customerId }, data: { smsOptOutAt: null } });
+  });
+
+  it("„Unterwegs“ geht einmal raus, Bewertung nach Verzögerung und höchstens alle 90 Tage", async () => {
+    const { onJobEnRoute, runReviewRequests } = await import("@/lib/services/job-contact");
+    const t = await mkTicket(1);
+    expect((await onJobEnRoute(tenant.id, t.id, tech.name)).sent).toBe(true);
+    const enRoute = await prisma.message.findMany({ where: { ticketId: t.id, purpose: "JOB_UPDATE" } });
+    expect(enRoute.map((m) => m.channel).sort()).toEqual(["EMAIL", "SMS"]);
+    expect(enRoute.find((m) => m.channel === "SMS")!.body).toContain("Emre ist jetzt unterwegs");
+
+    const now = new Date();
+    await prisma.jobReport.create({ data: { tenantId: tenant.id, ticketId: t.id, employeeId: tech.id, status: "DONE", finishedAt: new Date(now.getTime() - 3600_000) } });
+    await runReviewRequests(now);
+    expect(await prisma.message.count({ where: { ticketId: t.id, purpose: "REVIEW_REQUEST" } })).toBe(0); // noch zu früh
+    await runReviewRequests(new Date(now.getTime() + 2 * 3600_000));
+    expect(await prisma.message.count({ where: { ticketId: t.id, purpose: "REVIEW_REQUEST" } })).toBe(2);
+    await runReviewRequests(new Date(now.getTime() + 3 * 3600_000));
+    expect(await prisma.message.count({ where: { ticketId: t.id, purpose: "REVIEW_REQUEST" } })).toBe(2);
+
+    // zweiter Einsatz kurz danach: keine erneute Bitte (90 Tage)
+    const t2 = await mkTicket(2);
+    await prisma.jobReport.create({ data: { tenantId: tenant.id, ticketId: t2.id, employeeId: tech.id, status: "DONE", finishedAt: now } });
+    await runReviewRequests(new Date(now.getTime() + 3 * 3600_000));
+    expect(await prisma.message.count({ where: { ticketId: t2.id, purpose: "REVIEW_REQUEST" } })).toBe(0);
+    expect((await prisma.jobReport.findUniqueOrThrow({ where: { ticketId: t2.id } })).reviewHandledAt).not.toBeNull();
+  });
+});

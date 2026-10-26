@@ -45,6 +45,11 @@ export default function Page() {
               {[2, 4, 12, 24, 48, 72].map((h) => <option key={h} value={h}>{h} Stunden</option>)}
             </select>
           </Field>
+          <div className="sm:col-span-2">
+            <Field label="„Passt es noch?“" help={["Die Erinnerungs-SMS fragt nach: Kunden antworten mit JA oder NEIN.", "JA markiert den Termin als bestätigt. NEIN setzt den Vorgang auf „Eskaliert“ und meldet es an die Büro-Adresse.", "Voraussetzung: Bei der Twilio-SMS-Nummer ist als Webhook für eingehende Nachrichten …/api/twilio/sms eingetragen."]}>
+              <label className="flex h-[38px] items-center gap-2 text-sm text-zinc-300"><input type="checkbox" checked={n.reminderAskConfirm} onChange={(e) => set({ reminderAskConfirm: e.target.checked })} />In der Erinnerungs-SMS um Bestätigung bitten (JA/NEIN)</label>
+            </Field>
+          </div>
           <div className="sm:col-span-2"><Field label="Rufnummer in der Erinnerung" hint="Ihre bekannte Firmennummer – dort kann der Kunde verschieben oder absagen."><input className="input" value={n.contactPhone} onChange={(e) => set({ contactPhone: e.target.value })} placeholder="z. B. 030 1234567" /></Field></div>
         </div>
       </Panel>
