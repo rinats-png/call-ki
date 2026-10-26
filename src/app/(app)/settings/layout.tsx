@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, CalendarClock, Bell, Plug, Gauge, UserCog, History, ListChecks, Receipt } from "lucide-react";
+import { Building2, CalendarClock, Bell, Plug, Gauge, UserCog, History, ListChecks, Receipt, Smartphone } from "lucide-react";
 import { cn } from "@/lib/ui";
 import { useSession } from "@/components/session";
 
@@ -11,6 +11,7 @@ const TABS = [
   { href: "/settings/scheduling", label: "Termine & Notfall", hint: "Zeiten, Dauer, Notdienst", icon: CalendarClock },
   { href: "/settings/services", label: "Leistungen", hint: "Dauer, Gewerk, Preis", icon: ListChecks },
   { href: "/settings/invoicing", label: "Rechnungen", hint: "Steuernummer, Bank, Mahnung", icon: Receipt },
+  { href: "/settings/jobs", label: "Einsätze", hint: "Techniker-App, Kundenkontakt", icon: Smartphone },
   { href: "/settings/notifications", label: "Benachrichtigungen", hint: "E-Mail und SMS", icon: Bell },
   { href: "/settings/integrations", label: "Integrationen", hint: "Kalender, Rufumleitung", icon: Plug },
   { href: "/settings/plan", label: "Tarif & Verbrauch", hint: "Paket, Minuten, Rechnung", icon: Gauge },

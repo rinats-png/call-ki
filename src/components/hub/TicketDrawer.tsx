@@ -7,7 +7,7 @@ import { X, Phone, MapPin, Mail, Building2, CalendarPlus, Loader2, Bot, User, Se
 import type { CustomerType, EmployeeRole } from "@/lib/constants";
 import { cn, fmtDateTime, fmtDuration, MESSAGE_STATUS, PURPOSE_LABEL, STATUS_STYLE } from "@/lib/ui";
 import { apiFetch, useSession } from "../session";
-import type { EmployeeRow, TicketDetail } from "./types";
+import type { EmployeeRow, JobReportRow, TicketDetail } from "./types";
 import { StatusChip, UrgencyChip } from "./Primitives";
 
 type Line = { who: "ai" | "caller" | "other"; text: string };
@@ -172,6 +172,8 @@ export function TicketDrawer({ id, employees, onClose, onChanged }: { id: string
               )}
             </section>
 
+            {t.jobReport && <JobReportView r={t.jobReport} />}
+
             <section>
               <h4 className="label mb-2">Interne Notizen</h4>
               <textarea className="input min-h-[72px]" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="z. B. Rückruf versucht, Kunde bittet um Termin nach 16 Uhr" />
@@ -198,6 +200,40 @@ export function TicketDrawer({ id, employees, onClose, onChanged }: { id: string
         )}
       </aside>
     </div>
+  );
+}
+
+const JOB_LABEL = { OPEN: "Geplant", EN_ROUTE: "Unterwegs", ON_SITE: "Vor Ort", DONE: "Erledigt" } as const;
+
+/** Einsatzbericht aus der Techniker-App */
+function JobReportView({ r }: { r: JobReportRow }) {
+  const tm = (s: string | null) => (s ? new Date(s).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) : "–");
+  return (
+    <section className="glass-soft space-y-2 p-4 text-sm">
+      <div className="flex items-center justify-between"><h4 className="label">Einsatzbericht{r.employee ? ` · ${r.employee.name}` : ""}</h4><span className="chip border-zinc-700 bg-zinc-950/60 text-zinc-300">{JOB_LABEL[r.status]}</span></div>
+      <p className="text-xs text-zinc-500">Unterwegs {tm(r.enRouteAt)} · vor Ort {tm(r.arrivedAt)} · fertig {tm(r.finishedAt)}{r.hoursWorked ? ` · ${String(r.hoursWorked).replace(".", ",")} h` : ""}</p>
+      {r.findings && <p className="text-zinc-300"><span className="text-zinc-500">Befund: </span>{r.findings}</p>}
+      {r.workDone && <p className="text-zinc-300"><span className="text-zinc-500">Arbeiten: </span>{r.workDone}</p>}
+      {r.materials.length > 0 && <p className="text-zinc-300"><span className="text-zinc-500">Material: </span>{r.materials.map((m) => `${String(m.quantity).replace(".", ",")} ${m.unit} ${m.description}`).join(" · ")}</p>}
+      {r.photos.length > 0 && (
+        <div className="grid grid-cols-4 gap-1.5">
+          {r.photos.map((p) => (
+            <a key={p.id} href={`/api/jobs/photos/${p.id}`} target="_blank" rel="noreferrer" className="aspect-square overflow-hidden rounded-md bg-white/5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={`/api/jobs/photos/${p.id}`} alt="Einsatzfoto" className="h-full w-full object-cover" loading="lazy" />
+            </a>
+          ))}
+        </div>
+      )}
+      {r.signedAt && (
+        <div className="flex items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`/api/jobs/signature/${r.id}`} alt={`Unterschrift ${r.signatureName ?? ""}`} className="h-12 rounded bg-white px-2" />
+          <span className="text-xs text-zinc-500">unterschrieben von {r.signatureName}</span>
+        </div>
+      )}
+      {r.billId && <a className="btn-ghost text-xs" href="/billing">Rechnungsentwurf öffnen</a>}
+    </section>
   );
 }
 

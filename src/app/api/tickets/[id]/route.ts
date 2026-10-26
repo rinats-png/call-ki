@@ -19,6 +19,7 @@ const include = {
   customer: true,
   assignedEmployee: true,
   call: { select: { id: true, startedAt: true, durationSec: true, recordingUrl: true, endReason: true } },
+  jobReport: { select: { id: true, status: true, enRouteAt: true, arrivedAt: true, finishedAt: true, findings: true, workDone: true, materials: true, hoursWorked: true, signatureName: true, signedAt: true, billId: true, employee: { select: { name: true } }, photos: { select: { id: true }, orderBy: { createdAt: "asc" as const } } } },
   messages: { orderBy: { createdAt: "desc" as const }, select: { id: true, channel: true, recipient: true, subject: true, purpose: true, status: true, error: true, createdAt: true } },
 };
 

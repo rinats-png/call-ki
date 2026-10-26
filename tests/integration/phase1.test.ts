@@ -116,3 +116,72 @@ describe.skipIf(!enabled)("Phase 1 – Endkunden-Rechnungen", () => {
     expect(await prisma.bill.count({ where: { tenantId: tenant.id, customerId } })).toBeGreaterThan(0);
   });
 });
+
+describe.skipIf(!enabled)("Phase 1 – Techniker-App & Einsatzbericht", () => {
+  let tenant: Awaited<ReturnType<typeof prisma.tenant.create>>;
+  let tech: { id: string; tenantId: string };
+  let other: { id: string; tenantId: string };
+  let ticketId: string;
+  const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(200)]);
+  beforeAll(async () => {
+    tenant = await prisma.tenant.create({ data: { name: `Technik P1 ${uid}`, slug: `p1t-${uid}`, industry: "trades", status: "ACTIVE", settings: { jobs: { hourlyRateCents: 6800 } } } });
+    tech = await prisma.employee.create({ data: { tenantId: tenant.id, name: "Emre Yilmaz", role: "FIELD_TECH" } });
+    other = await prisma.employee.create({ data: { tenantId: tenant.id, name: "Hanna Berg", role: "FIELD_TECH" } });
+    const customer = await prisma.customer.create({ data: { tenantId: tenant.id, phone: "+4915112345201", name: "Jonas Weber", address: "Am Rhein 3, 55116 Mainz" } });
+    const service = await prisma.service.create({ data: { tenantId: tenant.id, name: "Rohrbruch", priceCents: 8900 } });
+    const start = new Date(Date.now() + 2 * 3600_000);
+    ticketId = (await prisma.callTicket.create({ data: { tenantId: tenant.id, customerId: customer.id, assignedEmployeeId: tech.id, serviceId: service.id, category: "Rohrbruch", appointmentStart: start, appointmentEnd: new Date(start.getTime() + 3600_000), status: "PROCESSED" } })).id;
+  });
+  afterAll(async () => {
+    await prisma.bill.deleteMany({ where: { tenantId: tenant.id } });
+    await prisma.callTicket.deleteMany({ where: { tenantId: tenant.id } });
+    await prisma.customer.deleteMany({ where: { tenantId: tenant.id } });
+    await prisma.tenant.delete({ where: { id: tenant.id } });
+  });
+
+  it("Geräte-Link: nur der aktuelle gilt, Sperren wirkt sofort", async () => {
+    const { issueAppToken, employeeForToken, revokeAppToken } = await import("@/lib/services/jobs");
+    const t1 = await issueAppToken(tenant.id, tech.id);
+    expect((await employeeForToken(t1)).id).toBe(tech.id);
+    const t2 = await issueAppToken(tenant.id, tech.id);
+    await expect(employeeForToken(t1)).rejects.toMatchObject({ status: 404 });
+    expect((await employeeForToken(t2)).id).toBe(tech.id);
+    // Hash wird nicht mit den Mitarbeiterdaten geladen
+    expect(Object.keys(await prisma.employee.findUniqueOrThrow({ where: { id: tech.id } }))).not.toContain("appTokenHash");
+    await revokeAppToken(tenant.id, tech.id);
+    await expect(employeeForToken(t2)).rejects.toMatchObject({ status: 404 });
+    await expect(issueAppToken("fremd", tech.id)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it("Ablauf: Liste → unterwegs → vor Ort → Bericht, Foto → Abschluss mit Rechnungsentwurf", async () => {
+    const j = await import("@/lib/services/jobs");
+    const list = await j.jobsFor(tech);
+    expect(list.map((x) => x.id)).toContain(ticketId);
+    expect((await j.jobsFor(other)).map((x) => x.id)).not.toContain(ticketId);
+    await expect(j.updateJob(other, ticketId, { findings: "x" })).rejects.toMatchObject({ status: 404 });
+
+    expect((await j.setJobStatus(tech, ticketId, "EN_ROUTE")).firstTime).toBe(true);
+    expect((await j.setJobStatus(tech, ticketId, "EN_ROUTE")).firstTime).toBe(false);
+    await j.setJobStatus(tech, ticketId, "ON_SITE");
+    await expect(j.finishJob(tech, ticketId, {})).rejects.toMatchObject({ status: 400 });
+    await j.updateJob(tech, ticketId, { findings: "Eckventil undicht", workDone: "Eckventil getauscht", hoursWorked: 1.4, materials: [{ description: "Eckventil", quantity: 1, unit: "Stück", unitCents: 1250 }] });
+    await expect(j.addPhoto(tech, ticketId, "image/png", JPEG)).rejects.toMatchObject({ status: 415 });
+    await j.addPhoto(tech, ticketId, "image/jpeg", JPEG);
+
+    const r = await j.finishJob(tech, ticketId, { signatureName: "J. Weber", signaturePng: Buffer.from("89504e470d0a1a0a00", "hex") });
+    expect(r.billId).toBeTruthy();
+    const bill = await prisma.bill.findUniqueOrThrow({ where: { id: r.billId! } });
+    expect(bill.status).toBe("DRAFT");
+    expect(bill.ticketId).toBe(ticketId);
+    expect((bill.lines as { description: string; quantity: number }[]).map((l) => `${l.quantity} ${l.description}`)).toEqual(["1 Rohrbruch", "1.5 Arbeitszeit", "1 Eckventil"]);
+    const rep = await prisma.jobReport.findUniqueOrThrow({ where: { ticketId }, include: { photos: true } });
+    expect(rep).toMatchObject({ status: "DONE", signatureName: "J. Weber", hoursWorked: 1.5 });
+    expect(rep.photos).toHaveLength(1);
+    expect(rep.enRouteAt && rep.arrivedAt && rep.finishedAt).toBeTruthy();
+    expect((await prisma.callTicket.findUniqueOrThrow({ where: { id: ticketId } })).status).toBe("CLOSED");
+    // Erledigt bleibt in der Liste sichtbar, ist aber gesperrt
+    expect((await j.jobsFor(tech)).map((x) => x.id)).toContain(ticketId);
+    await expect(j.updateJob(tech, ticketId, { findings: "y" })).rejects.toMatchObject({ status: 409 });
+    await expect(j.finishJob(tech, ticketId, {})).rejects.toMatchObject({ status: 409 });
+  });
+});

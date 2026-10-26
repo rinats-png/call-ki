@@ -14,9 +14,9 @@ export const GET = api(async () => {
   const employees = await prisma.employee.findMany({
     where: { tenantId: auth.tenantId },
     orderBy: [{ active: "desc" }, { name: "asc" }],
-    include: { _count: { select: { tickets: { where: { status: { in: ["PENDING", "ESCALATED"] } } } } } },
+    include: { _count: { select: { tickets: { where: { status: { in: ["PENDING", "ESCALATED"] } } } } }, appToken: { select: { createdAt: true } } },
   });
-  return NextResponse.json(employees.map(({ _count, ...e }) => ({ ...e, openTickets: _count.tickets })));
+  return NextResponse.json(employees.map(({ _count, appToken, ...e }) => ({ ...e, openTickets: _count.tickets, appLinkAt: appToken?.createdAt ?? null })));
 });
 
 const AREA = /^(\s*(\*|\d{1,5}(\s*-\s*\d{1,5})?)\s*)(,\s*(\*|\d{1,5}(\s*-\s*\d{1,5})?)\s*)*$/;

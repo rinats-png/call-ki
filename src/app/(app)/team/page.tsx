@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Pencil, Plus, X } from "lucide-react";
+import { Copy, Loader2, Pencil, Plus, Smartphone, X } from "lucide-react";
+import QRCode from "qrcode";
 import { usePoll } from "@/lib/use-poll";
 import { EMPLOYEE_ROLES, type EmployeeRole } from "@/lib/constants";
 import { cn } from "@/lib/ui";
@@ -18,6 +19,7 @@ export default function TeamPage() {
   const [form, setForm] = useState<typeof EMPTY | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [link, setLink] = useState<{ name: string; url: string; qr: string } | null>(null);
   const roleLabel = (r: string) => me?.tenant?.roleLabels[r as EmployeeRole] ?? r;
 
   async function save(e: React.FormEvent) {
@@ -34,6 +36,18 @@ export default function TeamPage() {
       setErr((e2 as Error).message);
     }
     setBusy(false);
+  }
+
+  async function newLink(e: EmployeeRow) {
+    if (e.appLinkAt && !confirm(`Neuen Link für ${e.name} erzeugen? Der bisherige Link funktioniert dann nicht mehr.`)) return;
+    const { url } = await apiFetch<{ url: string }>(`/api/employees/${e.id}/app-link`, { method: "POST" });
+    setLink({ name: e.name, url, qr: await QRCode.toDataURL(url, { margin: 1, width: 240 }) });
+    reload();
+  }
+  async function revokeLink(e: EmployeeRow) {
+    if (!confirm(`Techniker-App für ${e.name} sperren?`)) return;
+    await apiFetch(`/api/employees/${e.id}/app-link`, { method: "DELETE" });
+    reload();
   }
 
   const set = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -97,7 +111,14 @@ export default function TeamPage() {
                 <Row k="E-Mail / Kalender" v={e.email ?? "—"} />
                 <Row k="Direktwahl" v={e.directPhone ?? "—"} />
                 <Row k="Gewerke" v={e.trades?.trim() ? e.trades : "alle"} />
+                <Row k="Techniker-App" v={e.appLinkAt ? `Link seit ${new Date(e.appLinkAt).toLocaleDateString("de-DE")}` : "kein Link"} />
               </dl>
+              {isTenantAdmin && e.active && (
+                <div className="flex gap-2">
+                  <button className="btn-ghost text-xs" onClick={() => newLink(e)}><Smartphone className="h-3.5 w-3.5" />{e.appLinkAt ? "Neuer App-Link" : "App-Link erzeugen"}</button>
+                  {e.appLinkAt && <button className="btn-ghost text-xs" onClick={() => revokeLink(e)}>Sperren</button>}
+                </div>
+              )}
               <div>
                 <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">Einsatzgebiet</div>
                 <div className="flex flex-wrap gap-1">
@@ -115,6 +136,7 @@ export default function TeamPage() {
         )}
       </div>
 
+      {link && <LinkDialog link={link} onClose={() => setLink(null)} />}
       {form && (
         <div className="fixed inset-0 z-50 !m-0 grid place-items-center p-4">
           <div className="absolute inset-0 bg-scrim/50 backdrop-blur-sm" onClick={() => setForm(null)} />
@@ -140,6 +162,22 @@ export default function TeamPage() {
           </form>
         </div>
       )}
+    </div>
+  );
+}
+
+function LinkDialog({ link, onClose }: { link: { name: string; url: string; qr: string }; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="fixed inset-0 z-50 !m-0 grid place-items-center p-4">
+      <div className="absolute inset-0 bg-scrim/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="glass relative w-full max-w-md space-y-3 p-5 animate-fadein">
+        <header className="flex items-center justify-between"><h3 className="font-semibold text-zinc-100">Techniker-App für {link.name}</h3><button className="btn-ghost p-2" onClick={onClose} aria-label="Schließen"><X className="h-4 w-4" /></button></header>
+        <p className="text-sm text-zinc-400">QR-Code mit dem Handy scannen, Seite öffnen und „Zum Startbildschirm hinzufügen“ wählen. Der Link ist persönlich – wie ein Schlüssel. Er wird nur jetzt angezeigt.</p>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={link.qr} alt="QR-Code zum Geräte-Link" className="mx-auto h-48 w-48 rounded-lg bg-white p-2" />
+        <div className="flex gap-2"><input className="input font-mono text-xs" readOnly value={link.url} onFocus={(e) => e.target.select()} /><button className="btn-ghost" onClick={() => navigator.clipboard.writeText(link.url).then(() => setCopied(true))}><Copy className="h-4 w-4" />{copied ? "Kopiert" : "Kopieren"}</button></div>
+      </div>
     </div>
   );
 }

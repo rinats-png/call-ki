@@ -95,6 +95,28 @@ export const tenantSettingsSchema = z.object({
       footer: z.string().trim().max(600).default(""),
     })
     .prefault({}),
+  /** Kundenkontakt rund um den Einsatz */
+  contact: z
+    .object({
+      /** „Ihr Techniker ist unterwegs“, sobald in der Techniker-App auf „Unterwegs“ getippt wird */
+      enRoute: z.enum(["off", "email", "sms", "both"]).default("off"),
+      /** Bitte um Bewertung nach Abschluss des Einsatzes */
+      reviewRequest: z.enum(["off", "email", "sms", "both"]).default("off"),
+      reviewUrl: z.string().trim().max(300).url().or(z.literal("")).default(""),
+      reviewDelayHours: z.number().int().min(0).max(168).default(2),
+    })
+    .prefault({}),
+  /** Techniker-App: Abschluss eines Einsatzes */
+  jobs: z
+    .object({
+      /** Beim Abschluss automatisch einen Rechnungsentwurf anlegen (Leistung, Arbeitszeit, Material) */
+      autoInvoiceDraft: z.boolean().default(true),
+      /** Stundensatz netto für die Arbeitszeit; 0 = keine Arbeitszeit-Position */
+      hourlyRateCents: z.number().int().min(0).max(100_000).default(0),
+      /** Kundenunterschrift ist Pflicht für den Abschluss */
+      requireSignature: z.boolean().default(false),
+    })
+    .prefault({}),
   /** Datenschutzinformation des Kunden für Anrufer (Art. 13 DSGVO), wird von der KI genannt */
   privacyUrl: z.string().trim().max(300).url().or(z.literal("")).default(""),
   /** Löschfrist für Transkripte/Aufnahmen in Tagen (DSGVO) */

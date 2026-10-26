@@ -61,6 +61,7 @@ model Tenant {
   webhookEndpoints   WebhookEndpoint[]
   services           Service[]
   bills              Bill[]
+  jobReports         JobReport[]
 }
 
 model User {
@@ -210,8 +211,10 @@ model Employee {
   /// Gewerke, kommagetrennt (z. B. "Sanitär, Heizung"); leer = alle Gewerke
   trades             String       @default("")
   active             Boolean      @default(true)
+  appToken           EmployeeAppToken?
   createdAt          DateTime     @default(now())
   tickets            CallTicket[]
+  jobReports         JobReport[]
 
   @@index([tenantId])
 }
@@ -276,6 +279,7 @@ model CallTicket {
   updatedAt          DateTime  @updatedAt
   messages           Message[]
   bills              Bill[]
+  jobReport          JobReport?
 
   @@index([tenantId, createdAt])
   @@index([assignedEmployeeId, appointmentStart])
@@ -560,4 +564,55 @@ model BillCounter {
   last     Int    @default(0)
 
   @@id([tenantId, year, kind])
+}
+
+/// Einsatzbericht aus der Techniker-App (ein Bericht je Vorgang)
+model JobReport {
+  id            String     @id @default(cuid())
+  tenantId      String
+  tenant        Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ticketId      String     @unique
+  ticket        CallTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  employeeId    String?
+  employee      Employee?  @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  status        String     @default("OPEN") // OPEN, EN_ROUTE, ON_SITE, DONE
+  enRouteAt     DateTime?
+  arrivedAt     DateTime?
+  finishedAt    DateTime?
+  findings      String     @default("")
+  workDone      String     @default("")
+  /// [{ description, quantity, unit, unitCents, serviceId? }]
+  materials     Json       @default("[]")
+  hoursWorked   Float      @default(0)
+  signatureName String?
+  signaturePng  Bytes?
+  signedAt      DateTime?
+  billId        String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  photos        JobPhoto[]
+
+  @@index([tenantId, updatedAt])
+}
+
+model JobPhoto {
+  id        String    @id @default(cuid())
+  tenantId  String
+  reportId  String
+  report    JobReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  mime      String
+  data      Bytes
+  sizeBytes Int
+  createdAt DateTime  @default(now())
+
+  @@index([reportId])
+}
+
+/// Techniker-App: SHA-256 des Geräte-Links (/t/{token}); eigene Tabelle, damit der Hash nie mit Mitarbeiterdaten ausgeliefert wird
+model EmployeeAppToken {
+  hash       String   @id
+  employeeId String   @unique
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  tenantId   String
+  createdAt  DateTime @default(now())
 }

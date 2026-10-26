@@ -14,6 +14,8 @@ export type TicketRow = {
 
 export type EmployeeRow = {
   id: string;
+  /** Techniker-App: wann der aktuelle Geräte-Link erzeugt wurde (null = kein Link) */
+  appLinkAt?: string | null;
   name: string;
   role: string;
   email: string | null;
@@ -55,4 +57,11 @@ export type TicketDetail = Omit<TicketRow, "customer" | "assignedEmployee" | "me
   assignedEmployeeId: string | null;
   call: { id: string; startedAt: string; durationSec: number | null; recordingUrl: string | null; endReason: string | null } | null;
   messages: MessageRow[];
+  jobReport: JobReportRow | null;
+};
+
+export type JobReportRow = {
+  id: string; status: "OPEN" | "EN_ROUTE" | "ON_SITE" | "DONE"; enRouteAt: string | null; arrivedAt: string | null; finishedAt: string | null;
+  findings: string; workDone: string; materials: { description: string; quantity: number; unit: string; unitCents: number }[]; hoursWorked: number;
+  signatureName: string | null; signedAt: string | null; billId: string | null; photos: { id: string }[]; employee: { name: string } | null;
 };
