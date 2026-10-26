@@ -451,3 +451,49 @@ describe.skipIf(!enabled)("Phase 2 – Teamkalender", () => {
     expect(await prisma.message.count({ where: { ticketId: open.id, purpose: "CUSTOMER_CONFIRMATION" } })).toBe(1);
   });
 });
+
+describe.skipIf(!enabled)("Phase 2 – Online-Terminbuchung", () => {
+  let tenant: Awaited<ReturnType<typeof prisma.tenant.create>>;
+  let serviceId: string;
+  beforeAll(async () => {
+    tenant = await prisma.tenant.create({ data: { name: `Buchung ${uid}`, slug: `p2b-${uid}`, industry: "trades", status: "ACTIVE", settings: { appointments: { leadMin: 0, bufferMin: 0 }, bookingPage: { enabled: true }, notifications: { contactPhone: "06131 123456" } }, addons: { create: [{ key: "booking_page", priceCents: 1500 }] } } });
+    await prisma.employee.create({ data: { tenantId: tenant.id, name: "Emre", role: "FIELD_TECH", servicePostalCodes: "55" } });
+    serviceId = (await prisma.service.create({ data: { tenantId: tenant.id, name: "Wasserhahn tauschen", durationMin: 60 } })).id;
+  });
+  afterAll(async () => {
+    await settleDeferred();
+    await prisma.message.deleteMany({ where: { tenantId: tenant.id } });
+    await prisma.tenant.delete({ where: { id: tenant.id } });
+  });
+
+  it("zeigt Leistungen und Termine, bucht, verhindert Doppelbuchung und überschreibt keine Kundendaten", async () => {
+    const b = await import("@/lib/services/booking");
+    const info = await b.bookingInfo(tenant.slug);
+    expect(info.services.map((s) => s.name)).toEqual(["Wasserhahn tauschen"]);
+    expect(info.phone).toBe("06131 123456");
+    // außerhalb des Gebiets: keine Termine
+    expect((await b.bookingSlots(tenant.slug, { serviceId, postalCode: "10115" })).slots).toEqual([]);
+    const s = await b.bookingSlots(tenant.slug, { serviceId, postalCode: "55116", address: "Am Rhein 3" });
+    expect(s.slots.length).toBeGreaterThan(3);
+
+    await prisma.customer.create({ data: { tenantId: tenant.id, phone: "+4915112345701", name: "Echter Name", address: "Alte Adresse 1" } });
+    const r = await b.bookOnline(tenant.slug, { serviceId, start: s.slots[0].start, name: "Fremder", phone: "0151 12345701", email: "x@example.org", address: "Am Rhein 3", postalCode: "55116" });
+    expect(r.ok).toBe(true);
+    const c = await prisma.customer.findFirstOrThrow({ where: { tenantId: tenant.id, phone: "+4915112345701" } });
+    expect(c).toMatchObject({ name: "Echter Name", address: "Alte Adresse 1", email: "x@example.org" });
+    const before = await prisma.callTicket.count({ where: { tenantId: tenant.id } });
+    const again = await b.bookOnline(tenant.slug, { serviceId, start: s.slots[0].start, name: "Zweite", phone: "0151 12345702", email: "y@example.org", address: "Am Rhein 4", postalCode: "55116" });
+    expect(again.ok).toBe(false);
+    expect(await prisma.callTicket.count({ where: { tenantId: tenant.id } })).toBe(before);
+    if (!again.ok) expect(again.slots.map((x) => x.start)).not.toContain(s.slots[0].start);
+  });
+
+  it("Notfälle werden nicht online eingeplant, ausgeschaltete Seite ist nicht erreichbar", async () => {
+    const b = await import("@/lib/services/booking");
+    const s = await b.bookingSlots(tenant.slug, { serviceId, postalCode: "55116" });
+    await expect(b.bookOnline(tenant.slug, { serviceId, start: s.slots[1].start, name: "Notfall", phone: "0151 12345703", email: "z@example.org", address: "Am Rhein 5", postalCode: "55116", note: "Rohrbruch, Wasser läuft in die Wohnung unten, Notfall!" })).rejects.toMatchObject({ status: 409 });
+    await prisma.tenant.update({ where: { id: tenant.id }, data: { settings: { bookingPage: { enabled: false } } } });
+    await expect(b.bookingInfo(tenant.slug)).rejects.toMatchObject({ status: 404 });
+    await expect(b.bookingInfo("gibt-es-nicht")).rejects.toMatchObject({ status: 404 });
+  });
+});

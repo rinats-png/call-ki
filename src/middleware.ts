@@ -6,7 +6,7 @@ import { NextResponse, type NextRequest } from "next/server";
  * Rolle und Mandant erfolgt serverseitig in jeder Route (src/lib/auth/session.ts).
  */
 const SESSION_COOKIE = "ck_session";
-const PUBLIC_PAGES = ["/login", "/setup", "/forgot", "/invite/", "/reset/", "/status", "/b/", "/t/"];
+const PUBLIC_PAGES = ["/login", "/setup", "/forgot", "/invite/", "/reset/", "/status", "/b/", "/t/", "/buchen/"];
 const PUBLIC_API = ["/api/auth/", "/api/twilio/", "/api/voice/", "/api/health", "/api/cron/", "/api/public/"];
 /** Webhooks werden von Twilio/Retell aufgerufen – eigene Signaturprüfung, kein CSRF-Check */
 const WEBHOOK_API = ["/api/twilio/", "/api/voice/", "/api/cron/"];

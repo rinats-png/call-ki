@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, CalendarClock, Bell, Plug, Gauge, UserCog, History, ListChecks, Receipt, Smartphone, Route } from "lucide-react";
+import { Building2, CalendarClock, Bell, Plug, Gauge, UserCog, History, ListChecks, Receipt, Smartphone, Route, Globe } from "lucide-react";
 import { cn } from "@/lib/ui";
 import { useSession } from "@/components/session";
 
@@ -12,6 +12,7 @@ const TABS = [
   { href: "/settings/services", label: "Leistungen", hint: "Dauer, Gewerk, Preis", icon: ListChecks },
   { href: "/settings/invoicing", label: "Rechnungen", hint: "Steuernummer, Bank, Mahnung", icon: Receipt, modules: ["invoicing"] },
   { href: "/settings/planning", label: "Einsatzplanung", hint: "Fahrzeiten, Bündeln, Anfahrt", icon: Route, modules: ["planning"] },
+  { href: "/settings/booking", label: "Online-Buchung", hint: "Buchungsseite, Link, QR-Code", icon: Globe, modules: ["booking_page"] },
   { href: "/settings/jobs", label: "Einsätze", hint: "Techniker-App, Kundenkontakt", icon: Smartphone, modules: ["field_app", "customer_contact"] },
   { href: "/settings/notifications", label: "Benachrichtigungen", hint: "E-Mail und SMS", icon: Bell },
   { href: "/settings/integrations", label: "Integrationen", hint: "Kalender, Rufumleitung", icon: Plug },
