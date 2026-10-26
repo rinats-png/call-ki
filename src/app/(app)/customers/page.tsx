@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Search, X, Loader2, Download, Trash2 } from "lucide-react";
 import { usePoll } from "@/lib/use-poll";
@@ -175,6 +176,7 @@ function CustomerDrawer({ id, onClose, onChanged }: { id: string; onClose: () =>
                 <button className="btn-primary" onClick={save} disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />}Speichern</button>
               </div>
             </section>
+            <Link href={`/customers/${id}`} className="btn-primary w-full justify-center">Kundenakte öffnen – alles auf einen Blick</Link>
             <section>
               <h4 className="label mb-2">Vorgänge</h4>
               {c.tickets.length === 0 && <p className="text-sm text-zinc-500">Keine Vorgänge.</p>}

@@ -531,3 +531,33 @@ describe.skipIf(!enabled)("Phase 2 – Mein Tag & Aufgaben", () => {
     expect(d.tasks.map((t) => t.title).sort()).toEqual(["für alle", "meine"]);
   });
 });
+
+describe.skipIf(!enabled)("Phase 4 – Kundenakte", () => {
+  let tenant: Awaited<ReturnType<typeof prisma.tenant.create>>;
+  beforeAll(async () => { tenant = await prisma.tenant.create({ data: { name: `Akte ${uid}`, slug: `p4a-${uid}`, industry: "trades", status: "ACTIVE" } }); });
+  afterAll(async () => {
+    await prisma.message.deleteMany({ where: { tenantId: tenant.id } });
+    await prisma.bill.deleteMany({ where: { tenantId: tenant.id } });
+    await prisma.tenant.delete({ where: { id: tenant.id } });
+  });
+
+  it("bündelt Anrufe, Vorgänge, Termine, Nachrichten, Berichte und Rechnungen – nur des eigenen Kunden", async () => {
+    const { customerFile } = await import("@/lib/services/customer-file");
+    const c = await prisma.customer.create({ data: { tenantId: tenant.id, phone: "+4915112345901", name: "Jonas", email: "jonas@example.org" } });
+    const other = await prisma.customer.create({ data: { tenantId: tenant.id, phone: "+4915112345902", name: "Fremd" } });
+    await prisma.call.create({ data: { tenantId: tenant.id, customerId: c.id, fromNumber: c.phone, toNumber: "+4930", status: "ENDED", durationSec: 95, summary: "Rohrbruch gemeldet" } });
+    const t = await prisma.callTicket.create({ data: { tenantId: tenant.id, customerId: c.id, category: "Rohrbruch", status: "CLOSED", appointmentStart: new Date(Date.now() - 86400_000), appointmentEnd: new Date(Date.now() - 82800_000), closedAt: new Date() } });
+    await prisma.jobReport.create({ data: { tenantId: tenant.id, ticketId: t.id, status: "DONE", finishedAt: new Date(), workDone: "Eckventil getauscht", signatureName: "J." } });
+    await prisma.message.create({ data: { tenantId: tenant.id, ticketId: t.id, channel: "EMAIL", recipient: c.email!, purpose: "CUSTOMER_CONFIRMATION", status: "SENT", body: "x", subject: "Ihr Termin" } });
+    await prisma.message.create({ data: { tenantId: tenant.id, ticketId: t.id, channel: "EMAIL", recipient: "tech@example.org", purpose: "TECHNICIAN_BRIEFING", status: "SENT", body: "x" } });
+    await prisma.bill.create({ data: { tenantId: tenant.id, kind: "INVOICE", status: "PAID", number: `RE-${uid}`, customerId: c.id, ticketId: t.id, issueDate: new Date(), paidAt: new Date(), grossCents: 10591, publicToken: `tok-${uid}-aaaaaaaaaaaaaaaa` } });
+    await prisma.callTicket.create({ data: { tenantId: tenant.id, customerId: other.id, category: "Fremd" } });
+
+    const f = (await customerFile(tenant.id, c.id))!;
+    expect(f.items.map((i) => i.kind).sort()).toEqual(["appointment", "bill", "call", "message", "payment", "report", "ticket"]);
+    expect(f.items.find((i) => i.kind === "message")!.title).toContain("Terminbestätigung");
+    expect(f.stats).toMatchObject({ calls: 1, tickets: 1, jobsDone: 1, revenueCents: 10591, openCents: 0 });
+    expect(JSON.stringify(f)).not.toContain("Fremd");
+    expect(await customerFile("anderer-mandant", c.id)).toBeNull();
+  });
+});

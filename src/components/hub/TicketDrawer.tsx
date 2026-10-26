@@ -2,6 +2,7 @@
 
 import { WaveformPlayer } from "../WaveformPlayer";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { X, Phone, MapPin, Mail, Building2, CalendarPlus, Loader2, Bot, User, Send } from "lucide-react";
 import type { CustomerType, EmployeeRole } from "@/lib/constants";
@@ -109,7 +110,7 @@ export function TicketDrawer({ id, employees, onClose, onChanged }: { id: string
                 <StatusChip status={t.status} />
                 <span className="font-mono text-[11px] text-zinc-500">#{t.id.slice(-8).toUpperCase()}</span>
               </div>
-              <h3 className="mt-2 truncate text-lg font-semibold text-zinc-50">{t.category ?? "Sonstiges"} · {t.customer.companyName ?? t.customer.name ?? t.customer.phone}</h3>
+              <h3 className="mt-2 truncate text-lg font-semibold text-zinc-50">{t.category ?? "Sonstiges"} · <Link href={`/customers/${t.customer.id}`} className="hover:underline" title="Kundenakte öffnen">{t.customer.companyName ?? t.customer.name ?? t.customer.phone}</Link></h3>
               <p className="text-xs text-zinc-500">{fmtDateTime(t.createdAt)}</p>
             </div>
           ) : (
