@@ -1,4 +1,6 @@
 import type { Employee, Tenant } from "@prisma/client";
+import { filterByTravel, originOf, pickSlots, stopsOf, travelEnabled } from "./services/travel";
+import type { LatLon } from "./geo";
 import { prisma } from "./db";
 import { microsoftConfigured } from "./env";
 import { deleteCalendarEvent, getBusyIntervals } from "./graph";
@@ -59,14 +61,22 @@ async function busyFromProviders(tenantId: string, employee: Pick<Employee, "ema
 export async function findAvailableSlots(
   tenant: Pick<Tenant, "id" | "timezone">,
   cfg: TenantConfig,
-  employee: Pick<Employee, "id" | "email">,
-  opts: { urgent?: boolean; from?: Date } = {},
-): Promise<{ slots: Interval[]; calendarError: string | null }> {
+  employee: Pick<Employee, "id" | "email"> & { baseAddress?: string | null },
+  opts: { urgent?: boolean; from?: Date; target?: LatLon | null } = {},
+): Promise<{ slots: (Interval & { travelMin?: number | null; nearby?: boolean })[]; calendarError: string | null }> {
   const a = cfg.settings.appointments;
   const from = opts.from ?? new Date();
   const to = new Date(from.getTime() + (a.daysAhead + 1) * 86400000);
   const [internal, ext] = await Promise.all([internalBusy(tenant.id, employee.id, from, to), busyFromProviders(tenant.id, employee, from, to)]);
   const bh = cfg.settings.businessHours;
+  // Einsatzplanung: Fahrzeit zum vorherigen/nächsten Termin einplanen, Termine in der Nähe bündeln
+  if (opts.target && !opts.urgent && (await travelEnabled(tenant.id, cfg))) {
+    const candidates = computeFreeSlots({ from, days: a.daysAhead, busy: [...internal, ...ext.busy], durationMin: cfg.durationMin, timeZone: tenant.timezone, workDays: bh.days, start: bh.start, end: bh.end, bufferMin: a.bufferMin, max: 120, spreadMin: 0, leadMinutes: a.leadMin });
+    const [stops, origin] = await Promise.all([stopsOf(tenant.id, employee.id, from, to), originOf(cfg, { baseAddress: employee.baseAddress ?? null })]);
+    const feasible = await filterByTravel({ candidates, stops, origin, target: opts.target, tz: tenant.timezone, workStart: bh.start });
+    const p = cfg.settings.planning;
+    return { slots: pickSlots(feasible, { max: a.slotsOffered, bundle: p.bundle, maxDetourMin: p.bundleMaxDetourMin }), calendarError: ext.error };
+  }
   const slots = computeFreeSlots({
     from,
     days: a.daysAhead,

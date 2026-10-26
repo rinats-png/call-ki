@@ -13,6 +13,7 @@
 | 3b | **Vapi, Inc.**, USA (nur Kunden mit Sprach-KI „Vapi“) | KI-Sprachagent | wie 3 | USA; EU-Region nur mit Vapi Premier | DPA/SCC **[PRÜFEN]**; Zero Data Retention aktivierbar | ☐ `<Datum>` |
 | 3c | **ElevenLabs** (Eleven Labs Inc. / ElevenLabs Sp. z o.o.) (nur Kunden mit „ElevenLabs“) | KI-Sprachagent, Sprachsynthese | wie 3 | USA/EU; EU-Datenresidenz vertraglich **[PRÜFEN]** | DPA/SCC **[PRÜFEN]**; Zero Retention Mode aktivierbar | ☐ `<Datum>` |
 | 3d | Weitere Sprach-KI über SIP (Bland, Synthflow, PolyAI, …) | nur wenn für einen Kunden gewählt | wie 3 | je Anbieter | vor Aktivierung AVV/DPA abschließen und hier eintragen | ☐ |
+| 5 | **HeiGIT gGmbH (OpenRouteService)**, Heidelberg – nur wenn unter Karten & Fahrzeiten gewählt (Alternative: eigene Nominatim/OSRM-Server, dann entfällt diese Zeile) | Geokodierung und Fahrzeiten für die Zusatzoption Einsatzplanung | Einsatzadressen (ohne Namen), Koordinaten | Deutschland **[PRÜFEN]** | – (EU) | ☐ `<Datum>` |
 | 4 | **`<SMTP-Anbieter>`** (z. B. IONOS Mail, Brevo, Postmark) | Versand von Bestätigungen, Technikerinfos, Einladungen | E-Mail-Adresse, Name, Termin, Anliegen (Kurzfassung) | `<Ort>` | `<Grundlage>` | ☐ `<Datum>` |
 
 **Nicht** in der Liste, weil kein Unterauftragsverarbeiter des Betreibers:
@@ -41,4 +42,5 @@
 | Datum | Änderung | Kunden informiert am |
 |---|---|---|
 | 2026-10-23 | Erstfassung | – |
+| 2026-10-26 | OpenRouteService (optional) für Fahrzeiten ergänzt | `<Datum>` |
 | 2026-10-24 | IONOS: Object Storage für Backups ergänzt (wird ein anderer S3-Anbieter genutzt, eigene Zeile anlegen) | `<Datum>` |

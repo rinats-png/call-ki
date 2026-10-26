@@ -14,7 +14,7 @@ import { WEBHOOK_LABEL } from "@/lib/platform/webhooks-labels";
 type SettingState = { key: string; set: boolean; source: "ui" | "env" | null; value?: string; hint?: string };
 type Payload = { settings: Record<string, SettingState>; webhooks: Record<string, string>; encryption: boolean };
 
-const CATEGORIES: Category[] = ["general", "voice", "telephony", "calendar", "email"];
+const CATEGORIES: Category[] = ["general", "voice", "telephony", "calendar", "email", "maps"];
 
 function isConfigured(p: Provider, s: Payload["settings"]) {
   const req = p.fields.filter((f) => f.required);

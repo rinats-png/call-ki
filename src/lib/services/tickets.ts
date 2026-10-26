@@ -19,6 +19,8 @@ import { runAfterResponse } from "../defer";
 import { env } from "../env";
 import { emitWebhook, ticketPayload } from "./webhooks";
 import { cfgForService, serviceForCategory } from "./catalog";
+import { locate, originOf, travelEnabled } from "./travel";
+import { travel, type LatLon } from "../geo";
 
 type T = Pick<Tenant, "id" | "name" | "timezone">;
 
@@ -30,11 +32,17 @@ export async function loadRoutingCandidates(tenantId: string) {
   return employees.map(({ _count, ...e }) => ({ ...e, openTickets: _count.tickets }));
 }
 
-export async function routeRequest(tenantId: string, cfg: TenantConfig, input: { postalCode?: string | null; urgency: Urgency; customerType?: string | null; category?: string | null; trade?: string | null }): Promise<RoutingResult> {
-  return routeTechnician(
-    { ...input, specialistCustomerTypes: cfg.template.specialistCustomerTypes, roleLabels: cfg.template.roleLabels },
-    await loadRoutingCandidates(tenantId),
-  );
+export async function routeRequest(tenantId: string, cfg: TenantConfig, input: { postalCode?: string | null; urgency: Urgency; customerType?: string | null; category?: string | null; trade?: string | null; target?: LatLon | null }): Promise<RoutingResult> {
+  let candidates = await loadRoutingCandidates(tenantId);
+  // Einsatzplanung: Fahrzeit vom Startpunkt jedes Außendienst-Mitarbeiters zum Kunden
+  if (input.target && (await travelEnabled(tenantId, cfg))) {
+    candidates = await Promise.all(candidates.map(async (e) => {
+      if (e.role === "BACKOFFICE") return e;
+      const origin = await originOf(cfg, e);
+      return { ...e, travelMin: origin ? (await travel(origin, input.target!)).minutes : null };
+    }));
+  }
+  return routeTechnician({ ...input, specialistCustomerTypes: cfg.template.specialistCustomerTypes, roleLabels: cfg.template.roleLabels }, candidates);
 }
 
 function cleanUrgency(u?: string | null): Urgency | null {
@@ -84,7 +92,8 @@ export async function processServiceRequest(tenant: T, baseCfg: TenantConfig, in
     ? "CRITICAL"
     : assessUrgency({ category, description: input.description, customerType: customer.customerType, aiUrgency: cleanUrgency(input.urgency), rules: cfg.urgencyRules });
 
-  const routing = await routeRequest(tenant.id, cfg, { postalCode: customer.postalCode, urgency, customerType: customer.customerType, category, trade: service?.trade || null });
+  const target = (await travelEnabled(tenant.id, cfg)) ? await locate(customer) : null;
+  const routing = await routeRequest(tenant.id, cfg, { postalCode: customer.postalCode, urgency, customerType: customer.customerType, category, trade: service?.trade || null, target });
   let employee: Employee | null = null;
   if (input.employeeId) employee = await prisma.employee.findFirst({ where: { id: input.employeeId, tenantId: tenant.id, active: true } });
   if (!employee && routing.employee) employee = await prisma.employee.findFirst({ where: { id: routing.employee.id, tenantId: tenant.id } });

@@ -29,6 +29,20 @@ export const ADDONS = [
     includes: ["„Passt es noch?“ in der Erinnerungs-SMS (Antwort JA/NEIN)", "„Techniker ist unterwegs“ (mit Techniker-App)", "Bitte um Bewertung nach dem Einsatz"],
     defaultPriceCents: 900,
   },
+  {
+    key: "planning",
+    name: "Einsatzplanung",
+    tagline: "Teamkalender, echte Fahrzeiten und Ihr Tagesplan",
+    includes: ["Teamkalender: Tag, Woche, Monat – Termine per Ziehen umplanen", "Fahrzeit zwischen Terminen, Einsatzgebiet nach Fahrzeit", "Termine in der Nähe bündeln, Anfahrtszuschlag", "Mein Tag: Termine, Rückrufe und Aufgaben je Person"],
+    defaultPriceCents: 1900,
+  },
+  {
+    key: "booking_page",
+    name: "Online-Terminbuchung",
+    tagline: "Kunden buchen selbst – rund um die Uhr, mit denselben Regeln wie am Telefon",
+    includes: ["Eigene Buchungsseite mit Link für Website und Google-Profil", "Nur freie Termine des zuständigen Mitarbeiters", "Bestätigung per E-Mail, Termin sofort im Kalender"],
+    defaultPriceCents: 1500,
+  },
 ] as const;
 
 export type AddonKey = (typeof ADDONS)[number]["key"];

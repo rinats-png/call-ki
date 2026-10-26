@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { resolveConfig } from "@/lib/tenant/settings";
 import { processServiceRequest } from "@/lib/services/tickets";
 import { settleDeferred } from "@/lib/defer";
+import crypto from "node:crypto";
 
 /**
  * Integrationstests Phase 1 (Leistungskatalog, Einsatz, Rechnung, Kundenkontakt).
@@ -364,5 +365,42 @@ describe.skipIf(!enabled)("Zahlungsabgleich per Kontoauszug", () => {
     await resolveSuggestion(tenant.id, s.id, "accept");
     expect((await prisma.bill.findUniqueOrThrow({ where: { id: b.id } })).status).toBe("PAID");
     await expect(resolveSuggestion(tenant.id, s.id, "accept")).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe.skipIf(!enabled)("Phase 2 – Fahrzeiten & Gebiete", () => {
+  let tenant: Awaited<ReturnType<typeof prisma.tenant.create>>;
+  const key = (a: string) => crypto.createHash("sha256").update(a.toLowerCase().replace(/\s+/g, " ").replace(/\s*,\s*/g, ", ").trim()).digest("hex");
+  const places: Record<string, [number, number]> = {
+    "Gartenstraße 8, 55116 Mainz": [50.0, 8.27],
+    "Zeil 1, 60313 Frankfurt": [50.11, 8.68],
+    "Am Rhein 3, 55116, Deutschland": [50.0, 8.28],
+  };
+  beforeAll(async () => {
+    for (const [a, [lat, lon]] of Object.entries(places)) await prisma.geoCache.upsert({ where: { key: key(a) }, create: { key: key(a), lat, lon, provider: "ors" }, update: { lat, lon } });
+    tenant = await prisma.tenant.create({ data: { name: `Planung ${uid}`, slug: `p2-${uid}`, industry: "trades", status: "ACTIVE", settings: { appointments: { leadMin: 0, bufferMin: 0 }, planning: { depotAddress: "Gartenstraße 8, 55116 Mainz", travelFeeFromMin: 30, travelFeeCents: 2500 } }, addons: { create: [{ key: "planning", priceCents: 1900 }] } } });
+  });
+  afterAll(async () => {
+    await settleDeferred();
+    await prisma.tenant.delete({ where: { id: tenant.id } });
+  });
+
+  it("wählt nach Fahrzeit, nennt die Anfahrt und berechnet den Zuschlag", async () => {
+    const ffm = await prisma.employee.create({ data: { tenantId: tenant.id, name: "Frank Fern", role: "FIELD_TECH", baseAddress: "Zeil 1, 60313 Frankfurt", maxTravelMin: 30 } });
+    const mz = await prisma.employee.create({ data: { tenantId: tenant.id, name: "Mia Nah", role: "FIELD_TECH", maxTravelMin: 30 } });
+    const r = await processServiceRequest(tenant, resolveConfig(tenant), { customer: { phone: "+4915112345501", name: "Jonas Weber", address: "Am Rhein 3", postalCode: "55116" }, category: "Rohrbruch", description: "Leck" });
+    expect(r.ticket.assignedEmployeeId).toBe(mz.id);
+    expect(r.routing.reason).toMatch(/Anfahrt ca\. \d+ Min\./);
+    expect(r.routing.areaMatch).toBe(true);
+    const { travelFeeFor, locate } = await import("@/lib/services/travel");
+    const target = await locate({ address: "Am Rhein 3", postalCode: "55116" });
+    expect(await travelFeeFor(tenant.id, resolveConfig(tenant), mz, target)).toBeNull();
+    expect(await travelFeeFor(tenant.id, resolveConfig(tenant), ffm, target)).toMatchObject({ cents: 2500 });
+  });
+
+  it("ohne gebuchte Einsatzplanung bleibt es bei PLZ-Gebieten", async () => {
+    await prisma.tenantAddon.updateMany({ where: { tenantId: tenant.id }, data: { endsAt: new Date(Date.now() - 1000) } });
+    const r = await processServiceRequest(tenant, resolveConfig(tenant), { customer: { phone: "+4915112345502", address: "Am Rhein 3", postalCode: "55116" }, category: "Rohrbruch", description: "Leck" });
+    expect(r.routing.reason).not.toContain("Anfahrt");
   });
 });

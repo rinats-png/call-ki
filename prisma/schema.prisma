@@ -64,6 +64,7 @@ model Tenant {
   jobReports         JobReport[]
   addons             TenantAddon[]
   bankTransactions   BankTransaction[]
+  tasks              Task[]
 }
 
 model User {
@@ -89,6 +90,7 @@ model User {
   updatedAt     DateTime    @updatedAt
   sessions      Session[]
   tokens        AuthToken[]
+  tasks         Task[]
 
   @@index([tenantId])
 }
@@ -216,6 +218,10 @@ model Employee {
   trades             String            @default("")
   active             Boolean           @default(true)
   appToken           EmployeeAppToken?
+  /// Startpunkt für Fahrzeiten (leer = Betriebsadresse aus Einstellungen → Einsatzplanung)
+  baseAddress        String?
+  /// Einsatzgebiet nach Fahrzeit: höchstens so viele Minuten Anfahrt (leer = Gebiet nach PLZ)
+  maxTravelMin       Int?
   createdAt          DateTime          @default(now())
   tickets            CallTicket[]
   jobReports         JobReport[]
@@ -291,6 +297,7 @@ model CallTicket {
   messages           Message[]
   bills              Bill[]
   jobReport          JobReport?
+  tasks              Task[]
 
   @@index([tenantId, createdAt])
   @@index([assignedEmployeeId, appointmentStart])
@@ -671,4 +678,34 @@ model BankTransaction {
 
   @@unique([tenantId, hash])
   @@index([tenantId, status])
+}
+
+/// Geokodierte Adressen (Schlüssel = SHA-256 der normalisierten Adresse, keine Klartextadresse), 180 Tage
+model GeoCache {
+  key       String   @id
+  lat       Float?
+  lon       Float?
+  /// ors, osm, none (nicht gefunden)
+  provider  String
+  createdAt DateTime @default(now())
+}
+
+/// Aufgaben (Mein Tag): manuell oder aus einem Vorgang, optional einer Person zugeordnet
+model Task {
+  id           String      @id @default(cuid())
+  tenantId     String
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title        String
+  note         String      @default("")
+  dueAt        DateTime?
+  assigneeId   String?
+  assignee     User?       @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  ticketId     String?
+  ticket       CallTicket? @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  doneAt       DateTime?
+  createdById  String?
+  createdAt    DateTime    @default(now())
+
+  @@index([tenantId, doneAt])
+  @@index([assigneeId, doneAt])
 }

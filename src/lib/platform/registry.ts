@@ -18,7 +18,7 @@ export type ProviderField = {
   required?: boolean;
 };
 
-export type Category = "voice" | "telephony" | "calendar" | "email" | "general";
+export type Category = "voice" | "telephony" | "calendar" | "email" | "maps" | "general";
 
 /** full = vollständig integriert (Anrufannahme, Funktionen, Gesprächsende, Löschung);
  *  sip = Anbindung über SIP-Weiterleitung + generische Tool-Schnittstelle; info = nur Anleitung */
@@ -47,6 +47,7 @@ export const CATEGORY_LABEL: Record<Category, { title: string; description: stri
   telephony: { title: "Telefonie & VoIP", description: "Rufnummern, Weiterleitung, SMS. Kunden behalten ihre Nummer und leiten auf die Plattform um." },
   calendar: { title: "Kalender", description: "Outlook (Microsoft 365) und Google Kalender. Kunden verbinden ihren Kalender selbst im Portal – hier richtest du die App einmal ein." },
   email: { title: "E-Mail-Versand", description: "Bestätigungen, Technikerinfos, Einladungen und Passwort-Links." },
+  maps: { title: "Karten & Fahrzeiten", description: "Für die Zusatzoption Einsatzplanung: Adressen in Koordinaten umwandeln und Fahrzeiten berechnen. Ohne Anbieter schätzt die Plattform aus der Luftlinie." },
 };
 
 export const LEVEL_LABEL: Record<IntegrationLevel, string> = {
@@ -391,6 +392,29 @@ export const PROVIDERS: Provider[] = [
     ],
     setup: ["Postfach bzw. SMTP-Zugang beim Anbieter anlegen.", "Zugangsdaten eintragen und „Verbindung testen“ – die Plattform meldet sich am Server an, ohne eine Mail zu senden."],
   },
+
+  // ───────────── Karten & Fahrzeiten
+  {
+    id: "maps",
+    category: "maps",
+    name: "OpenRouteService oder eigene OSM-Server",
+    tagline: "Geokodierung und Fahrzeiten mit OpenStreetMap-Daten – EU-Anbieter oder selbst betrieben.",
+    level: "full",
+    website: "https://openrouteservice.org",
+    docs: "https://openrouteservice.org/dev/#/api-docs",
+    testable: true,
+    fields: [
+      { key: "MAPS_PROVIDER", label: "Anbieter", type: "select", options: [{ value: "", label: "Aus – Schätzung aus Luftlinie" }, { value: "ors", label: "OpenRouteService (HeiGIT, Heidelberg)" }, { value: "osm", label: "Eigener Nominatim- und OSRM-Server" }], help: ["OpenRouteService: gemeinnütziger Anbieter aus Heidelberg, Server in Deutschland, kostenloses Kontingent für den Start.", "Eigene Server: Nominatim (Adressen) und OSRM (Fahrzeiten) mit Deutschland-Karte auf einem eigenen VPS – keine Daten an Dritte.", "Den öffentlichen Nominatim-Server von OpenStreetMap bitte nicht verwenden (Nutzungsbedingungen)."] },
+      { key: "ORS_API_KEY", label: "OpenRouteService API-Schlüssel", type: "secret", help: ["openrouteservice.org → Sign up → Dashboard → „Request a token“ (Standard).", "Kontingente laut Tarif beachten; Ergebnisse werden zwischengespeichert."] },
+      { key: "NOMINATIM_URL", label: "Nominatim-URL (eigener Server)", type: "url", placeholder: "https://nominatim.deine-domain.de" },
+      { key: "OSRM_URL", label: "OSRM-URL (eigener Server)", type: "url", placeholder: "https://osrm.deine-domain.de" },
+    ],
+    setup: [
+      "Anbieter wählen und Zugang eintragen, dann „Verbindung testen“.",
+      "Gespeichert werden nur Koordinaten (gerundet) zu einem Hash der Adresse, 180 Tage – keine Klartextadressen.",
+      "Auftragsverarbeitung: OpenRouteService erhält Adressen von Endkunden – AV-Vertrag abschließen und in der Liste der Unterauftragsverarbeiter ergänzen.",
+    ],
+  },
 ];
 
 for (const f of PROVIDERS.find((p) => p.id === "general")!.fields) {
@@ -418,4 +442,6 @@ export const PLAN_FEATURES: { key: string; label: string; help: string }[] = [
   { key: "invoicing", label: "Zusatzoption: Angebote & Rechnungen", help: "Im Paket enthalten statt einzeln buchbar." },
   { key: "field_app", label: "Zusatzoption: Techniker-App", help: "Im Paket enthalten statt einzeln buchbar." },
   { key: "customer_contact", label: "Zusatzoption: Kundenkontakt plus", help: "Im Paket enthalten statt einzeln buchbar." },
+  { key: "planning", label: "Zusatzoption: Einsatzplanung", help: "Im Paket enthalten statt einzeln buchbar." },
+  { key: "booking_page", label: "Zusatzoption: Online-Terminbuchung", help: "Im Paket enthalten statt einzeln buchbar." },
 ];

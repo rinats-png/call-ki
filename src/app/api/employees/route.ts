@@ -28,6 +28,8 @@ const employeeSchema = z.object({
   servicePostalCodes: z.string().regex(AREA, "Format: 10115, 12, 13000-13999 oder *"),
   directPhone: z.string().max(30).nullable().optional(),
   trades: z.string().trim().max(200).optional(),
+  baseAddress: z.string().trim().max(200).nullable().optional(),
+  maxTravelMin: z.number().int().min(5).max(300).nullable().optional(),
   active: z.boolean().optional(),
 });
 

@@ -108,6 +108,34 @@ export const tenantSettingsSchema = z.object({
       reviewDelayHours: z.number().int().min(0).max(168).default(2),
     })
     .prefault({}),
+  /** Einsatzplanung: Fahrzeiten, Gebiete, Bündeln, Anfahrtszuschlag */
+  planning: z
+    .object({
+      /** Startpunkt der Touren (Betrieb/Lager), wenn beim Mitarbeiter keiner hinterlegt ist */
+      depotAddress: z.string().trim().max(200).default(""),
+      /** Fahrzeit zwischen Terminen bei der Terminsuche berücksichtigen */
+      travelAware: z.boolean().default(true),
+      /** Termine bevorzugt in die Nähe bestehender Termine legen */
+      bundle: z.boolean().default(true),
+      /** Umweg bis zu so vielen Minuten gilt als „in der Nähe“ */
+      bundleMaxDetourMin: z.number().int().min(0).max(60).default(15),
+      /** Anfahrtszuschlag (netto) ab dieser Fahrzeit vom Startpunkt; 0 = kein Zuschlag */
+      travelFeeFromMin: z.number().int().min(0).max(240).default(30),
+      travelFeeCents: z.number().int().min(0).max(100_000).default(0),
+    })
+    .prefault({}),
+  /** Online-Terminbuchung (öffentliche Seite /buchen/<kürzel>) */
+  bookingPage: z
+    .object({
+      enabled: z.boolean().default(false),
+      headline: z.string().trim().max(120).default(""),
+      intro: z.string().trim().max(600).default(""),
+      /** Buchbare Leistungen (IDs); leer = alle aktiven */
+      serviceIds: z.array(z.string()).max(100).default([]),
+      /** E-Mail-Adresse ist Pflicht (für die Bestätigung) */
+      requireEmail: z.boolean().default(true),
+    })
+    .prefault({}),
   /** Techniker-App: Abschluss eines Einsatzes */
   jobs: z
     .object({

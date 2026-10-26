@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { prisma } from "../db";
 import { findAvailableSlots } from "../calendar";
+import { locate, travelEnabled, travelFeeFor } from "../services/travel";
 import { cfgForService, serviceForCategory } from "../services/catalog";
 import { logger } from "../logger";
 import { normalizePhone, maskPhone } from "../phone";
@@ -132,7 +133,9 @@ const handlers: { [K in ToolName]: Handler<K> } = {
     const urgency = assessUrgency({ category: args.category, description: args.description, customerType, aiUrgency: args.urgency ?? null, rules: ctx.cfg.urgencyRules });
     const service = await serviceForCategory(ctx.tenant.id, args.category);
     const cfg = cfgForService(ctx.cfg, service);
-    const routing = await routeRequest(ctx.tenant.id, cfg, { postalCode, urgency, customerType, category: args.category, trade: service?.trade || null });
+    // Einsatzplanung: Fahrzeit zum Einsatzort (genannte Adresse, sonst gespeicherte)
+    const target = (await travelEnabled(ctx.tenant.id, cfg)) ? await locate({ address: existing?.address, postalCode }) : null;
+    const routing = await routeRequest(ctx.tenant.id, cfg, { postalCode, urgency, customerType, category: args.category, trade: service?.trade || null, target });
     if (!routing.employee) return { found: false, urgency, say: "Aktuell ist niemand eingeplant. Bitte Rückruf anbieten (book_appointment ohne Termin)." };
 
     const plan = (await planForTenant(ctx.tenant.id)).plan;
@@ -149,15 +152,18 @@ const handlers: { [K in ToolName]: Handler<K> } = {
     let slots: { start: string; label: string }[] = [];
     let calendarError: string | null = null;
     if (routing.employee.role !== "BACKOFFICE") {
-      const r = await findAvailableSlots(ctx.tenant, cfg, routing.employee, { urgent: urgency === "HIGH" });
+      const r = await findAvailableSlots(ctx.tenant, cfg, routing.employee, { urgent: urgency === "HIGH", target });
       slots = r.slots.map((s) => ({ start: s.start.toISOString(), label: formatGermanDateTime(s.start, ctx.tenant.timezone) }));
       calendarError = r.calendarError;
     }
+    const fee = await travelFeeFor(ctx.tenant.id, cfg, routing.employee, target);
+    const feeNote = fee ? ` Hinweis an den Kunden: Für diese Entfernung berechnen wir eine Anfahrtspauschale von ${(fee.cents / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR" })} netto.` : "";
     return {
       found: true, urgency, employeeId: routing.employee.id, employee: routing.employee.name, areaMatch: routing.areaMatch, slots, reason: routing.reason,
-      say: slots.length
+      ...(fee ? { travelFeeCents: fee.cents } : {}),
+      say: (slots.length
         ? `Zuständig ist ${routing.employee.name}. Freie Termine: ${slots.map((s) => s.label).join("; ")}.`
-        : `Zuständig ist ${routing.employee.name}. Keine freien Termine gefunden – Rückruf zur Terminabstimmung anbieten.`,
+        : `Zuständig ist ${routing.employee.name}. Keine freien Termine gefunden – Rückruf zur Terminabstimmung anbieten.`) + feeNote,
       ...(calendarError ? { calendarWarning: calendarError } : {}),
     };
   },
@@ -174,7 +180,7 @@ const handlers: { [K in ToolName]: Handler<K> } = {
     const tz = ctx.tenant.timezone;
     const emp = res.ticket.assignedEmployee?.name;
     if (res.slotTaken) {
-      const r = res.ticket.assignedEmployee ? await findAvailableSlots(ctx.tenant, cfgForService(ctx.cfg, await serviceForCategory(ctx.tenant.id, args.category)), res.ticket.assignedEmployee) : { slots: [] };
+      const r = res.ticket.assignedEmployee ? await findAvailableSlots(ctx.tenant, cfgForService(ctx.cfg, await serviceForCategory(ctx.tenant.id, args.category)), res.ticket.assignedEmployee, { target: (await travelEnabled(ctx.tenant.id, ctx.cfg)) ? await locate(res.ticket.customer) : null }) : { slots: [] };
       const slots = r.slots.map((s) => ({ start: s.start.toISOString(), label: formatGermanDateTime(s.start, tz) }));
       return { ok: false, slotTaken: true, slots, say: `Dieser Termin wurde gerade vergeben. ${slots.length ? `Alternativen: ${slots.map((s) => s.label).join("; ")}.` : "Bitte Rückruf anbieten."}` };
     }
@@ -238,7 +244,8 @@ const handlers: { [K in ToolName]: Handler<K> } = {
     if (!t.assignedEmployee) return { ok: false, say: "Für diesen Termin ist niemand eingeplant. Bitte Rückruf durch das Büro anbieten." };
     const tz = ctx.tenant.timezone;
     const svc = t.serviceId ? await prisma.service.findFirst({ where: { id: t.serviceId, tenantId: ctx.tenant.id } }) : null;
-    const alternatives = async () => (await findAvailableSlots(ctx.tenant, cfgForService(ctx.cfg, svc), t.assignedEmployee!)).slots.map((s) => ({ start: s.start.toISOString(), label: formatGermanDateTime(s.start, tz) }));
+    const target = (await travelEnabled(ctx.tenant.id, ctx.cfg)) ? await locate(t.customer) : null;
+    const alternatives = async () => (await findAvailableSlots(ctx.tenant, cfgForService(ctx.cfg, svc), t.assignedEmployee!, { target })).slots.map((s) => ({ start: s.start.toISOString(), label: formatGermanDateTime(s.start, tz) }));
     if (!args.appointmentStart) {
       const slots = await alternatives();
       return { ok: false, reference: ref(t.id), current: formatGermanDateTime(t.appointmentStart!, tz), slots, say: slots.length ? `Freie Termine: ${slots.map((s) => s.label).join("; ")}. Danach reschedule_appointment mit appointmentStart aufrufen.` : "Keine freien Termine gefunden – Rückruf zur Terminabstimmung anbieten." };

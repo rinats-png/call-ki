@@ -22,6 +22,8 @@ export type EmployeeRow = {
   servicePostalCodes: string;
   directPhone: string | null;
   trades?: string;
+  baseAddress?: string | null;
+  maxTravelMin?: number | null;
   active: boolean;
   openTickets: number;
 };

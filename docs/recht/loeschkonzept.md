@@ -25,6 +25,7 @@
 | Geräte-Link der Techniker-App (nur SHA-256) | DB `EmployeeAppToken` | bis „neuer Link“/„Sperren“ oder Löschen des Mitarbeiters | – |
 | **Ausgestellte Angebote, Rechnungen, Gutschriften an Endkunden** (eingefrorene Anschrift, Positionen, Beträge) | DB `Bill` | **Aufbewahrungspflicht des Kunden** (§ 147 AO, § 14b UStG: 8 bzw. 10 Jahre) **[PRÜFEN]** | werden nie gelöscht, nur storniert; bei Löschanfrage eines Endkunden wird der Kundendatensatz anonymisiert, die Belege bleiben (Art. 17 Abs. 3 lit. b DSGVO); Entwürfe werden gelöscht. Bei Vertragsende: Export an den Kunden vor der Mandantenlöschung |
 | Zahlungseingänge aus hochgeladenen Kontoauszügen (Datum, Betrag, Name des Zahlers, Verwendungszweck) | DB `BankTransaction` | **90 Tage** | nur automatisch zugeordnete bzw. zur Prüfung vorgeschlagene Gutschriften werden gespeichert; Ausgaben und nicht zuordenbare Zahlungen werden beim Import verworfen; Löschjob `purgeBankTransactions` |
+| Koordinaten zu Adressen (Einsatzplanung) | DB `GeoCache` (Schlüssel = SHA-256 der Adresse, Koordinaten auf ~10 m gerundet, keine Klartextadresse) | **180 Tage** | Löschjob `purgeGeoCache`; Fahrzeiten nur im Arbeitsspeicher (24 h) |
 | Gebuchte Zusatzoptionen (Beginn, Ende, Preis) | DB `TenantAddon` | mit dem Mandanten | Abrechnungsgrundlage |
 | Antwort auf „Passt es noch?“ (JA/NEIN, Zeitpunkt; Text in den Vorgangsnotizen) | DB `CallTicket.confirmation`, `notes` | mit dem Vorgang | – |
 | Letzte Bewertungsanfrage | DB `Customer.reviewRequestedAt` | mit dem Endkunden | verhindert wiederholte Anfragen (90 Tage) |

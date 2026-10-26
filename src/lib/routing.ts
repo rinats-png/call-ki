@@ -17,8 +17,12 @@ export type RoutingInput = {
 };
 
 export type RoutingCandidate = Pick<Employee, "id" | "name" | "role" | "email" | "servicePostalCodes" | "directPhone"> & {
+  baseAddress?: string | null;
   trades?: string | null;
   openTickets?: number;
+  /** Einsatzplanung: Fahrzeit vom Startpunkt zum Kunden (Minuten) und Gebietsgrenze nach Fahrzeit */
+  travelMin?: number | null;
+  maxTravelMin?: number | null;
 };
 
 export type RoutingResult = {
@@ -54,7 +58,9 @@ export function routeTechnician(input: RoutingInput, employees: RoutingCandidate
   const plz = normalizePostalCode(input.postalCode);
 
   const scored = employees.map((e) => {
-    const area = plz ? matchPostalCode(plz, e.servicePostalCodes) : { matched: false, specificity: 0 };
+    // Gebiet nach Fahrzeit (falls beim Mitarbeiter hinterlegt und Fahrzeit bekannt), sonst nach PLZ
+    const byTravel = e.maxTravelMin != null && e.travelMin != null;
+    const area = byTravel ? { matched: e.travelMin! <= e.maxTravelMin!, specificity: 3 } : plz ? matchPostalCode(plz, e.servicePostalCodes) : { matched: false, specificity: 0 };
     const isPreferred = e.role === preferredRole;
     const isField = FIELD_ROLES.includes(e.role as EmployeeRole);
     let score = 0;
@@ -65,6 +71,7 @@ export function routeTechnician(input: RoutingInput, employees: RoutingCandidate
     else if (isField) score = 50;
     score += area.specificity * 10;
     score -= Math.min(e.openTickets ?? 0, 20) * 5; // Lastverteilung
+    if (e.travelMin != null) score -= Math.min(e.travelMin, 120) / 2; // kürzere Anfahrt bevorzugen
     // Falsches Gewerk wiegt schwerer als ein Gebiet: Heizungsbauer nicht zum Rohrbruch
     const tradeOk = isField ? canDoTrade(e.trades, input.trade) : true;
     if (!tradeOk) score -= 900;
@@ -82,12 +89,14 @@ export function routeTechnician(input: RoutingInput, employees: RoutingCandidate
   const L = (r: string) => input.roleLabels?.[r] ?? r;
   let reason: string;
   const tradeNote = input.trade && !best.tradeOk ? ` Achtung: niemand mit Gewerk „${input.trade}“ verfügbar.` : input.trade ? ` Gewerk: ${input.trade}.` : "";
-  if (best.area.matched && best.isPreferred) reason = `${best.e.name} (${L(preferredRole)}) ist für PLZ ${plz} zuständig.`;
+  const where = best.e.maxTravelMin != null && best.e.travelMin != null ? `den Einsatzort (bis ${best.e.maxTravelMin} Min. Anfahrt)` : `PLZ ${plz}`;
+  if (best.area.matched && best.isPreferred) reason = `${best.e.name} (${L(preferredRole)}) ist für ${where} zuständig.`;
   else if (best.area.matched) reason = `Kein ${L(preferredRole)} für PLZ ${plz} – ${best.e.name} (${L(best.e.role)}) ist im Gebiet zuständig.`;
   else if (best.isPreferred) reason = plz ? `Niemand für PLZ ${plz} hinterlegt – überregional: ${best.e.name} (${L(preferredRole)}).` : `Keine PLZ angegeben – ${best.e.name} (${L(preferredRole)}).`;
   else reason = `Keine passende Person gefunden – Weiterleitung an ${best.e.name} (${L(best.e.role)}) für Rückruf.`;
 
   reason += tradeNote;
+  if (best.e.travelMin != null) reason += ` Anfahrt ca. ${best.e.travelMin} Min.`;
   return {
     employee: best.e,
     preferredRole,

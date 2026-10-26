@@ -4,6 +4,7 @@ import { logger } from "../logger";
 import { purgeCallAtProviders } from "../voice/providers";
 import { purgeRateLimitHits } from "../rate-limit";
 import { purgeBankTransactions } from "./bank-import";
+import { purgeGeoCache } from "../geo";
 import { resealAll } from "./rekey";
 import { closeDueMonths, openPeriodStart } from "./billing-close";
 
@@ -53,8 +54,9 @@ export async function runRetention() {
   const platformMessages = (await prisma.message.deleteMany({ where: { tenantId: null, createdAt: { lt: new Date(now.getTime() - 90 * 86400000) } } })).count;
   // Zahlungsdaten aus hochgeladenen Kontoauszügen nach 90 Tagen löschen
   const bankTransactions = await purgeBankTransactions(now);
+  const geoCache = await purgeGeoCache(now);
   const secrets = await resealAll();
-  const result = { calls, tickets, messages, orphanCalls, providerPurged, providerFailed, sessions, tokens, audits, rateLimits, platformMessages, webhookDeliveries, bankTransactions, secrets };
+  const result = { calls, tickets, messages, orphanCalls, providerPurged, providerFailed, sessions, tokens, audits, rateLimits, platformMessages, webhookDeliveries, bankTransactions, geoCache, secrets };
   logger.info("retention.done", result);
   return result;
 }

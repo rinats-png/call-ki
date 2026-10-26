@@ -20,7 +20,7 @@ export type Me = {
 type Ctx = { me: Me | null; reload: () => Promise<void>; isTenantAdmin: boolean };
 
 /** Ist die Zusatzoption gebucht? (Oberfläche blendet nicht gebuchte Funktionen aus.) */
-export function useModule(key: "invoicing" | "field_app" | "customer_contact"): boolean {
+export function useModule(key: "invoicing" | "field_app" | "customer_contact" | "planning" | "booking_page"): boolean {
   return !!useSession().me?.tenant?.modules.includes(key);
 }
 const SessionCtx = createContext<Ctx>({ me: null, reload: async () => {}, isTenantAdmin: false });

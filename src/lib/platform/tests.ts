@@ -58,6 +58,27 @@ export async function testProvider(id: string): Promise<TestResult> {
         await mailer().verify();
         return { ok: true, message: "Anmeldung am Mailserver erfolgreich." };
       }
+      case "maps": {
+        const { geoProvider } = await import("../geo");
+        const p = geoProvider();
+        if (!p) return { ok: false, message: setting("MAPS_PROVIDER") ? "Zugang unvollständig." : "Kein Anbieter gewählt – es wird aus der Luftlinie geschätzt." };
+        if (p === "ors") {
+          const u = new URL("https://api.openrouteservice.org/geocode/search");
+          u.searchParams.set("api_key", setting("ORS_API_KEY")!);
+          u.searchParams.set("text", "Marktplatz 1, 55116 Mainz");
+          u.searchParams.set("size", "1");
+          const r = await getJson(u.toString(), {});
+          if (r.status !== 200) return { ok: false, message: httpMessage(r.status) };
+          return { ok: true, message: "OpenRouteService antwortet (Testadresse in Mainz gefunden)." };
+        }
+        const r = await getJson(new URL("/status?format=json", setting("NOMINATIM_URL")!).toString(), {});
+        if (r.status !== 200) return { ok: false, message: `Nominatim: ${httpMessage(r.status)}` };
+        if (setting("OSRM_URL")) {
+          const o = await getJson(new URL("/route/v1/driving/8.27,50.0;8.25,49.99?overview=false", setting("OSRM_URL")!).toString(), {});
+          if (o.status !== 200) return { ok: false, message: `OSRM: ${httpMessage(o.status)}` };
+        }
+        return { ok: true, message: setting("OSRM_URL") ? "Nominatim und OSRM antworten." : "Nominatim antwortet – ohne OSRM wird die Fahrzeit geschätzt." };
+      }
       default:
         return { ok: false, message: "Für diesen Anbieter gibt es keinen automatischen Test." };
     }

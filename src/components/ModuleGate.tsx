@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { useSession } from "./session";
 
-const NAMES: Record<string, string> = { invoicing: "Angebote & Rechnungen", field_app: "Techniker-App", customer_contact: "Kundenkontakt plus" };
+const NAMES: Record<string, string> = { invoicing: "Angebote & Rechnungen", field_app: "Techniker-App", customer_contact: "Kundenkontakt plus", planning: "Einsatzplanung", booking_page: "Online-Terminbuchung" };
 
 /** Seite einer Zusatzoption: ohne Buchung ein freundlicher Hinweis statt halber Funktionen. */
 export function ModuleGate({ module, children, allow }: { module: string | string[]; children: React.ReactNode; allow?: boolean }) {

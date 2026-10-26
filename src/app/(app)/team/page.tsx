@@ -11,11 +11,12 @@ import { PageHero, heroBtn } from "@/components/PageHero";
 import { apiFetch, useModule, useSession } from "@/components/session";
 import type { EmployeeRow } from "@/components/hub/types";
 
-const EMPTY = { id: "", name: "", role: "FIELD_TECH", email: "", servicePostalCodes: "*", directPhone: "", trades: "", active: true };
+const EMPTY = { id: "", name: "", role: "FIELD_TECH", email: "", servicePostalCodes: "*", directPhone: "", trades: "", baseAddress: "", maxTravelMin: "", active: true };
 
 export default function TeamPage() {
   const { me, isTenantAdmin } = useSession();
   const fieldApp = useModule("field_app");
+  const planning = useModule("planning");
   const { data, reload } = usePoll<EmployeeRow[]>("/api/employees", 15000);
   const [form, setForm] = useState<typeof EMPTY | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,7 +31,7 @@ export default function TeamPage() {
     setErr(null);
     const { id, ...rest } = form;
     try {
-      await apiFetch("/api/employees", { method: "POST", json: { ...rest, ...(id && { id }), directPhone: rest.directPhone || null } });
+      await apiFetch("/api/employees", { method: "POST", json: { ...rest, ...(id && { id }), directPhone: rest.directPhone || null, baseAddress: rest.baseAddress || null, maxTravelMin: rest.maxTravelMin ? Number(rest.maxTravelMin) : null } });
       setForm(null);
       reload();
     } catch (e2) {
@@ -93,7 +94,7 @@ export default function TeamPage() {
                     {!e.active && <span className="chip border-zinc-700 bg-zinc-950/60 text-zinc-500">inaktiv</span>}
                   </div>
                 </div>
-                {isTenantAdmin && <button className="btn-ghost p-2" onClick={() => setForm({ ...e, email: e.email ?? "", directPhone: e.directPhone ?? "", trades: e.trades ?? "" })} aria-label={`${e.name} bearbeiten`}><Pencil className="h-3.5 w-3.5" /></button>}
+                {isTenantAdmin && <button className="btn-ghost p-2" onClick={() => setForm({ ...e, email: e.email ?? "", directPhone: e.directPhone ?? "", trades: e.trades ?? "", baseAddress: e.baseAddress ?? "", maxTravelMin: e.maxTravelMin ? String(e.maxTravelMin) : "" })} aria-label={`${e.name} bearbeiten`}><Pencil className="h-3.5 w-3.5" /></button>}
               </div>
 
               <div className="glass-soft flex items-center gap-4 p-3">
@@ -112,6 +113,7 @@ export default function TeamPage() {
                 <Row k="E-Mail / Kalender" v={e.email ?? "—"} />
                 <Row k="Direktwahl" v={e.directPhone ?? "—"} />
                 <Row k="Gewerke" v={e.trades?.trim() ? e.trades : "alle"} />
+                {planning && e.maxTravelMin ? <Row k="Einsatzgebiet" v={`bis ${e.maxTravelMin} Min. Anfahrt`} /> : null}
                 {fieldApp && <Row k="Techniker-App" v={e.appLinkAt ? `Link seit ${new Date(e.appLinkAt).toLocaleDateString("de-DE")}` : "kein Link"} />}
               </dl>
               {fieldApp && isTenantAdmin && e.active && (
@@ -154,6 +156,10 @@ export default function TeamPage() {
             <input className="input font-mono" placeholder="PLZ-Gebiete: 10115, 12, 13000-13999 oder *" required value={form.servicePostalCodes} onChange={set("servicePostalCodes")} />
             <input className="input" placeholder="Handy für SMS & Notfall-Durchstellung" value={form.directPhone} onChange={set("directPhone")} />
             <input className="input" placeholder="Gewerke, z. B. Sanitär, Heizung (leer = alle)" value={form.trades} onChange={set("trades")} />
+            {planning && <>
+              <input className="input" placeholder="Startadresse (leer = Betriebsadresse)" value={form.baseAddress} onChange={set("baseAddress")} />
+              <input className="input" type="number" min={5} max={300} placeholder="Einsatzgebiet: max. Minuten Anfahrt (leer = nach PLZ)" value={form.maxTravelMin} onChange={set("maxTravelMin")} />
+            </>}
             <label className="flex items-center gap-2 pt-1 text-sm text-zinc-300"><input type="checkbox" checked={form.active} onChange={set("active")} />Aktiv (erhält neue Vorgänge)</label>
             {err && <p className="text-xs text-amber-400">{err}</p>}
             <div className="flex justify-end gap-2 pt-2">

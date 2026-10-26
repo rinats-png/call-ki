@@ -2,10 +2,11 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { HttpError } from "../http";
 import { randomToken, sha256 } from "../auth/crypto";
-import { parseSettings } from "../tenant/settings";
+import { parseSettings, resolveConfig } from "../tenant/settings";
 import { createDraft, type BillLine } from "./bills";
 import { logger } from "../logger";
 import { hasModule } from "../addons";
+import { locate, travelFeeFor } from "./travel";
 
 export const JOB_STATUS = ["OPEN", "EN_ROUTE", "ON_SITE", "DONE"] as const;
 export type JobStatus = (typeof JOB_STATUS)[number];
@@ -100,8 +101,9 @@ export async function setJobStatus(employee: { id: string; tenantId: string }, t
 }
 
 /** Rechnungspositionen aus dem Einsatz: Leistung (mit Preis), Arbeitszeit, Material mit Preis. */
-export function invoiceLines(o: { service: { id: string; name: string; priceCents: number; unit: string; taxRate: number } | null; hoursWorked: number; hourlyRateCents: number; materials: Material[]; serviceDate?: Date | null }): BillLine[] {
+export function invoiceLines(o: { service: { id: string; name: string; priceCents: number; unit: string; taxRate: number } | null; hoursWorked: number; hourlyRateCents: number; materials: Material[]; serviceDate?: Date | null; travelFee?: { cents: number; minutes: number } | null }): BillLine[] {
   const lines: BillLine[] = [];
+  if (o.travelFee) lines.push({ description: `Anfahrtspauschale (ca. ${o.travelFee.minutes} Min.)`, quantity: 1, unit: "pauschal", unitCents: o.travelFee.cents, taxRate: 19 });
   if (o.service && o.service.priceCents > 0) lines.push({ description: o.service.name, quantity: 1, unit: o.service.unit, unitCents: o.service.priceCents, taxRate: o.service.taxRate, serviceId: o.service.id });
   if (o.hoursWorked > 0 && o.hourlyRateCents > 0) lines.push({ description: "Arbeitszeit", quantity: o.hoursWorked, unit: "Stunde", unitCents: o.hourlyRateCents, taxRate: 19 });
   for (const m of o.materials) if (m.description.trim() && m.quantity > 0 && m.unitCents > 0) lines.push({ description: m.description, quantity: m.quantity, unit: m.unit || "Stück", unitCents: m.unitCents, taxRate: 19, serviceId: m.serviceId ?? null });
@@ -127,7 +129,9 @@ export async function finishJob(employee: { id: string; tenantId: string }, tick
   });
   let billId: string | null = null;
   if (cfg.autoInvoiceDraft && (await hasModule(employee.tenantId, "invoicing", now))) {
-    const lines = invoiceLines({ service: ticket.service, hoursWorked: report.hoursWorked, hourlyRateCents: cfg.hourlyRateCents, materials: (report.materials as unknown as Material[]) ?? [] });
+    const tenantCfg = resolveConfig(tenant);
+    const travelFee = await travelFeeFor(employee.tenantId, tenantCfg, await prisma.employee.findUnique({ where: { id: employee.id }, select: { baseAddress: true } }), await locate(ticket.customer));
+    const lines = invoiceLines({ service: ticket.service, hoursWorked: report.hoursWorked, hourlyRateCents: cfg.hourlyRateCents, materials: (report.materials as unknown as Material[]) ?? [], travelFee });
     if (lines.length) {
       try {
         const b = await createDraft(employee.tenantId, { kind: "INVOICE", customerId: ticket.customerId, ticketId: ticket.id, lines, serviceDate: report.arrivedAt ?? now, note: report.workDone.trim() ? `Ausgeführt: ${report.workDone.trim().slice(0, 1500)}` : null });
