@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { prisma } from "../db";
 import { findAvailableSlots } from "../calendar";
+import { cfgForService, serviceForCategory } from "../services/catalog";
 import { logger } from "../logger";
 import { normalizePhone, maskPhone } from "../phone";
 import { scheduleServerTransfer } from "./transfer";
@@ -129,7 +130,9 @@ const handlers: { [K in ToolName]: Handler<K> } = {
     const postalCode = args.postalCode ?? existing?.postalCode ?? null;
     const customerType = args.customerType ?? existing?.customerType ?? "PRIVATE";
     const urgency = assessUrgency({ category: args.category, description: args.description, customerType, aiUrgency: args.urgency ?? null, rules: ctx.cfg.urgencyRules });
-    const routing = await routeRequest(ctx.tenant.id, ctx.cfg, { postalCode, urgency, customerType, category: args.category });
+    const service = await serviceForCategory(ctx.tenant.id, args.category);
+    const cfg = cfgForService(ctx.cfg, service);
+    const routing = await routeRequest(ctx.tenant.id, cfg, { postalCode, urgency, customerType, category: args.category, trade: service?.trade || null });
     if (!routing.employee) return { found: false, urgency, say: "Aktuell ist niemand eingeplant. Bitte Rückruf anbieten (book_appointment ohne Termin)." };
 
     const plan = (await planForTenant(ctx.tenant.id)).plan;
@@ -146,7 +149,7 @@ const handlers: { [K in ToolName]: Handler<K> } = {
     let slots: { start: string; label: string }[] = [];
     let calendarError: string | null = null;
     if (routing.employee.role !== "BACKOFFICE") {
-      const r = await findAvailableSlots(ctx.tenant, ctx.cfg, routing.employee, { urgent: urgency === "HIGH" });
+      const r = await findAvailableSlots(ctx.tenant, cfg, routing.employee, { urgent: urgency === "HIGH" });
       slots = r.slots.map((s) => ({ start: s.start.toISOString(), label: formatGermanDateTime(s.start, ctx.tenant.timezone) }));
       calendarError = r.calendarError;
     }
@@ -171,7 +174,7 @@ const handlers: { [K in ToolName]: Handler<K> } = {
     const tz = ctx.tenant.timezone;
     const emp = res.ticket.assignedEmployee?.name;
     if (res.slotTaken) {
-      const r = res.ticket.assignedEmployee ? await findAvailableSlots(ctx.tenant, ctx.cfg, res.ticket.assignedEmployee) : { slots: [] };
+      const r = res.ticket.assignedEmployee ? await findAvailableSlots(ctx.tenant, cfgForService(ctx.cfg, await serviceForCategory(ctx.tenant.id, args.category)), res.ticket.assignedEmployee) : { slots: [] };
       const slots = r.slots.map((s) => ({ start: s.start.toISOString(), label: formatGermanDateTime(s.start, tz) }));
       return { ok: false, slotTaken: true, slots, say: `Dieser Termin wurde gerade vergeben. ${slots.length ? `Alternativen: ${slots.map((s) => s.label).join("; ")}.` : "Bitte Rückruf anbieten."}` };
     }
@@ -234,7 +237,8 @@ const handlers: { [K in ToolName]: Handler<K> } = {
     const t = pick.ticket;
     if (!t.assignedEmployee) return { ok: false, say: "Für diesen Termin ist niemand eingeplant. Bitte Rückruf durch das Büro anbieten." };
     const tz = ctx.tenant.timezone;
-    const alternatives = async () => (await findAvailableSlots(ctx.tenant, ctx.cfg, t.assignedEmployee!)).slots.map((s) => ({ start: s.start.toISOString(), label: formatGermanDateTime(s.start, tz) }));
+    const svc = t.serviceId ? await prisma.service.findFirst({ where: { id: t.serviceId, tenantId: ctx.tenant.id } }) : null;
+    const alternatives = async () => (await findAvailableSlots(ctx.tenant, cfgForService(ctx.cfg, svc), t.assignedEmployee!)).slots.map((s) => ({ start: s.start.toISOString(), label: formatGermanDateTime(s.start, tz) }));
     if (!args.appointmentStart) {
       const slots = await alternatives();
       return { ok: false, reference: ref(t.id), current: formatGermanDateTime(t.appointmentStart!, tz), slots, say: slots.length ? `Freie Termine: ${slots.map((s) => s.label).join("; ")}. Danach reschedule_appointment mit appointmentStart aufrufen.` : "Keine freien Termine gefunden – Rückruf zur Terminabstimmung anbieten." };

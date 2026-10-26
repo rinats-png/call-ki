@@ -18,6 +18,7 @@ import { markCustomerExisting, upsertCustomer, type CustomerInput } from "./cust
 import { runAfterResponse } from "../defer";
 import { env } from "../env";
 import { emitWebhook, ticketPayload } from "./webhooks";
+import { cfgForService, serviceForCategory } from "./catalog";
 
 type T = Pick<Tenant, "id" | "name" | "timezone">;
 
@@ -29,7 +30,7 @@ export async function loadRoutingCandidates(tenantId: string) {
   return employees.map(({ _count, ...e }) => ({ ...e, openTickets: _count.tickets }));
 }
 
-export async function routeRequest(tenantId: string, cfg: TenantConfig, input: { postalCode?: string | null; urgency: Urgency; customerType?: string | null; category?: string | null }): Promise<RoutingResult> {
+export async function routeRequest(tenantId: string, cfg: TenantConfig, input: { postalCode?: string | null; urgency: Urgency; customerType?: string | null; category?: string | null; trade?: string | null }): Promise<RoutingResult> {
   return routeTechnician(
     { ...input, specialistCustomerTypes: cfg.template.specialistCustomerTypes, roleLabels: cfg.template.roleLabels },
     await loadRoutingCandidates(tenantId),
@@ -73,14 +74,17 @@ export type ServiceRequestResult = {
  * Kunde anlegen/ergänzen → Dringlichkeit → Routing → Slot erneut prüfen →
  * Ticket anlegen bzw. (gleicher Anruf) aktualisieren → Kalender & Benachrichtigungen.
  */
-export async function processServiceRequest(tenant: T, cfg: TenantConfig, input: ServiceRequestInput): Promise<ServiceRequestResult> {
+export async function processServiceRequest(tenant: T, baseCfg: TenantConfig, input: ServiceRequestInput): Promise<ServiceRequestResult> {
   const customer = await upsertCustomer(tenant.id, input.customer);
-  const category = normalizeCategory(cfg, input.category);
+  const category = normalizeCategory(baseCfg, input.category);
+  // Leistung aus dem Katalog: bestimmt Termindauer und Gewerk
+  const service = await serviceForCategory(tenant.id, input.category) ?? await serviceForCategory(tenant.id, category);
+  const cfg = cfgForService(baseCfg, service);
   const urgency: Urgency = input.escalate
     ? "CRITICAL"
     : assessUrgency({ category, description: input.description, customerType: customer.customerType, aiUrgency: cleanUrgency(input.urgency), rules: cfg.urgencyRules });
 
-  const routing = await routeRequest(tenant.id, cfg, { postalCode: customer.postalCode, urgency, customerType: customer.customerType, category });
+  const routing = await routeRequest(tenant.id, cfg, { postalCode: customer.postalCode, urgency, customerType: customer.customerType, category, trade: service?.trade || null });
   let employee: Employee | null = null;
   if (input.employeeId) employee = await prisma.employee.findFirst({ where: { id: input.employeeId, tenantId: tenant.id, active: true } });
   if (!employee && routing.employee) employee = await prisma.employee.findFirst({ where: { id: routing.employee.id, tenantId: tenant.id } });
@@ -105,6 +109,7 @@ export async function processServiceRequest(tenant: T, cfg: TenantConfig, input:
     customerId: customer.id,
     assignedEmployeeId: employee?.id ?? null,
     category,
+    serviceId: service?.id ?? null,
     urgency,
     summary,
     status,
@@ -279,7 +284,9 @@ export async function rescheduleAppointment(tenant: T, cfg: TenantConfig, ticket
   const employee = ticket.assignedEmployee;
   if (!employee) return { ok: false, reason: "no_employee" };
   if (Number.isNaN(start.getTime()) || start.getTime() < Date.now() + 5 * 60_000) return { ok: false, reason: "in_past" };
-  const slot = { start, end: new Date(start.getTime() + cfg.durationMin * 60000) };
+  // Dauer bleibt beim Verschieben gleich (Leistung aus dem Katalog), sonst Standarddauer
+  const prevMin = ticket.appointmentStart && ticket.appointmentEnd ? Math.round((ticket.appointmentEnd.getTime() - ticket.appointmentStart.getTime()) / 60000) : 0;
+  const slot = { start, end: new Date(start.getTime() + (prevMin > 0 ? prevMin : cfg.durationMin) * 60000) };
   if (!(await isSlotFree(tenant.id, cfg, employee, slot, ticket.id))) return { ok: false, reason: "slot_taken" };
   await removeCalendarEvent(tenant.id, employee.email, ticket.calendarEventId);
   const updated = await prisma.callTicket.update({

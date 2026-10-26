@@ -19,6 +19,7 @@ export type EmployeeRow = {
   email: string | null;
   servicePostalCodes: string;
   directPhone: string | null;
+  trades?: string;
   active: boolean;
   openTickets: number;
 };

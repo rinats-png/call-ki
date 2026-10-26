@@ -10,7 +10,7 @@ import { PageHero, heroBtn } from "@/components/PageHero";
 import { apiFetch, useSession } from "@/components/session";
 import type { EmployeeRow } from "@/components/hub/types";
 
-const EMPTY = { id: "", name: "", role: "FIELD_TECH", email: "", servicePostalCodes: "*", directPhone: "", active: true };
+const EMPTY = { id: "", name: "", role: "FIELD_TECH", email: "", servicePostalCodes: "*", directPhone: "", trades: "", active: true };
 
 export default function TeamPage() {
   const { me, isTenantAdmin } = useSession();
@@ -78,7 +78,7 @@ export default function TeamPage() {
                     {!e.active && <span className="chip border-zinc-700 bg-zinc-950/60 text-zinc-500">inaktiv</span>}
                   </div>
                 </div>
-                {isTenantAdmin && <button className="btn-ghost p-2" onClick={() => setForm({ ...e, email: e.email ?? "", directPhone: e.directPhone ?? "" })} aria-label={`${e.name} bearbeiten`}><Pencil className="h-3.5 w-3.5" /></button>}
+                {isTenantAdmin && <button className="btn-ghost p-2" onClick={() => setForm({ ...e, email: e.email ?? "", directPhone: e.directPhone ?? "", trades: e.trades ?? "" })} aria-label={`${e.name} bearbeiten`}><Pencil className="h-3.5 w-3.5" /></button>}
               </div>
 
               <div className="glass-soft flex items-center gap-4 p-3">
@@ -96,6 +96,7 @@ export default function TeamPage() {
               <dl className="space-y-1.5 text-xs">
                 <Row k="E-Mail / Kalender" v={e.email ?? "—"} />
                 <Row k="Direktwahl" v={e.directPhone ?? "—"} />
+                <Row k="Gewerke" v={e.trades?.trim() ? e.trades : "alle"} />
               </dl>
               <div>
                 <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-zinc-500">Einsatzgebiet</div>
@@ -129,6 +130,7 @@ export default function TeamPage() {
             <input className="input" type="email" placeholder="E-Mail (Benachrichtigungen, Outlook-Kalender)" value={form.email} onChange={set("email")} />
             <input className="input font-mono" placeholder="PLZ-Gebiete: 10115, 12, 13000-13999 oder *" required value={form.servicePostalCodes} onChange={set("servicePostalCodes")} />
             <input className="input" placeholder="Handy für SMS & Notfall-Durchstellung" value={form.directPhone} onChange={set("directPhone")} />
+            <input className="input" placeholder="Gewerke, z. B. Sanitär, Heizung (leer = alle)" value={form.trades} onChange={set("trades")} />
             <label className="flex items-center gap-2 pt-1 text-sm text-zinc-300"><input type="checkbox" checked={form.active} onChange={set("active")} />Aktiv (erhält neue Vorgänge)</label>
             {err && <p className="text-xs text-amber-400">{err}</p>}
             <div className="flex justify-end gap-2 pt-2">

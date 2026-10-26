@@ -27,6 +27,7 @@ const employeeSchema = z.object({
   email: z.string().email().or(z.literal("")).nullable().optional(),
   servicePostalCodes: z.string().regex(AREA, "Format: 10115, 12, 13000-13999 oder *"),
   directPhone: z.string().max(30).nullable().optional(),
+  trades: z.string().trim().max(200).optional(),
   active: z.boolean().optional(),
 });
 

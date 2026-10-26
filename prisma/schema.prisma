@@ -59,6 +59,7 @@ model Tenant {
   minuteTopUps       MinuteTopUp[]
   planChangeRequests PlanChangeRequest[]
   webhookEndpoints   WebhookEndpoint[]
+  services           Service[]
 }
 
 model User {
@@ -203,6 +204,8 @@ model Employee {
   email              String? // Kalender (Microsoft 365) und Benachrichtigungen
   servicePostalCodes String       @default("*") // Kommagetrennt: 10115, 12, 13000-13999, *
   directPhone        String?
+  /// Gewerke, kommagetrennt (z. B. "Sanitär, Heizung"); leer = alle Gewerke
+  trades             String       @default("")
   active             Boolean      @default(true)
   createdAt          DateTime     @default(now())
   tickets            CallTicket[]
@@ -252,6 +255,9 @@ model CallTicket {
   assignedEmployeeId String?
   assignedEmployee   Employee? @relation(fields: [assignedEmployeeId], references: [id], onDelete: SetNull)
   category           String? // Anliegen laut Branchenvorlage, z. B. Wespen, Rohrbruch
+  /// Leistung aus dem Katalog (Dauer, Gewerk, Preis), falls die Kategorie einer Leistung entspricht
+  serviceId          String?
+  service            Service?  @relation(fields: [serviceId], references: [id], onDelete: SetNull)
   urgency            String    @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
   summary            String?
   transcript         String?
@@ -466,4 +472,28 @@ model Invoice {
 model InvoiceCounter {
   year Int @id
   last Int @default(0)
+}
+
+/// Leistungskatalog je Betrieb: Dauer für die Terminbuchung, Gewerk für die Zuständigkeit, Preis für Rechnungen.
+model Service {
+  id          String       @id @default(cuid())
+  tenantId    String
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  /// Weitere Begriffe, unter denen die KI die Leistung erkennt (kommagetrennt)
+  aliases     String       @default("")
+  trade       String       @default("")
+  durationMin Int          @default(60)
+  /// Netto-Einzelpreis in Cent; 0 = nach Aufwand
+  priceCents  Int          @default(0)
+  unit        String       @default("pauschal")
+  taxRate     Int          @default(19)
+  active      Boolean      @default(true)
+  sort        Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  tickets     CallTicket[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, active])
 }

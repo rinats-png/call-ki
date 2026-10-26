@@ -1,12 +1,15 @@
 import type { Employee } from "@prisma/client";
 import { matchPostalCode, normalizePostalCode } from "./postal";
 import { URGENCY_RANK, type EmployeeRole, type Urgency } from "./constants";
+import { canDoTrade } from "./services/catalog";
 
 export type RoutingInput = {
   postalCode?: string | null;
   urgency: Urgency;
   customerType?: string | null;
   category?: string | null;
+  /** Gewerk der Leistung (aus dem Leistungskatalog); Mitarbeiter ohne dieses Gewerk werden nur notfalls gewählt */
+  trade?: string | null;
   /** Kundentypen, die an SPECIALIST gehen (aus Branchenvorlage) */
   specialistCustomerTypes?: string[];
   /** Anzeigenamen der Rollen (aus Branchenvorlage) für die Begründung */
@@ -14,6 +17,7 @@ export type RoutingInput = {
 };
 
 export type RoutingCandidate = Pick<Employee, "id" | "name" | "role" | "email" | "servicePostalCodes" | "directPhone"> & {
+  trades?: string | null;
   openTickets?: number;
 };
 
@@ -61,7 +65,10 @@ export function routeTechnician(input: RoutingInput, employees: RoutingCandidate
     else if (isField) score = 50;
     score += area.specificity * 10;
     score -= Math.min(e.openTickets ?? 0, 20) * 5; // Lastverteilung
-    return { e, area, isPreferred, score };
+    // Falsches Gewerk wiegt schwerer als ein Gebiet: Heizungsbauer nicht zum Rohrbruch
+    const tradeOk = isField ? canDoTrade(e.trades, input.trade) : true;
+    if (!tradeOk) score -= 900;
+    return { e, area, isPreferred, score, tradeOk };
   });
 
   scored.sort((a, b) => b.score - a.score || a.e.name.localeCompare(b.e.name));
@@ -74,11 +81,13 @@ export function routeTechnician(input: RoutingInput, employees: RoutingCandidate
 
   const L = (r: string) => input.roleLabels?.[r] ?? r;
   let reason: string;
+  const tradeNote = input.trade && !best.tradeOk ? ` Achtung: niemand mit Gewerk „${input.trade}“ verfügbar.` : input.trade ? ` Gewerk: ${input.trade}.` : "";
   if (best.area.matched && best.isPreferred) reason = `${best.e.name} (${L(preferredRole)}) ist für PLZ ${plz} zuständig.`;
   else if (best.area.matched) reason = `Kein ${L(preferredRole)} für PLZ ${plz} – ${best.e.name} (${L(best.e.role)}) ist im Gebiet zuständig.`;
   else if (best.isPreferred) reason = plz ? `Niemand für PLZ ${plz} hinterlegt – überregional: ${best.e.name} (${L(preferredRole)}).` : `Keine PLZ angegeben – ${best.e.name} (${L(preferredRole)}).`;
   else reason = `Keine passende Person gefunden – Weiterleitung an ${best.e.name} (${L(best.e.role)}) für Rückruf.`;
 
+  reason += tradeNote;
   return {
     employee: best.e,
     preferredRole,
