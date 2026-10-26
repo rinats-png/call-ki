@@ -5,6 +5,7 @@ import { env } from "../env";
 import { logger } from "../logger";
 import { HttpError } from "../http";
 import { emailLayout, sendEmail } from "../notify";
+import { hasModule } from "../addons";
 import { parseSettings } from "../tenant/settings";
 import { xmlEscape as h } from "../twiml";
 
@@ -210,7 +211,7 @@ export async function runBillReminders(now = new Date()) {
   let sent = 0;
   for (const b of overdue) {
     const inv = parseSettings(b.tenant.settings).invoicing;
-    if (!inv.autoReminders || !b.customer.email) continue;
+    if (!inv.autoReminders || !b.customer.email || !(await hasModule(b.tenantId, "invoicing", now))) continue;
     const level = b.reminderLevel + 1;
     const afterDays = inv.reminderDays[level - 1];
     if (afterDays == null || now.getTime() < b.dueAt!.getTime() + afterDays * 86400_000) continue;

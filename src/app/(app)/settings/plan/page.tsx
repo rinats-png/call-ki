@@ -10,6 +10,7 @@ import { AreaChart } from "@/components/AreaChart";
 import { BarChart } from "@/components/BarChart";
 import { PlanSelfService, type SelfServiceData } from "@/components/PlanSelfService";
 import { InvoicesPanel } from "@/components/InvoicesPanel";
+import { AddonsPanel } from "@/components/AddonsPanel";
 
 type Data = {
   plan: { name: string; hasPlan: boolean; includedMinutes: number; overageMode: string; includedSms: number; features: string[]; monthlyPriceCents?: number; overageCentsPerMinute?: number; smsCents?: number };
@@ -53,6 +54,8 @@ export default function Page() {
           </div>
         </Panel>
       </div>
+
+      <AddonsPanel onChanged={reload} />
 
       {data.packs && data.plans && (
         <PlanSelfService data={{ packs: data.packs, plans: data.plans, openRequest: data.openRequest ?? null, topUps: data.topUps ?? [] }} onChanged={reload} />

@@ -50,7 +50,9 @@ export const PATCH = api<P>(async (req, { params }) => {
     const ok = await prisma.employee.count({ where: { id: data.assignedEmployeeId, tenantId: auth.tenantId } });
     if (!ok) throw badRequest("Mitarbeiter gehört nicht zu diesem Konto");
   }
-  const updated = hideProviderUrls(await prisma.callTicket.update({ where: { id }, data, include }));
+  // Abschluss durch das Büro merken (Auslöser für die Bitte um Bewertung); erneutes Öffnen setzt zurück
+  const closedAt = data.status === "CLOSED" && ticket.status !== "CLOSED" ? new Date() : data.status && data.status !== "CLOSED" ? null : undefined;
+  const updated = hideProviderUrls(await prisma.callTicket.update({ where: { id }, data: { ...data, ...(closedAt !== undefined ? { closedAt } : {}) }, include }));
   await audit({ tenantId: auth.tenantId, userId: auth.user.id, action: "ticket.update", target: id, meta: Object.keys(data) });
   await emitWebhook(auth.tenantId, "ticket.updated", ticketPayload(await prisma.callTicket.findUniqueOrThrow({ where: { id }, include: { customer: true, assignedEmployee: true } })));
   return NextResponse.json(updated);

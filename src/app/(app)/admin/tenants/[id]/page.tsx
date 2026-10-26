@@ -27,6 +27,7 @@ type Detail = {
     invoice: { lines: { label: string; quantity: number; unit: string; totalCents: number }[]; netCents: number; grossCents: number };
     cost: { totalCents: number }; marginCents: number;
   };
+  addons: { key: string; name: string; active: boolean; booked: boolean; priceCents: number; endsAt: string | null }[];
   phoneNumbers: { id: string; e164: string; label: string | null; voiceAgentId: string | null; voiceProvider: string | null; fallbackNumber: string | null }[];
   integrations: { type: string; status: string; lastError: string | null }[];
   users: { id: string; email: string; name: string | null; role: UserRole; disabled: boolean; lastLoginAt: string | null; invitePending: boolean }[];
@@ -59,6 +60,9 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
   const patch = (body: Record<string, unknown>) => run("patch", async () => {
     const r = await apiFetch<{ notice?: string | null }>(`/api/admin/tenants/${id}`, { method: "PATCH", json: body });
     if (r.notice) setMsg({ ok: true, text: r.notice });
+  });
+  const addon = (key: string, action: "book" | "cancel" | "end_now", free = false) => run("addon", async () => {
+    await apiFetch(`/api/admin/tenants/${id}/addons`, { method: "POST", json: { key, action, free } });
   });
 
   if (!data) return <div className="mx-auto max-w-[1500px]"><Skeleton className="h-96" /></div>;
@@ -131,6 +135,22 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
         <label className="mt-3 block"><span className="mb-1 block text-xs text-zinc-400">Notiz zur Abrechnung</span>
           <input className="input" defaultValue={data.billingNote ?? ""} placeholder="z. B. 3 Monate 50 % Rabatt" onBlur={(e) => e.target.value !== (data.billingNote ?? "") && patch({ billingNote: e.target.value || null })} />
         </label>
+      </Panel>
+
+      <Panel title={<span className="flex items-center gap-1">Zusatzoptionen<InfoTip title="Zusatzoptionen" steps={["Kunden buchen selbst unter Tarif; hier kannst du für sie buchen – zum Standardpreis oder kostenlos.", "„Im Paket“ = über das Paket freigeschaltet (Preise & Pakete).", "Beenden: zum Monatsende (normal) oder sofort."]} /></span>}>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {data.addons.map((a) => (
+            <div key={a.key} className="rounded-lg border border-zinc-800 p-3 text-sm">
+              <div className="flex items-center justify-between gap-2"><span className="font-medium text-zinc-100">{a.name}</span><span className={cn("chip", a.active ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300" : "border-zinc-700 text-zinc-500")}>{a.active ? (a.booked ? (a.endsAt ? `bis ${new Date(new Date(a.endsAt).getTime() - 1).toLocaleDateString("de-DE")}` : a.priceCents ? eur(a.priceCents) : "kostenlos") : "im Paket") : "aus"}</span></div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {!a.booked && <><button className="btn-ghost text-xs" onClick={() => addon(a.key, "book")}>Buchen ({eur(a.priceCents)})</button><button className="btn-ghost text-xs" onClick={() => addon(a.key, "book", true)}>Kostenlos</button></>}
+                {a.booked && a.endsAt && <button className="btn-ghost text-xs" onClick={() => addon(a.key, "book")}>Fortsetzen</button>}
+                {a.booked && !a.endsAt && <button className="btn-ghost text-xs" onClick={() => addon(a.key, "cancel")}>Zum Monatsende</button>}
+                {a.booked && <button className="btn-ghost text-xs text-amber-300" onClick={() => confirm(`${a.name} sofort beenden?`) && addon(a.key, "end_now")}>Sofort</button>}
+              </div>
+            </div>
+          ))}
+        </div>
       </Panel>
 
       <div className="grid gap-5 xl:grid-cols-2 xl:items-start">

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ADDONS, activeModules, addonPrices } from "@/lib/addons";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { api, readJson, notFound, HttpError } from "@/lib/http";
@@ -34,7 +35,10 @@ export const GET = api<P>(async (_req, { params }) => {
   const { year, month } = currentMonth(tenant.timezone);
   const [billing] = await billingReport(year, month, id);
   const plans = await prisma.plan.findMany({ where: { OR: [{ active: true }, { id: tenant.planId ?? "" }] }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true, monthlyPriceCents: true, includedMinutes: true, overageCentsPerMinute: true } });
-  return NextResponse.json({ ...tenant, users: tenant.users.map(({ passwordHash, ...u }) => ({ ...u, invitePending: !passwordHash })), usage, billing, plans, defaultVoiceProvider: setting("VOICE_PROVIDER") || "retell" });
+  const now = new Date();
+  const [modules, addonRows, prices] = await Promise.all([activeModules(id, now), prisma.tenantAddon.findMany({ where: { tenantId: id, startedAt: { lte: now }, OR: [{ endsAt: null }, { endsAt: { gt: now } }] } }), addonPrices()]);
+  const addons = ADDONS.map((a) => { const r = addonRows.find((x) => x.key === a.key); return { key: a.key, name: a.name, active: modules.includes(a.key), booked: !!r, priceCents: r?.priceCents ?? prices[a.key].priceCents, endsAt: r?.endsAt ?? null }; });
+  return NextResponse.json({ ...tenant, addons, users: tenant.users.map(({ passwordHash, ...u }) => ({ ...u, invitePending: !passwordHash })), usage, billing, plans, defaultVoiceProvider: setting("VOICE_PROVIDER") || "retell" });
 });
 
 const schema = z.object({

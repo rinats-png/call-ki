@@ -5,7 +5,7 @@ import { Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { usePoll } from "@/lib/use-poll";
 import { Panel, Skeleton } from "@/components/hub/Primitives";
 import { InfoTip } from "@/components/InfoTip";
-import { apiFetch, useSession } from "@/components/session";
+import { apiFetch, useModule, useSession } from "@/components/session";
 
 type Service = { id: string; name: string; aliases: string; trade: string; durationMin: number; priceCents: number; unit: string; taxRate: number; active: boolean; sort: number };
 type Data = { services: Service[]; trades: string[] };
@@ -18,6 +18,8 @@ const UNITS = ["pauschal", "Stück", "Stunde", "m", "m²", "km"];
 /** Leistungskatalog: Dauer (Terminbuchung), Gewerk (Zuständigkeit), Preis (Rechnung) */
 export default function ServicesPage() {
   const { isTenantAdmin } = useSession();
+  // Preis, Einheit und Steuer braucht nur, wer Rechnungen gebucht hat
+  const invoicing = useModule("invoicing");
   const { data, reload } = usePoll<Data>("/api/services", 30000);
   const [form, setForm] = useState<Form | null>(null);
   const [busy, setBusy] = useState(false);
@@ -55,7 +57,7 @@ export default function ServicesPage() {
         title={<span className="flex items-center gap-2">Leistungen<InfoTip title="Wofür der Katalog da ist" steps={[
           "Dauer: So lange blockt die KI den Termin im Kalender, wenn ein Anliegen zu dieser Leistung passt.",
           "Gewerk: Die KI wählt bevorzugt Mitarbeiter mit diesem Gewerk (unter Team). Leer = jeder.",
-          "Preis und Einheit: Vorschlag für Rechnungspositionen. 0 = nach Aufwand.",
+          ...(invoicing ? ["Preis und Einheit: Vorschlag für Rechnungspositionen. 0 = nach Aufwand."] : []),
           "Weitere Begriffe: Wörter, unter denen Anrufer die Leistung nennen, z. B. „Rohrbruch, Wasserschaden“.",
         ]} /></span>}
         action={isTenantAdmin && <button className="btn-primary" onClick={() => { setErr(null); setForm({ ...EMPTY }); }}><Plus className="h-4 w-4" />Leistung</button>}
@@ -66,7 +68,7 @@ export default function ServicesPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-left text-xs uppercase tracking-wider text-zinc-500">
-                <tr><th className="py-2 pr-3">Leistung</th><th className="pr-3">Gewerk</th><th className="pr-3 text-right">Dauer</th><th className="pr-3 text-right">Preis netto</th><th className="pr-3">USt.</th><th /></tr>
+                <tr><th className="py-2 pr-3">Leistung</th><th className="pr-3">Gewerk</th><th className="pr-3 text-right">Dauer</th>{invoicing && <><th className="pr-3 text-right">Preis netto</th><th className="pr-3">USt.</th></>}<th /></tr>
               </thead>
               <tbody>
                 {data.services.map((s) => (
@@ -74,8 +76,8 @@ export default function ServicesPage() {
                     <td className="py-2.5 pr-3"><div className="font-semibold text-zinc-100">{s.name}</div>{s.aliases && <div className="text-xs text-zinc-500">auch: {s.aliases}</div>}</td>
                     <td className="pr-3 text-zinc-300">{s.trade || "—"}</td>
                     <td className="pr-3 text-right font-mono text-zinc-300">{s.durationMin} min</td>
-                    <td className="pr-3 text-right font-mono text-zinc-300">{s.priceCents ? `${euro(s.priceCents)} / ${s.unit}` : "nach Aufwand"}</td>
-                    <td className="pr-3 text-zinc-400">{s.taxRate} %</td>
+                    {invoicing && <><td className="pr-3 text-right font-mono text-zinc-300">{s.priceCents ? `${euro(s.priceCents)} / ${s.unit}` : "nach Aufwand"}</td>
+                    <td className="pr-3 text-zinc-400">{s.taxRate} %</td></>}
                     <td className="whitespace-nowrap text-right">
                       {isTenantAdmin && <>
                         <button className="btn-ghost p-2" aria-label={`${s.name} bearbeiten`} onClick={() => { setErr(null); setForm({ ...s, price: s.priceCents ? (s.priceCents / 100).toFixed(2).replace(".", ",") : "" }); }}><Pencil className="h-3.5 w-3.5" /></button>
@@ -104,11 +106,11 @@ export default function ServicesPage() {
             <datalist id="trades">{data.trades.map((t) => <option key={t} value={t} />)}</datalist>
             <div className="grid grid-cols-2 gap-2">
               <label className="text-xs text-zinc-400">Dauer (Minuten)<input className="input mt-1" type="number" min={0} max={1440} value={form.durationMin} onChange={set("durationMin")} /></label>
-              <label className="text-xs text-zinc-400">Preis netto (€)<input className="input mt-1" inputMode="decimal" placeholder="0 = nach Aufwand" value={form.price} onChange={set("price")} /></label>
+              {invoicing && <><label className="text-xs text-zinc-400">Preis netto (€)<input className="input mt-1" inputMode="decimal" placeholder="0 = nach Aufwand" value={form.price} onChange={set("price")} /></label>
               <label className="text-xs text-zinc-400">Einheit<select className="input mt-1" value={form.unit} onChange={set("unit")}>{UNITS.map((u) => <option key={u}>{u}</option>)}</select></label>
-              <label className="text-xs text-zinc-400">Umsatzsteuer<select className="input mt-1" value={form.taxRate} onChange={set("taxRate")}><option value={19}>19 %</option><option value={7}>7 %</option><option value={0}>0 %</option></select></label>
+              <label className="text-xs text-zinc-400">Umsatzsteuer<select className="input mt-1" value={form.taxRate} onChange={set("taxRate")}><option value={19}>19 %</option><option value={7}>7 %</option><option value={0}>0 %</option></select></label></>}
             </div>
-            <label className="flex items-center gap-2 pt-1 text-sm text-zinc-300"><input type="checkbox" checked={form.active} onChange={set("active")} />Aktiv (KI und Rechnungen nutzen diese Leistung)</label>
+            <label className="flex items-center gap-2 pt-1 text-sm text-zinc-300"><input type="checkbox" checked={form.active} onChange={set("active")} />Aktiv ({invoicing ? "KI und Rechnungen nutzen" : "die KI nutzt"} diese Leistung)</label>
             {err && <p className="text-xs text-amber-400">{err}</p>}
             <div className="flex justify-end gap-2 pt-2">
               <button type="button" className="btn-ghost" onClick={() => setForm(null)}>Abbrechen</button>

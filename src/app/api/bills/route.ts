@@ -5,6 +5,7 @@ import { api, readJson } from "@/lib/http";
 import { requireTenant } from "@/lib/auth/session";
 import { audit } from "@/lib/audit";
 import { createDraft, issuerFor } from "@/lib/services/bills";
+import { requireModule } from "@/lib/addons";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ export const GET = api(async (req) => {
 const line = z.object({ description: z.string().trim().min(1).max(300), quantity: z.number(), unit: z.string().trim().max(20).default("Stück"), unitCents: z.number().int(), taxRate: z.number().int(), serviceId: z.string().nullable().optional() });
 export const POST = api(async (req) => {
   const auth = await requireTenant();
+  await requireModule(auth.tenantId, "invoicing");
   const d = z.object({
     kind: z.enum(["QUOTE", "INVOICE"]),
     customerId: z.string().min(1),

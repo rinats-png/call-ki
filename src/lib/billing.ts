@@ -2,6 +2,7 @@ import type { Plan, Tenant } from "@prisma/client";
 import { prisma } from "./db";
 import { setting, settingNumber } from "./platform/config";
 import { fromZoned, zonedParts } from "./time";
+import { addonsForPeriod } from "./addons";
 
 /**
  * Preise & Verbrauch. Alle Beträge in Cent (netto). Ein Kunde ohne Paket hat keine
@@ -23,6 +24,8 @@ export type EffectivePlan = {
   features: string[] | null; // null = ohne Paket, keine Einschränkung
   /** Für den Monat zusätzlich gebuchte Minutenpakete (in includedMinutes bereits enthalten) */
   topUps: { minutes: number; priceCents: number }[];
+  /** Im Monat aktive, nicht im Paket enthaltene Zusatzoptionen (je Monat voller Preis) */
+  addons: { key: string; name: string; priceCents: number }[];
 };
 
 export function effectivePlan(tenant: Pick<Tenant, "priceOverrideCents" | "includedMinutesOverride" | "overageCentsOverride">, plan: Plan | null): EffectivePlan {
@@ -41,6 +44,7 @@ export function effectivePlan(tenant: Pick<Tenant, "priceOverrideCents" | "inclu
     maxUsers: plan?.maxUsers ?? null,
     features: plan ? plan.features : null,
     topUps: [],
+    addons: [],
   };
 }
 
@@ -50,11 +54,13 @@ export function minutePackPrice(plan: EffectivePlan, minutes: number): number {
   return minutes * plan.overageCentsPerMinute;
 }
 
-/** Paket für einen bestimmten Monat – inklusive der für diesen Monat gebuchten Minutenpakete. */
+/** Paket für einen bestimmten Monat – inklusive gebuchter Minutenpakete und Zusatzoptionen. */
 export async function withTopUps(tenantId: string, plan: EffectivePlan, year: number, month: number): Promise<EffectivePlan> {
   const topUps = await prisma.minuteTopUp.findMany({ where: { tenantId, year, month }, select: { minutes: true, priceCents: true }, orderBy: { createdAt: "asc" } });
-  if (!topUps.length) return plan;
-  return { ...plan, includedMinutes: plan.includedMinutes + topUps.reduce((n, t) => n + t.minutes, 0), topUps };
+  const t = await prisma.tenant.findUnique({ where: { id: tenantId }, select: { timezone: true } });
+  const { start, end } = monthRange(year, month, t?.timezone ?? "Europe/Berlin");
+  const addons = (await addonsForPeriod(tenantId, start, end)).filter((a) => !plan.features?.includes(a.key) && a.priceCents > 0);
+  return { ...plan, includedMinutes: plan.includedMinutes + topUps.reduce((n, x) => n + x.minutes, 0), topUps, addons };
 }
 
 export async function planForTenant(tenantId: string) {
@@ -135,6 +141,7 @@ export function invoiceFor(plan: EffectivePlan, usage: Usage, opts: { includeSet
   const lines: InvoiceLine[] = [];
   const topUpMinutes = plan.topUps.reduce((n, t) => n + t.minutes, 0);
   if (plan.monthlyPriceCents) lines.push({ label: `Paket ${plan.name} (inkl. ${plan.includedMinutes - topUpMinutes} Min.)`, quantity: 1, unit: "Monat", unitCents: plan.monthlyPriceCents, totalCents: plan.monthlyPriceCents });
+  for (const a of plan.addons) lines.push({ label: `Zusatzoption ${a.name}`, quantity: 1, unit: "Monat", unitCents: a.priceCents, totalCents: a.priceCents });
   for (const t of plan.topUps) lines.push({ label: `Minutenpaket +${t.minutes} Min.`, quantity: 1, unit: "Paket", unitCents: t.priceCents, totalCents: t.priceCents });
   if (opts.includeSetupFee && plan.setupFeeCents) lines.push({ label: "Einrichtungsgebühr", quantity: 1, unit: "einmalig", unitCents: plan.setupFeeCents, totalCents: plan.setupFeeCents });
   const overageMinutes = Math.max(0, Math.ceil(usage.minutes - plan.includedMinutes));

@@ -52,7 +52,43 @@ export default function Page() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {data.map((p) => <PlanCard key={p.id} plan={p} popular={top > 0 && (p.tenantCount ?? 0) === top} onChanged={reload} />)}
       </div>
+
+      <AddonPrices />
     </div>
+  );
+}
+
+type AddonRow = { key: string; name: string; tagline: string; priceCents: number; active: boolean; bookings: number };
+
+/** Preise der Zusatzoptionen: gelten für neue Buchungen; bestehende behalten ihren Preis. */
+function AddonPrices() {
+  const { data, reload } = usePoll<{ addons: AddonRow[] }>("/api/admin/addons", 0);
+  const [err, setErr] = useState<string | null>(null);
+  if (!data) return null;
+  async function save(a: AddonRow, patch: Partial<AddonRow>) {
+    setErr(null);
+    try {
+      await apiFetch("/api/admin/addons", { method: "PUT", json: { key: a.key, monthlyPriceCents: patch.priceCents ?? a.priceCents, active: patch.active ?? a.active } });
+      reload();
+    } catch (e) { setErr((e as Error).message); }
+  }
+  return (
+    <Panel title={<span className="flex items-center gap-1">Zusatzoptionen<InfoTip title="Zusatzoptionen" steps={["Kunden buchen sie selbst unter Tarif – die Funktionen erscheinen dann in ihrer Oberfläche.", "Preisänderungen gelten nur für neue Buchungen.", "Nicht buchbar = wird Kunden nicht mehr angeboten; bestehende Buchungen laufen weiter.", "In ein Paket aufnehmen: unter „Enthaltene Funktionen“ die passende Zusatzoption anhaken."]} /></span>}>
+      <div className="grid gap-3 md:grid-cols-3">
+        {data.addons.map((a) => (
+          <div key={a.key} className="rounded-lg border border-zinc-800 p-3 text-sm">
+            <div className="font-medium text-zinc-100">{a.name}</div>
+            <div className="text-xs text-zinc-500">{a.tagline} · {a.bookings} aktiv gebucht</div>
+            <div className="mt-2 flex items-center gap-2">
+              <input className="input w-28" inputMode="decimal" defaultValue={centsToInput(a.priceCents)} key={a.priceCents} aria-label={`Preis ${a.name}`} onBlur={(e) => { const c = parseEuro(e.target.value); if (c != null && c !== a.priceCents) save(a, { priceCents: c }); }} />
+              <span className="text-xs text-zinc-500">€ netto / Monat</span>
+            </div>
+            <label className="mt-2 flex items-center gap-2 text-xs text-zinc-300"><input type="checkbox" checked={a.active} onChange={(e) => save(a, { active: e.target.checked })} />buchbar</label>
+          </div>
+        ))}
+      </div>
+      {err && <p className="mt-2 text-xs text-amber-400">{err}</p>}
+    </Panel>
   );
 }
 

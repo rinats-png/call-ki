@@ -10,11 +10,12 @@ import { SidePanel } from "./SidePanel";
 
 type Item = { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
 
-const TENANT_NAV: Item[] = [
+type NavItem = Item & { module?: string };
+const TENANT_NAV: NavItem[] = [
   { href: "/", label: "Hub", icon: LayoutGrid },
   { href: "/calls", label: "Anrufe", icon: PhoneCall },
   { href: "/customers", label: "Kunden", icon: Users },
-  { href: "/billing", label: "Rechnungen", icon: FileText },
+  { href: "/billing", label: "Rechnungen", icon: FileText, module: "invoicing" },
   { href: "/team", label: "Team", icon: Wrench },
   { href: "/settings/plan", label: "Tarif", icon: Gauge },
   { href: "/settings", label: "Einstellungen", icon: Settings },
@@ -30,9 +31,11 @@ function useNav() {
   const path = usePathname();
   const { me } = useSession();
   const admin = !!me?.isPlatformAdmin && !me.tenant;
+  // Zusatzoptionen erscheinen erst, wenn gebucht (Rechnungen zusätzlich als Archiv, falls Belege existieren)
+  const tenantNav = TENANT_NAV.filter((i) => !i.module || me?.tenant?.modules.includes(i.module) || (i.module === "invoicing" && me?.tenant?.hasBills));
   const nav = me?.isPlatformAdmin
-    ? me.tenant ? [...TENANT_NAV, { href: "/admin", label: "Verwaltung", icon: Building2 }] : ADMIN_NAV
-    : me ? TENANT_NAV : [];
+    ? me.tenant ? [...tenantNav, { href: "/admin", label: "Verwaltung", icon: Building2 }] : ADMIN_NAV
+    : me ? tenantNav : [];
   const isActive = (href: string) => {
     if (href === "/") return path === "/";
     if (href === "/admin") return path === "/admin" || path.startsWith("/admin/tenants");

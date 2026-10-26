@@ -8,13 +8,14 @@ import { EMPLOYEE_ROLES, type EmployeeRole } from "@/lib/constants";
 import { cn } from "@/lib/ui";
 import { Skeleton } from "@/components/hub/Primitives";
 import { PageHero, heroBtn } from "@/components/PageHero";
-import { apiFetch, useSession } from "@/components/session";
+import { apiFetch, useModule, useSession } from "@/components/session";
 import type { EmployeeRow } from "@/components/hub/types";
 
 const EMPTY = { id: "", name: "", role: "FIELD_TECH", email: "", servicePostalCodes: "*", directPhone: "", trades: "", active: true };
 
 export default function TeamPage() {
   const { me, isTenantAdmin } = useSession();
+  const fieldApp = useModule("field_app");
   const { data, reload } = usePoll<EmployeeRow[]>("/api/employees", 15000);
   const [form, setForm] = useState<typeof EMPTY | null>(null);
   const [busy, setBusy] = useState(false);
@@ -111,9 +112,9 @@ export default function TeamPage() {
                 <Row k="E-Mail / Kalender" v={e.email ?? "—"} />
                 <Row k="Direktwahl" v={e.directPhone ?? "—"} />
                 <Row k="Gewerke" v={e.trades?.trim() ? e.trades : "alle"} />
-                <Row k="Techniker-App" v={e.appLinkAt ? `Link seit ${new Date(e.appLinkAt).toLocaleDateString("de-DE")}` : "kein Link"} />
+                {fieldApp && <Row k="Techniker-App" v={e.appLinkAt ? `Link seit ${new Date(e.appLinkAt).toLocaleDateString("de-DE")}` : "kein Link"} />}
               </dl>
-              {isTenantAdmin && e.active && (
+              {fieldApp && isTenantAdmin && e.active && (
                 <div className="flex gap-2">
                   <button className="btn-ghost text-xs" onClick={() => newLink(e)}><Smartphone className="h-3.5 w-3.5" />{e.appLinkAt ? "Neuer App-Link" : "App-Link erzeugen"}</button>
                   {e.appLinkAt && <button className="btn-ghost text-xs" onClick={() => revokeLink(e)}>Sperren</button>}

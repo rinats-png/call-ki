@@ -414,4 +414,8 @@ export const PLAN_FEATURES: { key: string; label: string; help: string }[] = [
   { key: "own_agent", label: "Eigener KI-Agent / Anbieterwahl", help: "Eigener Agent bzw. anderer Sprach-KI-Anbieter für diesen Kunden." },
   { key: "webhooks", label: "Webhooks für eigene Systeme", help: "Vorgänge und Anrufe automatisch an CRM, Zapier/Make oder Warenwirtschaft senden." },
   { key: "priority_support", label: "Bevorzugter Support", help: "Schnellere Reaktionszeiten." },
+  // Zusatzoptionen: im Paket enthalten = ohne Aufpreis freigeschaltet (sonst einzeln buchbar, src/lib/addons.ts)
+  { key: "invoicing", label: "Zusatzoption: Angebote & Rechnungen", help: "Im Paket enthalten statt einzeln buchbar." },
+  { key: "field_app", label: "Zusatzoption: Techniker-App", help: "Im Paket enthalten statt einzeln buchbar." },
+  { key: "customer_contact", label: "Zusatzoption: Kundenkontakt plus", help: "Im Paket enthalten statt einzeln buchbar." },
 ];

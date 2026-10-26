@@ -5,6 +5,7 @@ import { randomToken, sha256 } from "../auth/crypto";
 import { parseSettings } from "../tenant/settings";
 import { createDraft, type BillLine } from "./bills";
 import { logger } from "../logger";
+import { hasModule } from "../addons";
 
 export const JOB_STATUS = ["OPEN", "EN_ROUTE", "ON_SITE", "DONE"] as const;
 export type JobStatus = (typeof JOB_STATUS)[number];
@@ -37,6 +38,7 @@ export async function employeeForToken(token: string) {
   const t = await prisma.employeeAppToken.findUnique({ where: { hash: sha256(token) }, include: { employee: { include: { tenant: true } } } });
   const e = t?.employee;
   if (!e || !e.active || e.tenant.status === "PAUSED") throw new HttpError(404, "Link ungültig oder abgelaufen. Bitte im Büro einen neuen Link anfordern.");
+  if (!(await hasModule(e.tenantId, "field_app"))) throw new HttpError(404, "Die Techniker-App ist für diesen Betrieb nicht (mehr) freigeschaltet.");
   return e;
 }
 
@@ -120,11 +122,11 @@ export async function finishJob(employee: { id: string; tenantId: string }, tick
       where: { id: report.id },
       data: { status: "DONE", finishedAt: now, arrivedAt: report.arrivedAt ?? now, employeeId: employee.id, ...(signed ? { signatureName: d.signatureName!.trim().slice(0, 80), signaturePng: new Uint8Array(d.signaturePng!), signedAt: now } : {}) },
     });
-    await tx.callTicket.update({ where: { id: ticket.id }, data: { status: "CLOSED" } });
+    await tx.callTicket.update({ where: { id: ticket.id }, data: { status: "CLOSED", closedAt: now } });
     return r;
   });
   let billId: string | null = null;
-  if (cfg.autoInvoiceDraft) {
+  if (cfg.autoInvoiceDraft && (await hasModule(employee.tenantId, "invoicing", now))) {
     const lines = invoiceLines({ service: ticket.service, hoursWorked: report.hoursWorked, hourlyRateCents: cfg.hourlyRateCents, materials: (report.materials as unknown as Material[]) ?? [] });
     if (lines.length) {
       try {

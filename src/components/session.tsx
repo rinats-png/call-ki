@@ -12,10 +12,17 @@ export type Me = {
   tenant: null | {
     id: string; name: string; slug: string; industry: string; status: string; logoUrl: string | null; timezone: string;
     categories: string[]; roleLabels: Record<EmployeeRole, string>; customerTypeLabels: Record<CustomerType, string>; jobNoun: string;
+    /** Gebuchte bzw. im Paket enthaltene Zusatzoptionen (src/lib/addons.ts) */
+    modules: string[]; hasBills: boolean;
   };
 };
 
 type Ctx = { me: Me | null; reload: () => Promise<void>; isTenantAdmin: boolean };
+
+/** Ist die Zusatzoption gebucht? (Oberfläche blendet nicht gebuchte Funktionen aus.) */
+export function useModule(key: "invoicing" | "field_app" | "customer_contact"): boolean {
+  return !!useSession().me?.tenant?.modules.includes(key);
+}
 const SessionCtx = createContext<Ctx>({ me: null, reload: async () => {}, isTenantAdmin: false });
 
 /** Wird vom Provider gesetzt: öffnet den Bestätigungsdialog und löst bei Erfolg auf. */

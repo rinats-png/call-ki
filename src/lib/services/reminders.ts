@@ -1,6 +1,7 @@
 import { prisma } from "../db";
 import { logger } from "../logger";
 import { hasFeature, planForTenant } from "../billing";
+import { hasModule } from "../addons";
 import { emailLayout, sendEmail, sendSms } from "../notify";
 import { resolveConfig } from "../tenant/settings";
 import { formatGermanDateTime } from "../time";
@@ -53,7 +54,7 @@ export async function runAppointmentReminders(now = new Date()) {
       any = true;
     }
     if ((n.reminder === "sms" || n.reminder === "both") && hasFeature(plan, "sms") && !t.customer.smsOptOutAt) {
-      const ask = n.reminderAskConfirm ? " Passt es noch? Antworten Sie mit JA oder NEIN." : "";
+      const ask = n.reminderAskConfirm && (await hasModule(t.tenantId, "customer_contact", now)) ? " Passt es noch? Antworten Sie mit JA oder NEIN." : "";
       await sendSms({ tenantId: t.tenantId, ticketId: t.id, to: t.customer.phone, body: `${t.tenant.name}: Erinnerung an Ihren Termin am ${when}.${ask}${change}`, purpose: "APPOINTMENT_REMINDER" });
       any = true;
     }

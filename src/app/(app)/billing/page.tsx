@@ -7,7 +7,8 @@ import { usePoll } from "@/lib/use-poll";
 import { cn } from "@/lib/ui";
 import { PageHero } from "@/components/PageHero";
 import { Panel, Skeleton } from "@/components/hub/Primitives";
-import { apiFetch, useSession } from "@/components/session";
+import { apiFetch, useModule, useSession } from "@/components/session";
+import { ModuleGate } from "@/components/ModuleGate";
 
 type Kind = "QUOTE" | "INVOICE" | "CREDIT_NOTE";
 type Cust = { id: string; name: string | null; companyName: string | null; phone: string };
@@ -37,7 +38,14 @@ const overdue = (r: Row) => r.kind === "INVOICE" && r.status === "ISSUED" && !!r
 
 /** Angebote, Rechnungen, Gutschriften: Entwurf → ausstellen (fortlaufende Nummer, unveränderlich) → senden → bezahlt */
 export default function BillingPage() {
+  const { me } = useSession();
+  return <ModuleGate module="invoicing" allow={me?.tenant?.hasBills}><Billing /></ModuleGate>;
+}
+
+function Billing() {
   const { isTenantAdmin } = useSession();
+  // Nach Kündigung der Zusatzoption: Archiv (ansehen, bezahlt markieren, stornieren) – keine neuen Belege
+  const active = useModule("invoicing");
   const [kind, setKind] = useState<"" | Kind>("");
   const { data, reload } = usePoll<List>(`/api/bills${kind ? `?kind=${kind}` : ""}`, 20000);
   const { data: customers } = usePoll<Cust[]>("/api/customers", 60000);
@@ -109,9 +117,10 @@ export default function BillingPage() {
         value={euro(data.stats.openCents)}
         valueLabel={`offen (${data.stats.openCount})`}
         stats={[{ label: `überfällig (${data.stats.overdueCount})`, value: euro(data.stats.overdueCents) }]}
-        action={<div className="flex gap-2"><button className="btn-ghost" onClick={() => { setErr(null); setForm(newForm("QUOTE")); }}><Plus className="h-4 w-4" />Angebot</button><button className="btn-primary" onClick={() => { setErr(null); setForm(newForm("INVOICE")); }}><Plus className="h-4 w-4" />Rechnung</button></div>}
+        action={active && <div className="flex gap-2"><button className="btn-ghost" onClick={() => { setErr(null); setForm(newForm("QUOTE")); }}><Plus className="h-4 w-4" />Angebot</button><button className="btn-primary" onClick={() => { setErr(null); setForm(newForm("INVOICE")); }}><Plus className="h-4 w-4" />Rechnung</button></div>}
       />
-      {data.issuerMissing.length > 0 && (
+      {!active && <p className="rounded-lg border border-zinc-700 bg-white/5 px-4 py-3 text-sm text-zinc-300">Archiv: Die Zusatzoption „Angebote &amp; Rechnungen“ ist nicht gebucht. Bestehende Belege bleiben einsehbar (Aufbewahrungspflicht), offene Rechnungen können Sie weiter als bezahlt markieren oder stornieren. {isTenantAdmin && <Link className="underline" href="/settings/plan#zusatzoptionen">Wieder buchen</Link>}</p>}
+      {active && data.issuerMissing.length > 0 && (
         <p className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
           Zum Ausstellen fehlen noch: {data.issuerMissing.join(", ")}. {isTenantAdmin ? <Link className="underline" href="/settings/invoicing">Jetzt ergänzen</Link> : "Bitte Inhaber bzw. Admin fragen."}
         </p>
@@ -169,18 +178,18 @@ export default function BillingPage() {
             <div className="flex flex-wrap justify-end gap-2 border-t border-zinc-800 pt-3">
               {busy && <Loader2 className="h-4 w-4 animate-spin self-center text-zinc-400" />}
               {open.link && <a className="btn-ghost" href={open.link} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" />Ansehen / Drucken</a>}
-              {open.status === "DRAFT" && <>
+              {active && open.status === "DRAFT" && <>
                 <button className="btn-ghost" onClick={remove}><Trash2 className="h-4 w-4" />Löschen</button>
                 <button className="btn-ghost" onClick={() => { setForm(editForm(open)); setOpen(null); }}>Bearbeiten</button>
                 <button className="btn-primary" disabled={busy} onClick={() => act("issue")}><FileText className="h-4 w-4" />Ausstellen</button>
               </>}
-              {open.status === "ISSUED" && <button className="btn-ghost" disabled={busy || !open.customer.email} title={open.customer.email ? `an ${open.customer.email}` : "Kunde hat keine E-Mail-Adresse"} onClick={() => act("send")}>Per E-Mail senden</button>}
+              {active && open.status === "ISSUED" && <button className="btn-ghost" disabled={busy || !open.customer.email} title={open.customer.email ? `an ${open.customer.email}` : "Kunde hat keine E-Mail-Adresse"} onClick={() => act("send")}>Per E-Mail senden</button>}
               {open.kind === "INVOICE" && open.status === "ISSUED" && <>
-                {overdue(open) && <button className="btn-ghost" disabled={busy || !open.customer.email} onClick={() => act("remind")}>{open.reminderLevel ? "Mahnen" : "Erinnern"}</button>}
+                {active && overdue(open) && <button className="btn-ghost" disabled={busy || !open.customer.email} onClick={() => act("remind")}>{open.reminderLevel ? "Mahnen" : "Erinnern"}</button>}
                 {isTenantAdmin && <button className="btn-ghost" disabled={busy} onClick={() => act("cancel")}>Stornieren</button>}
                 <button className="btn-primary" disabled={busy} onClick={() => act("paid")}>Als bezahlt markieren</button>
               </>}
-              {open.kind === "QUOTE" && open.status === "ISSUED" && <>
+              {active && open.kind === "QUOTE" && open.status === "ISSUED" && <>
                 <button className="btn-ghost" disabled={busy} onClick={() => act("decline")}>Abgelehnt</button>
                 <button className="btn-primary" disabled={busy} onClick={() => act("convert")}>Angenommen → Rechnung</button>
               </>}

@@ -5,6 +5,7 @@ import { api, notFound, readJson, HttpError } from "@/lib/http";
 import { requireTenant } from "@/lib/auth/session";
 import { audit } from "@/lib/audit";
 import { issuerFor, publicUrl, recipientOf, updateDraft } from "@/lib/services/bills";
+import { requireModule } from "@/lib/addons";
 
 export const dynamic = "force-dynamic";
 type P = { id: string };
@@ -24,6 +25,7 @@ export const GET = api<P>(async (_req, { params }) => {
 const line = z.object({ description: z.string().trim().min(1).max(300), quantity: z.number(), unit: z.string().trim().max(20).default("Stück"), unitCents: z.number().int(), taxRate: z.number().int(), serviceId: z.string().nullable().optional() });
 export const PATCH = api<P>(async (req, { params }) => {
   const auth = await requireTenant();
+  await requireModule(auth.tenantId, "invoicing");
   const { id } = await params;
   const d = z.object({ customerId: z.string().optional(), lines: z.array(line).min(1).max(100).optional(), serviceDate: z.string().datetime().nullable().optional(), introText: z.string().max(1000).nullable().optional(), note: z.string().max(2000).nullable().optional() }).parse(await readJson(req));
   const b = await updateDraft(auth.tenantId, id, { ...d, serviceDate: d.serviceDate === undefined ? undefined : d.serviceDate ? new Date(d.serviceDate) : null });

@@ -124,7 +124,7 @@ describe.skipIf(!enabled)("Phase 1 – Techniker-App & Einsatzbericht", () => {
   let ticketId: string;
   const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(200)]);
   beforeAll(async () => {
-    tenant = await prisma.tenant.create({ data: { name: `Technik P1 ${uid}`, slug: `p1t-${uid}`, industry: "trades", status: "ACTIVE", settings: { jobs: { hourlyRateCents: 6800 } } } });
+    tenant = await prisma.tenant.create({ data: { name: `Technik P1 ${uid}`, slug: `p1t-${uid}`, industry: "trades", status: "ACTIVE", settings: { jobs: { hourlyRateCents: 6800 } }, addons: { create: [{ key: "field_app", priceCents: 2900 }, { key: "invoicing", priceCents: 1900 }] } } });
     tech = await prisma.employee.create({ data: { tenantId: tenant.id, name: "Emre Yilmaz", role: "FIELD_TECH" } });
     other = await prisma.employee.create({ data: { tenantId: tenant.id, name: "Hanna Berg", role: "FIELD_TECH" } });
     const customer = await prisma.customer.create({ data: { tenantId: tenant.id, phone: "+4915112345201", name: "Jonas Weber", address: "Am Rhein 3, 55116 Mainz" } });
@@ -192,7 +192,7 @@ describe.skipIf(!enabled)("Phase 1 – Kundenkontakt", () => {
   const phone = "+4915112345301";
   let customerId: string;
   beforeAll(async () => {
-    tenant = await prisma.tenant.create({ data: { name: `Kontakt P1 ${uid}`, slug: `p1k-${uid}`, industry: "trades", status: "ACTIVE", settings: { notifications: { backofficeEmail: "buero@example.org", contactPhone: "06131 123456" }, contact: { enRoute: "both", reviewRequest: "both", reviewUrl: "https://g.page/r/test", reviewDelayHours: 2 } } } });
+    tenant = await prisma.tenant.create({ data: { name: `Kontakt P1 ${uid}`, slug: `p1k-${uid}`, industry: "trades", status: "ACTIVE", settings: { notifications: { backofficeEmail: "buero@example.org", contactPhone: "06131 123456" }, contact: { enRoute: "both", reviewRequest: "both", reviewUrl: "https://g.page/r/test", reviewDelayHours: 2 } }, addons: { create: [{ key: "customer_contact", priceCents: 900 }] } } });
     tech = await prisma.employee.create({ data: { tenantId: tenant.id, name: "Emre Yilmaz", role: "FIELD_TECH" } });
     customerId = (await prisma.customer.create({ data: { tenantId: tenant.id, phone, name: "Jonas Weber", email: "jonas@example.org" } })).id;
   });
@@ -241,7 +241,7 @@ describe.skipIf(!enabled)("Phase 1 – Kundenkontakt", () => {
     expect(enRoute.find((m) => m.channel === "SMS")!.body).toContain("Emre ist jetzt unterwegs");
 
     const now = new Date();
-    await prisma.jobReport.create({ data: { tenantId: tenant.id, ticketId: t.id, employeeId: tech.id, status: "DONE", finishedAt: new Date(now.getTime() - 3600_000) } });
+    await prisma.callTicket.update({ where: { id: t.id }, data: { status: "CLOSED", closedAt: new Date(now.getTime() - 3600_000) } });
     await runReviewRequests(now);
     expect(await prisma.message.count({ where: { ticketId: t.id, purpose: "REVIEW_REQUEST" } })).toBe(0); // noch zu früh
     await runReviewRequests(new Date(now.getTime() + 2 * 3600_000));
@@ -251,9 +251,75 @@ describe.skipIf(!enabled)("Phase 1 – Kundenkontakt", () => {
 
     // zweiter Einsatz kurz danach: keine erneute Bitte (90 Tage)
     const t2 = await mkTicket(2);
-    await prisma.jobReport.create({ data: { tenantId: tenant.id, ticketId: t2.id, employeeId: tech.id, status: "DONE", finishedAt: now } });
+    await prisma.callTicket.update({ where: { id: t2.id }, data: { status: "CLOSED", closedAt: now } });
     await runReviewRequests(new Date(now.getTime() + 3 * 3600_000));
     expect(await prisma.message.count({ where: { ticketId: t2.id, purpose: "REVIEW_REQUEST" } })).toBe(0);
-    expect((await prisma.jobReport.findUniqueOrThrow({ where: { ticketId: t2.id } })).reviewHandledAt).not.toBeNull();
+    expect((await prisma.callTicket.findUniqueOrThrow({ where: { id: t2.id } })).reviewHandledAt).not.toBeNull();
+    // Abgesagter Termin (ohne closedAt) löst keine Bitte aus
+    const t3 = await mkTicket(3);
+    await prisma.callTicket.update({ where: { id: t3.id }, data: { status: "CLOSED", appointmentStart: null } });
+    await prisma.customer.update({ where: { id: customerId }, data: { reviewRequestedAt: null } });
+    await runReviewRequests(new Date(now.getTime() + 4 * 3600_000));
+    expect(await prisma.message.count({ where: { ticketId: t3.id, purpose: "REVIEW_REQUEST" } })).toBe(0);
+  });
+});
+
+describe.skipIf(!enabled)("Zusatzoptionen", () => {
+  let tenant: Awaited<ReturnType<typeof prisma.tenant.create>>;
+  beforeAll(async () => {
+    tenant = await prisma.tenant.create({ data: { name: `Addon ${uid}`, slug: `p1a-${uid}`, industry: "trades", status: "ACTIVE", timezone: "Europe/Berlin" } });
+  });
+  afterAll(async () => {
+    await prisma.addonPrice.deleteMany({});
+    await prisma.tenant.delete({ where: { id: tenant.id } });
+  });
+
+  it("ohne Buchung gesperrt, nach Buchung sofort aktiv, Kündigung zum Monatsende", async () => {
+    const a = await import("@/lib/addons");
+    expect(await a.activeModules(tenant.id)).toEqual([]);
+    await expect(a.requireModule(tenant.id, "invoicing")).rejects.toMatchObject({ status: 403 });
+    const now = new Date("2026-10-26T10:00:00Z");
+    await a.bookAddon(tenant.id, "invoicing", {}, now);
+    expect(await a.activeModules(tenant.id, now)).toEqual(["invoicing"]);
+    await expect(a.bookAddon(tenant.id, "invoicing", {}, now)).rejects.toMatchObject({ status: 409 });
+    const c = await a.cancelAddon(tenant.id, "invoicing", {}, now);
+    expect(c.endsAt!.toISOString()).toBe("2026-10-31T23:00:00.000Z"); // 1.11. 00:00 Berlin
+    expect(await a.hasModule(tenant.id, "invoicing", new Date("2026-10-31T22:59:00Z"))).toBe(true);
+    expect(await a.hasModule(tenant.id, "invoicing", new Date("2026-11-01T00:00:00Z"))).toBe(false);
+    // Kündigung zurücknehmen
+    await a.bookAddon(tenant.id, "invoicing", {}, now);
+    expect(await a.hasModule(tenant.id, "invoicing", new Date("2026-12-15T00:00:00Z"))).toBe(true);
+  });
+
+  it("Abrechnung: im Monat aktive Option einmal voll, kostenlose und im Paket enthaltene nicht", async () => {
+    const { effectivePlan, withTopUps, invoiceFor, currentMonth } = await import("@/lib/billing");
+    const { year, month } = currentMonth("Europe/Berlin");
+    const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
+    const a = await import("@/lib/addons");
+    await prisma.addonPrice.create({ data: { key: "field_app", monthlyPriceCents: 3500 } });
+    await a.bookAddon(tenant.id, "field_app", {}, new Date(Date.now() - 60_000));
+    await a.bookAddon(tenant.id, "customer_contact", { priceCents: 0 }, new Date(Date.now() - 60_000));
+    const t = await prisma.tenant.findUniqueOrThrow({ where: { id: tenant.id } });
+    const plan = await withTopUps(tenant.id, effectivePlan(t, null), year, month);
+    expect(plan.addons.map((x) => `${x.key}:${x.priceCents}`).sort()).toEqual(["field_app:3500", "invoicing:1900"]);
+    const inv = invoiceFor(plan, { calls: 0, seconds: 0, minutes: 0, sms: 0, emails: 0, tickets: 0, emergencies: 0 }, { includeSetupFee: false });
+    expect(inv.lines.map((l) => l.label)).toContain("Zusatzoption Techniker-App");
+    expect((await withTopUps(tenant.id, effectivePlan(t, null), prev.y, prev.m)).addons.map((x) => x.key)).not.toContain("field_app");
+    // Im Paket enthalten → kein Aufpreis, trotzdem aktiv
+    const p = await prisma.plan.create({ data: { key: `p-${uid}`, name: "Komplett", monthlyPriceCents: 9900, includedMinutes: 300, overageCentsPerMinute: 39, features: ["invoicing", "field_app"] } });
+    await prisma.tenant.update({ where: { id: tenant.id }, data: { planId: p.id } });
+    const t2 = await prisma.tenant.findUniqueOrThrow({ where: { id: tenant.id }, include: { planRef: true } });
+    expect((await withTopUps(tenant.id, effectivePlan(t2, t2.planRef), year, month)).addons).toEqual([]);
+    await prisma.tenant.update({ where: { id: tenant.id }, data: { planId: null } });
+    await prisma.plan.delete({ where: { id: p.id } });
+  });
+
+  it("Techniker-App-Link funktioniert nur mit gebuchter Option", async () => {
+    const j = await import("@/lib/services/jobs");
+    const e = await prisma.employee.create({ data: { tenantId: tenant.id, name: "Test Tech", role: "FIELD_TECH" } });
+    const token = await j.issueAppToken(tenant.id, e.id);
+    expect((await j.employeeForToken(token)).id).toBe(e.id);
+    await prisma.tenantAddon.updateMany({ where: { tenantId: tenant.id, key: "field_app" }, data: { endsAt: new Date(Date.now() - 1000) } });
+    await expect(j.employeeForToken(token)).rejects.toMatchObject({ status: 404 });
   });
 });

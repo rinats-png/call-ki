@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { currentMonth, dailyMinutes, invoiceFor, MINUTE_PACKS, minutePackPrice, planForTenant, usageForMonth, withTopUps } from "@/lib/billing";
 import { zonedParts } from "@/lib/time";
 import { PLAN_FEATURES } from "@/lib/platform/registry";
+import { isAddonKey } from "@/lib/addons";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export const GET = api(async () => {
       includedMinutes: plan.includedMinutes,
       overageMode: plan.overageMode,
       includedSms: plan.includedSms,
-      features: (plan.features ?? PLAN_FEATURES.map((f) => f.key)).map((k) => PLAN_FEATURES.find((f) => f.key === k)?.label ?? k),
+      features: (plan.features ?? PLAN_FEATURES.map((f) => f.key)).filter((k) => !isAddonKey(k)).map((k) => PLAN_FEATURES.find((f) => f.key === k)?.label ?? k),
       ...(isAdmin ? { monthlyPriceCents: plan.monthlyPriceCents, overageCentsPerMinute: plan.overageCentsPerMinute, smsCents: plan.smsCents } : {}),
     },
     usage,

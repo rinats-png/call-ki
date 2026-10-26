@@ -2,9 +2,14 @@
 
 import { Panel, Skeleton } from "@/components/hub/Primitives";
 import { Field, SaveBar, useSettings } from "@/components/settings/useSettings";
+import { ModuleGate } from "@/components/ModuleGate";
 
 /** Angaben des Betriebs als Rechnungssteller (§ 14 UStG) und Mahnwesen */
 export default function Page() {
+  return <ModuleGate module="invoicing"><InvoicingSettings /></ModuleGate>;
+}
+
+function InvoicingSettings() {
   const s = useSettings();
   const { data, draft, setS, readOnly } = s;
   if (!data || !draft) return <Skeleton className="h-96" />;

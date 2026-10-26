@@ -5,6 +5,7 @@ import { api, notFound, readJson, HttpError } from "@/lib/http";
 import { requireTenant } from "@/lib/auth/session";
 import { audit } from "@/lib/audit";
 import { cancelInvoice, convertQuote, issueBill, markPaid, sendBill } from "@/lib/services/bills";
+import { requireModule } from "@/lib/addons";
 
 export const dynamic = "force-dynamic";
 type P = { id: string };
@@ -23,6 +24,8 @@ const body = z.discriminatedUnion("action", [
 export const POST = api<P>(async (req, { params }) => {
   const d = body.parse(await readJson(req));
   const auth = await requireTenant({ adminOnly: d.action === "cancel" });
+  // Offene Posten abschließen (bezahlt, stornieren) geht auch nach Kündigung der Zusatzoption
+  if (d.action !== "paid" && d.action !== "cancel") await requireModule(auth.tenantId, "invoicing");
   const { id } = await params;
   let result: unknown = { ok: true };
   switch (d.action) {
