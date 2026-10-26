@@ -49,6 +49,12 @@ export async function POST(req: Request) {
         const res = await processToolBody(body, auth);
         return res === null ? NextResponse.json({ error: "Unauthorized" }, { status: 401 }) : NextResponse.json(res);
       }
+      case "conversation-update":
+      case "status-update": {
+        const ev = parseCallEvent(body);
+        if (ev) await handleCallEvent(ev);
+        return NextResponse.json({ ok: true });
+      }
       case "end-of-call-report": {
         const ev = parseCallEvent(body);
         const call = ev ? await handleCallEvent(ev) : null;

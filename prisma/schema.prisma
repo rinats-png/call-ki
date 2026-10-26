@@ -256,6 +256,7 @@ model Call {
   /// Zeitpunkt, zu dem Aufnahme/Transkript beim Anbieter (Retell/Twilio) gelöscht wurden
   providerPurgedAt   DateTime?
   tickets            CallTicket[]
+  activities         CallActivity[]
 
   @@index([tenantId, startedAt])
 }
@@ -708,4 +709,20 @@ model Task {
 
   @@index([tenantId, doneAt])
   @@index([assigneeId, doneAt])
+}
+
+/// Live-Konsole: was Eira während des Gesprächs erkannt und getan hat (Funktionsaufrufe), 2 Tage
+model CallActivity {
+  id        String   @id @default(cuid())
+  callId    String
+  call      Call     @relation(fields: [callId], references: [id], onDelete: Cascade)
+  tenantId  String
+  tool      String
+  text      String
+  /// Erkannte Daten (Name, PLZ, Anliegen, Dringlichkeit, Termin) für die Anzeige
+  data      Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([callId, createdAt])
+  @@index([createdAt])
 }

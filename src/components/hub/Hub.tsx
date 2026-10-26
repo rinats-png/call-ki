@@ -1,5 +1,6 @@
 "use client";
 
+import { LiveCalls } from "./LiveCalls";
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { usePoll } from "@/lib/use-poll";
@@ -62,6 +63,7 @@ export function Hub() {
 
       {data && <WeekChart week={data.week} />}
 
+      <LiveCalls />
       <KpiCards data={data} />
 
       <div className="flex flex-wrap items-center gap-2">

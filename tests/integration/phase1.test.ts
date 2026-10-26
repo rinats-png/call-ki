@@ -561,3 +561,29 @@ describe.skipIf(!enabled)("Phase 4 – Kundenakte", () => {
     expect(await customerFile("anderer-mandant", c.id)).toBeNull();
   });
 });
+
+describe.skipIf(!enabled)("Phase 4 – Live-Konsole", () => {
+  let tenant: Awaited<ReturnType<typeof prisma.tenant.create>>;
+  beforeAll(async () => { tenant = await prisma.tenant.create({ data: { name: `Live ${uid}`, slug: `p4l-${uid}`, industry: "trades", status: "ACTIVE" } }); });
+  afterAll(async () => { await prisma.tenant.delete({ where: { id: tenant.id } }); });
+
+  it("zeigt laufende Gespräche mit erkannten Daten und sperrt Übernehmen sauber", async () => {
+    const l = await import("@/lib/services/live");
+    const running = await prisma.call.create({ data: { tenantId: tenant.id, fromNumber: "+4915112346001", toNumber: "+4930", status: "IN_PROGRESS", transcript: "Agent: Hallo\nAnrufer: Notfall" } });
+    const viaSip = await prisma.call.create({ data: { tenantId: tenant.id, fromNumber: "+4915112346002", toNumber: "+4930", status: "IN_PROGRESS", twilioCallSid: `CA${uid}x` } });
+    await prisma.call.create({ data: { tenantId: tenant.id, fromNumber: "+4915112346003", toNumber: "+4930", status: "ENDED", endedAt: new Date() } });
+    await l.recordActivity(running.id, tenant.id, "save_customer", { name: "Jonas", postalCode: "55116" }, { ok: true });
+    await l.recordActivity(running.id, tenant.id, "escalate_emergency", { category: "Rohrbruch" }, { urgency: "CRITICAL", say: "Notfall" });
+    const calls = await l.liveCalls(tenant.id);
+    expect(calls.map((c) => c.id).sort()).toEqual([running.id, viaSip.id].sort());
+    const r = calls.find((c) => c.id === running.id)!;
+    expect(r.detected).toMatchObject({ name: "Jonas", postalCode: "55116", category: "Rohrbruch", urgency: "CRITICAL" });
+    expect(r.canTakeOver).toBe(false);
+    expect(calls.find((c) => c.id === viaSip.id)!.canTakeOver).toBe(true);
+    await expect(l.takeOver(tenant.id, running.id, "0151 1234567")).rejects.toMatchObject({ status: 409 });
+    await expect(l.takeOver("fremd", viaSip.id, "0151 1234567")).rejects.toMatchObject({ status: 404 });
+    await expect(l.takeOver(tenant.id, viaSip.id, "abc")).rejects.toMatchObject({ status: 400 });
+    // ohne Twilio-Zugang: sauber abgelehnt statt Fehler
+    await expect(l.takeOver(tenant.id, viaSip.id, "0151 1234567")).rejects.toMatchObject({ status: 409 });
+  });
+});

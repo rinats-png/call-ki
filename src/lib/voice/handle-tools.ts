@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { recordActivity } from "../services/live";
 import { ensurePlatformConfig } from "../platform/config";
 import { logger } from "../logger";
 import { verifyVoiceRequest, voiceAuthAllows, type VoiceAuth } from "../security";
@@ -48,6 +49,11 @@ export async function processToolBody(body: unknown, auth: VoiceAuth, toolNameFr
     const err = { error: "Anruf keinem Kunden zugeordnet. Bitte Anliegen notieren und Rückruf anbieten." };
     return formatToolResponse(n, n.calls.map((c) => ({ id: c.id, name: c.name, result: err })));
   }
-  const results = await Promise.all(n.calls.map(async (c) => ({ id: c.id, name: c.name, result: await runTool(c.name || toolNameFromPath || "", c.args, ctx) })));
+  const results = await Promise.all(n.calls.map(async (c) => {
+    const name = c.name || toolNameFromPath || "";
+    const result = await runTool(name, c.args, ctx);
+    await recordActivity(ctx.callRowId, ctx.tenant.id, name, (c.args ?? {}) as Record<string, unknown>, result);
+    return { id: c.id, name: c.name, result };
+  }));
   return formatToolResponse(n, results);
 }

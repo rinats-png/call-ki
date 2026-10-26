@@ -62,7 +62,12 @@ export async function handleCallEvent(ev: CallEvent) {
   }
 
   if (ev.kind === "started") {
-    await prisma.call.update({ where: { id: call.id }, data: { status: "IN_PROGRESS" } });
+    if (!call.endedAt) await prisma.call.update({ where: { id: call.id }, data: { status: "IN_PROGRESS" } });
+    return call;
+  }
+  // Zwischenstand für die Live-Konsole: nur die Mitschrift, solange das Gespräch läuft
+  if (ev.kind === "live") {
+    if (!call.endedAt) await prisma.call.update({ where: { id: call.id }, data: { status: "IN_PROGRESS", ...(ev.transcript ? { transcript: ev.transcript.slice(0, 200_000) } : {}) } });
     return call;
   }
 

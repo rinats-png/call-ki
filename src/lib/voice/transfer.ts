@@ -17,6 +17,11 @@ export const TRANSFER_DELAY_MS = 4000;
  * Rückgabe: true = Durchstellung geplant (die KI soll transfer_call NICHT aufrufen).
  */
 export async function scheduleServerTransfer(callRowId: string | null, number: string): Promise<boolean> {
+  return redirectCall(callRowId, number, { intro: "Ich verbinde Sie jetzt mit dem Notdienst.", delayMs: TRANSFER_DELAY_MS });
+}
+
+/** Laufenden Twilio-Anruf auf eine Nummer umleiten (Notfall-Durchstellung bzw. Übernehmen in der Live-Konsole). */
+export async function redirectCall(callRowId: string | null, number: string, opts: { intro: string; delayMs: number }): Promise<boolean> {
   if (!callRowId || !smsDestinationAllowed(number)) return false;
   const e = env();
   const auth = twilioAuth();
@@ -24,10 +29,10 @@ export async function scheduleServerTransfer(callRowId: string | null, number: s
   const call = await prisma.call.findUnique({ where: { id: callRowId }, select: { twilioCallSid: true, toNumber: true, endedAt: true } });
   if (!call?.twilioCallSid || call.endedAt) return false;
   const twiml =
-    `<Response>${say("Ich verbinde Sie jetzt mit dem Notdienst.")}${dialNumber(number, call.toNumber || undefined, 30)}` +
+    `<Response>${say(opts.intro)}${dialNumber(number, call.toNumber || undefined, 30)}` +
     `${say("Leider ist gerade niemand erreichbar. Wir rufen Sie schnellstmöglich zurück. Auf Wiederhören.")}<Hangup/></Response>`;
   runAfterResponse("voice.server_transfer", async () => {
-    await new Promise((r) => setTimeout(r, TRANSFER_DELAY_MS));
+    if (opts.delayMs) await new Promise((r) => setTimeout(r, opts.delayMs));
     const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${e.TWILIO_ACCOUNT_SID}/Calls/${encodeURIComponent(call.twilioCallSid!)}.json`, {
       method: "POST",
       headers: { Authorization: auth, "Content-Type": "application/x-www-form-urlencoded" },

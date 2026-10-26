@@ -8,7 +8,8 @@ import { findCallRef } from "./payload";
  */
 export type CallEvent = {
   provider: "retell" | "vapi" | "elevenlabs";
-  kind: "started" | "ended" | "analyzed";
+  /** live = Zwischenstand während des Gesprächs (Live-Konsole) */
+  kind: "started" | "ended" | "analyzed" | "live";
   callId: string | null;
   fromNumber: string | null;
   toNumber: string | null;
@@ -86,7 +87,15 @@ export function parseCallEvent(body: unknown): CallEvent | null {
       callRef: findCallRef(call),
     };
   }
-  const kinds: Record<string, CallEvent["kind"]> = { call_started: "started", call_ended: "ended", call_analyzed: "analyzed" };
+  // Vapi während des Gesprächs: „conversation-update“ (ganzer Verlauf) bzw. „status-update“ (in-progress)
+  if (msg.type === "conversation-update" || (msg.type === "status-update" && msg.status === "in-progress")) {
+    const call = obj(msg.call);
+    const list = Array.isArray(msg.conversation) ? msg.conversation : Array.isArray(msg.messages) ? msg.messages : [];
+    const lines = list.map(obj).filter((m) => (m.role === "user" || m.role === "assistant" || m.role === "bot") && str(m.content ?? m.message))
+      .map((m) => `${m.role === "user" ? "Anrufer" : "Agent"}: ${String(m.content ?? m.message).trim()}`);
+    return { provider: "vapi", kind: msg.type === "status-update" ? "started" : "live", callId: str(call.id), fromNumber: str(obj(call.customer).number), toNumber: str(obj(call.phoneNumber).number), transcript: lines.length ? lines.join("\n") : null, summary: null, durationSec: null, recordingUrl: null, endReason: null, callRef: findCallRef(call) };
+  }
+  const kinds: Record<string, CallEvent["kind"]> = { call_started: "started", call_ended: "ended", call_analyzed: "analyzed", transcript_updated: "live" };
   const kind = typeof b.event === "string" ? kinds[b.event] : undefined;
   if (kind) {
     const call = obj(b.call);
