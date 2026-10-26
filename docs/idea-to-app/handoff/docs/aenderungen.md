@@ -5,3 +5,7 @@
 
 | Nr | Datum | Art (klein / wesentlich) | Was wurde anders gemacht? | Warum | Betroffene IDs | Zugestimmt von / am | Angepasste Dokumente |
 |---|---|---|---|---|---|---|---|
+| A-01 | 2026-10-26 | wesentlich | Leistungskatalog mit Dauer, Gewerk, Preis; Zuständigkeit nach Gewerk | Ausbauplan Phase 1 (Demo-Videos) | P1-1 | Projektinhaber, 2026-10-26 („alles aufbauen“) | `docs/recht/verarbeitungsverzeichnis.md` |
+| A-02 | 2026-10-26 | wesentlich | Angebote, Rechnungen, Gutschriften an Endkunden mit GiroCode (Vorbild Veyra); ausgestellte Belege unveränderlich, Storno per Gutschrift; Löschanfrage anonymisiert statt löscht, wenn Belege existieren | Aufbewahrungspflicht (§ 147 AO) geht der Löschung vor | P1-4 | Projektinhaber, 2026-10-26 | `docs/recht/loeschkonzept.md` |
+| A-03 | 2026-10-26 | wesentlich | Techniker-App als PWA über persönlichen Geräte-Link (kein Login), Einsatzbericht mit Fotos und Unterschrift, Rechnungsentwurf beim Abschluss | Techniker haben keine Portal-Konten; Link ist sperr- und erneuerbar | P1-2, P1-3 | Projektinhaber, 2026-10-26 | `docs/recht/loeschkonzept.md` |
+| A-04 | 2026-10-26 | klein | „Passt es noch?“ per SMS (Webhook `/api/twilio/sms`), Unterwegs-Nachricht, Bitte um Bewertung | Weniger Leerfahrten, mehr Bewertungen | P1-5 | Projektinhaber, 2026-10-26 | README, `docs/betrieb.md` |

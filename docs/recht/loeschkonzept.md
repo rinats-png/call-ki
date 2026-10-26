@@ -21,6 +21,11 @@
 | Google-Kalender-Verbindung (verschlüsselter Refresh-Token, E-Mail des verbindenden Kontos) | DB `Integration` | bis der Kunde trennt bzw. Mandant gelöscht wird | Trennen widerruft den Token bei Google (`src/lib/google.ts`) und leert die Daten |
 | Microsoft-365-Verbindung (Tenant-ID, Entwurfs-Postfach; keine Tokens) | DB `Integration` | bis der Kunde trennt bzw. Mandant gelöscht wird | Trennen leert die Konfiguration; Admin-Zustimmung widerruft der Kunde in seinem Entra ID |
 | Termine im Google- bzw. Microsoft-Kalender des Kunden | außerhalb der Plattform | Sache des Kunden | – |
+| Einsatzbericht (Befund, Arbeiten, Material, Zeiten), **Fotos** und **Kundenunterschrift** | DB `JobReport`, `JobPhoto` | mit dem Vorgang (Geschäftsdokumentation des Kunden) | kaskadierend mit dem Vorgang bzw. bei `eraseCustomer`; Fotos nur über angemeldete Abrufe bzw. den Geräte-Link des zuständigen Technikers **[PRÜFEN: eigene Frist für Fotos sinnvoll?]** |
+| Geräte-Link der Techniker-App (nur SHA-256) | DB `EmployeeAppToken` | bis „neuer Link“/„Sperren“ oder Löschen des Mitarbeiters | – |
+| **Ausgestellte Angebote, Rechnungen, Gutschriften an Endkunden** (eingefrorene Anschrift, Positionen, Beträge) | DB `Bill` | **Aufbewahrungspflicht des Kunden** (§ 147 AO, § 14b UStG: 8 bzw. 10 Jahre) **[PRÜFEN]** | werden nie gelöscht, nur storniert; bei Löschanfrage eines Endkunden wird der Kundendatensatz anonymisiert, die Belege bleiben (Art. 17 Abs. 3 lit. b DSGVO); Entwürfe werden gelöscht. Bei Vertragsende: Export an den Kunden vor der Mandantenlöschung |
+| Antwort auf „Passt es noch?“ (JA/NEIN, Zeitpunkt; Text in den Vorgangsnotizen) | DB `CallTicket.confirmation`, `notes` | mit dem Vorgang | – |
+| Letzte Bewertungsanfrage | DB `Customer.reviewRequestedAt` | mit dem Endkunden | verhindert wiederholte Anfragen (90 Tage) |
 | Rate-Limit-Zähler (gehashte Schlüssel) | DB `RateLimitHit` | 2 Tage | Löschjob (`purgeRateLimitHits`) |
 | SMS beim Anbieter | Twilio | Twilio-Standard **[PRÜFEN: Löschung per API ergänzen]** | – |
 | E-Mails im Postfach des Empfängers | außerhalb der Plattform | Sache des Empfängers | – |

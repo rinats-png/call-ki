@@ -79,8 +79,15 @@ export async function exportCustomerData(tenantId: string, customerId: string) {
   return prisma.customer.findFirst({
     where: { id: customerId, tenantId },
     include: {
-      tickets: { select: { id: true, category: true, urgency: true, summary: true, transcript: true, appointmentStart: true, status: true, createdAt: true } },
+      tickets: {
+        select: {
+          id: true, category: true, urgency: true, summary: true, transcript: true, appointmentStart: true, status: true, confirmation: true, createdAt: true,
+          // Einsatzbericht ohne Bilddaten (Fotos/Unterschrift nur als Anzahl bzw. Zeitpunkt)
+          jobReport: { select: { status: true, arrivedAt: true, finishedAt: true, findings: true, workDone: true, materials: true, hoursWorked: true, signatureName: true, signedAt: true, _count: { select: { photos: true } } } },
+        },
+      },
       calls: { select: { id: true, startedAt: true, durationSec: true, transcript: true, summary: true } },
+      bills: { where: { status: { not: "DRAFT" } }, select: { kind: true, number: true, status: true, issueDate: true, recipient: true, lines: true, grossCents: true, paidAt: true } },
     },
   });
 }

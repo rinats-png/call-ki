@@ -86,6 +86,10 @@ export async function exportTenantData(tenantId: string) {
       calls: { select: { id: true, fromNumber: true, toNumber: true, customerId: true, status: true, startedAt: true, endedAt: true, durationSec: true, transcript: true, summary: true, endReason: true } },
       messages: { select: { id: true, ticketId: true, channel: true, recipient: true, subject: true, body: true, purpose: true, status: true, createdAt: true } },
       auditLogs: { select: { action: true, target: true, userId: true, createdAt: true }, orderBy: { createdAt: "asc" } },
+      services: true,
+      // Ausgestellte Belege: Aufbewahrungspflicht des Kunden – vor der Löschung vollständig übergeben
+      bills: { where: { status: { not: "DRAFT" } }, omit: { publicToken: true }, orderBy: [{ kind: "asc" }, { number: "asc" }] },
+      jobReports: { omit: { signaturePng: true }, include: { _count: { select: { photos: true } } } },
     },
   });
   return tenant ? { exportedAt: new Date().toISOString(), ...tenant } : null;
