@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { UserRound, LayoutGrid, Users, Wrench, Settings, PhoneCall, Building2, LogOut, Zap, Server, Tags, Receipt, Gauge, Activity, FileText } from "lucide-react";
+import { UserRound, LayoutGrid, Users, Wrench, Settings, PhoneCall, Building2, LogOut, Zap, Server, Tags, Receipt, Gauge, Activity, FileText, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/ui";
 import { ThemeToggle } from "./ThemeToggle";
 import { useSession } from "./session";
@@ -15,6 +15,7 @@ const TENANT_NAV: NavItem[] = [
   { href: "/", label: "Hub", icon: LayoutGrid },
   { href: "/calls", label: "Anrufe", icon: PhoneCall },
   { href: "/customers", label: "Kunden", icon: Users },
+  { href: "/planning", label: "Teamkalender", icon: CalendarDays, module: "planning" },
   { href: "/billing", label: "Rechnungen", icon: FileText, module: "invoicing" },
   { href: "/team", label: "Team", icon: Wrench },
   { href: "/settings/plan", label: "Tarif", icon: Gauge },

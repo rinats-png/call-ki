@@ -175,7 +175,7 @@ export async function notifyForTicket(
   ticket: CallTicket & { customer: Customer },
   employee: Employee | null,
   appointment: { start: Date; end: Date } | null,
-  opts: { isUpdate?: boolean; force?: boolean } = {},
+  opts: { isUpdate?: boolean; force?: boolean; skipCustomer?: boolean } = {},
 ): Promise<NotifyResult> {
   const res = emptyNotify();
   const n = cfg.settings.notifications;
@@ -247,7 +247,7 @@ export async function notifyForTicket(
 
     // 3) Kundenbestätigung
     const cMode = n.customerConfirmation;
-    if (cMode !== "off" && !critical) {
+    if (cMode !== "off" && !critical && !opts.skipCustomer) {
       if ((cMode === "email" || cMode === "both") && ticket.customer.email && emailAllowed) {
         const mail = customerConfirmationEmail(ctx);
         if (ms?.draftMailbox && n.microsoftDraftsOnly && !ticket.emailDraftId) {

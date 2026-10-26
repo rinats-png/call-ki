@@ -404,3 +404,50 @@ describe.skipIf(!enabled)("Phase 2 – Fahrzeiten & Gebiete", () => {
     expect(r.routing.reason).not.toContain("Anfahrt");
   });
 });
+
+describe.skipIf(!enabled)("Phase 2 – Teamkalender", () => {
+  let tenant: Awaited<ReturnType<typeof prisma.tenant.create>>;
+  beforeAll(async () => {
+    tenant = await prisma.tenant.create({ data: { name: `Kalender ${uid}`, slug: `p2k-${uid}`, industry: "trades", status: "ACTIVE", settings: { planning: { depotAddress: "Gartenstraße 8, 55116 Mainz" } }, addons: { create: [{ key: "planning", priceCents: 1900 }] } } });
+  });
+  afterAll(async () => {
+    await settleDeferred();
+    await prisma.message.deleteMany({ where: { tenantId: tenant.id } });
+    await prisma.tenant.delete({ where: { id: tenant.id } });
+  });
+
+  it("zeigt Termine mit Fahrten und verschiebt per Ziehen auf einen anderen Mitarbeiter", async () => {
+    const { planningData, moveAppointment } = await import("@/lib/services/planning");
+    const a = await prisma.employee.create({ data: { tenantId: tenant.id, name: "Anna", role: "FIELD_TECH" } });
+    const b = await prisma.employee.create({ data: { tenantId: tenant.id, name: "Ben", role: "FIELD_TECH" } });
+    const cust = await prisma.customer.create({ data: { tenantId: tenant.id, phone: "+4915112345601", name: "Jonas Weber", email: "jonas@example.org", address: "Am Rhein 3", postalCode: "55116" } });
+    const cfg = resolveConfig(tenant);
+    const day = new Date(Date.now() + 3 * 86400_000);
+    const ymd = day.toISOString().slice(0, 10);
+    const at = (h: number) => new Date(`${ymd}T${String(h - 1).padStart(2, "0")}:00:00Z`);
+    const t1 = await prisma.callTicket.create({ data: { tenantId: tenant.id, customerId: cust.id, assignedEmployeeId: a.id, category: "Rohrbruch", status: "PROCESSED", appointmentStart: at(9), appointmentEnd: at(10) } });
+    const t2 = await prisma.callTicket.create({ data: { tenantId: tenant.id, customerId: cust.id, assignedEmployeeId: a.id, category: "Heizung", status: "PROCESSED", appointmentStart: at(11), appointmentEnd: at(12) } });
+    const open = await prisma.callTicket.create({ data: { tenantId: tenant.id, customerId: cust.id, category: "Rückruf", status: "PENDING" } });
+
+    const d = await planningData(tenant, cfg, "day", ymd);
+    expect(d.appointments.map((x) => x.ticketId).sort()).toEqual([t1.id, t2.id].sort());
+    expect(d.unplanned.map((x) => x.ticketId)).toContain(open.id);
+    expect(d.totals.find((t) => t.employeeId === a.id)).toMatchObject({ appointments: 2, workMin: 120 });
+    expect(d.legs.some((l) => l.fromTicketId === t1.id && l.toTicketId === t2.id)).toBe(true);
+
+    // Kollision: Ben ist frei, Anna um 11 Uhr nicht
+    await expect(moveAppointment(tenant, cfg, t1.id, { employeeId: a.id, start: at(11), notifyCustomer: false })).rejects.toMatchObject({ status: 409 });
+    await moveAppointment(tenant, cfg, t1.id, { employeeId: b.id, start: at(11), notifyCustomer: false });
+    const m = await prisma.callTicket.findUniqueOrThrow({ where: { id: t1.id } });
+    expect(m).toMatchObject({ assignedEmployeeId: b.id });
+    expect(m.appointmentStart!.toISOString()).toBe(at(11).toISOString());
+    expect(m.appointmentEnd!.getTime() - m.appointmentStart!.getTime()).toBe(3600_000);
+    expect(m.notes).toContain("Im Teamkalender verschoben");
+    expect(await prisma.message.count({ where: { ticketId: t1.id, purpose: "CUSTOMER_CONFIRMATION" } })).toBe(0);
+
+    // Ungeplanten Vorgang einplanen, Kunde informieren
+    await moveAppointment(tenant, cfg, open.id, { employeeId: a.id, start: at(14), notifyCustomer: true });
+    expect((await prisma.callTicket.findUniqueOrThrow({ where: { id: open.id } })).status).toBe("PROCESSED");
+    expect(await prisma.message.count({ where: { ticketId: open.id, purpose: "CUSTOMER_CONFIRMATION" } })).toBe(1);
+  });
+});
