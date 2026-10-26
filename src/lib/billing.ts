@@ -110,6 +110,12 @@ export async function usageForMonth(tenant: Pick<Tenant, "id" | "timezone">, yea
 
 export async function liveUsageForMonth(tenant: Pick<Tenant, "id" | "timezone">, year: number, month: number, incrementSec: number): Promise<Usage> {
   const { start, end } = monthRange(year, month, tenant.timezone);
+  return usageForRange(tenant.id, start, end, incrementSec);
+}
+
+/** Verbrauch in einem beliebigen Zeitraum (z. B. Testphase oder Monatsrest nach der Testphase). */
+export async function usageForRange(tenantId: string, start: Date, end: Date, incrementSec: number): Promise<Usage> {
+  const tenant = { id: tenantId };
   const [calls, sms, emails, tickets, emergencies] = await Promise.all([
     prisma.call.findMany({ where: { tenantId: tenant.id, startedAt: { gte: start, lt: end } }, select: BILLING_SELECT }),
     prisma.message.count({ where: { tenantId: tenant.id, channel: "SMS", status: "SENT", createdAt: { gte: start, lt: end } } }),
@@ -185,6 +191,11 @@ export async function dailyMinutes(tenant: Pick<Tenant, "id" | "timezone">, year
 export async function minuteGate(tenant: Tenant & { planRef: Plan | null }): Promise<{ blocked: boolean; reason?: string }> {
   const { year, month } = currentMonth(tenant.timezone);
   const plan = await withTopUps(tenant.id, effectivePlan(tenant, tenant.planRef), year, month);
+  // Testphase: festes Minutenkontingent über den ganzen Testzeitraum
+  if (tenant.trialEndsAt && tenant.trialEndsAt > new Date() && tenant.trialMinutes != null) {
+    const used = await usageForRange(tenant.id, tenant.trialStartedAt ?? tenant.createdAt, new Date(), plan.billingIncrementSec);
+    if (used.minutes >= tenant.trialMinutes) return { blocked: true, reason: "trial_quota" };
+  }
   const needsUsage = tenant.monthlyMinuteLimit != null || (plan.planId && plan.overageMode === "BLOCK");
   if (!needsUsage) return { blocked: false };
   const u = await usageForMonth(tenant, year, month, plan.billingIncrementSec);

@@ -30,6 +30,12 @@ model Tenant {
   /// Ohne beide Angaben kann der Mandant nicht auf ACTIVE gesetzt werden.
   avvVersion              String?
   avvSignedAt             DateTime?
+  /// Testphase: Beginn, Ende, Minutenkontingent, gewähltes Paket für danach, versendete Hinweise (1 = 7 Tage, 2 = 1 Tag, 3 = beendet)
+  trialStartedAt          DateTime?
+  trialEndsAt             DateTime?
+  trialMinutes            Int?
+  trialNextPlanId         String?
+  trialNotice             Int       @default(0)
   /// Paket (Preise, Freiminuten, Überminuten) – Einzelwerte je Kunde überschreibbar
   planId                  String?
   planRef                 Plan?     @relation(fields: [planId], references: [id], onDelete: SetNull)

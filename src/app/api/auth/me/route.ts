@@ -4,6 +4,7 @@ import { api } from "@/lib/http";
 import { requireAuth } from "@/lib/auth/session";
 import { resolveConfig } from "@/lib/tenant/settings";
 import { activeModules } from "@/lib/addons";
+import { trialStatus } from "@/lib/trial";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export const GET = api(async () => {
           id: tenant.id, name: tenant.name, slug: tenant.slug, industry: tenant.industry, status: tenant.status, logoUrl: tenant.logoUrl, timezone: tenant.timezone,
           categories: cfg!.categories, roleLabels: cfg!.template.roleLabels, customerTypeLabels: cfg!.template.customerTypeLabels, jobNoun: cfg!.template.jobNoun,
           modules, hasBills,
+          trial: await trialStatus(tenant),
         }
       : null,
   });

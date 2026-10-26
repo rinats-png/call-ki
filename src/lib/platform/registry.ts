@@ -178,6 +178,8 @@ export const PROVIDERS: Provider[] = [
       { key: "MAX_CONCURRENT_CALLS_PER_TENANT", label: "Gleichzeitige Anrufe je Kunde", type: "number", placeholder: "5", hint: "Weitere Anrufer gehen an die Fallback-Nummer. 0 = unbegrenzt." },
       { key: "MAX_CONCURRENT_CALLS_TOTAL", label: "Gleichzeitige Anrufe gesamt", type: "number", placeholder: "50", hint: "Am Limit der Anbieter-Tarife ausrichten (Retell, Vapi, ElevenLabs). 0 = unbegrenzt." },
       { key: "SMS_ALLOWED_PREFIXES", label: "SMS nur in diese Länder", type: "text", placeholder: "+49,+43,+41", hint: "Kommagetrennte Vorwahlen, Standard Deutschland, Österreich, Schweiz. Schützt vor teuren SMS ins Ausland (SMS-Pumping)." },
+      { key: "TRIAL_DAYS", label: "Testphase (Tage)", type: "number", placeholder: "30", hint: "Standard für neue Testkunden." },
+      { key: "TRIAL_MINUTES", label: "Testphase (Minuten)", type: "number", placeholder: "100", hint: "Gesprächsminuten im ganzen Testzeitraum; danach gehen Anrufe an die Ersatznummer." },
       { key: "PLATFORM_DAILY_MINUTE_LIMIT", label: "Tagesbudget aller Kunden (Minuten)", type: "number", placeholder: "z. B. 3000", hint: "Leer = aus. Ab 80 % Warnung, ab 100 % gehen neue Anrufe an Fallback-Nummern." },
     ],
     setup: [

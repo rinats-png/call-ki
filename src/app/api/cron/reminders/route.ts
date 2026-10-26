@@ -4,6 +4,7 @@ import { cronAuthorized } from "@/lib/cron-auth";
 import { runAppointmentReminders } from "@/lib/services/reminders";
 import { runBillReminders } from "@/lib/services/bills";
 import { runReviewRequests } from "@/lib/services/job-contact";
+import { runTrialLifecycle } from "@/lib/trial";
 
 export const dynamic = "force-dynamic";
 
@@ -11,5 +12,5 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   await ensurePlatformConfig();
   if (!cronAuthorized(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  return NextResponse.json({ ...(await runAppointmentReminders()), bills: await runBillReminders(), reviews: await runReviewRequests() });
+  return NextResponse.json({ ...(await runAppointmentReminders()), bills: await runBillReminders(), reviews: await runReviewRequests(), trials: await runTrialLifecycle() });
 }

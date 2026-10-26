@@ -14,6 +14,7 @@ export type Me = {
     categories: string[]; roleLabels: Record<EmployeeRole, string>; customerTypeLabels: Record<CustomerType, string>; jobNoun: string;
     /** Gebuchte bzw. im Paket enthaltene Zusatzoptionen (src/lib/addons.ts) */
     modules: string[]; hasBills: boolean;
+    trial: null | { active: boolean; endsAt: string; daysLeft: number; minutesUsed: number; minutesIncluded: number | null; nextPlan: { id: string; name: string } | null; ended: boolean };
   };
 };
 

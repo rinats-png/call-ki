@@ -100,7 +100,7 @@ export default function AdminPage() {
 }
 
 function CreateTenant({ templates, onClose, onCreated }: { templates: { key: string; label: string }[]; onClose: () => void; onCreated: () => void }) {
-  const [f, setF] = useState({ name: "", industry: templates[0]?.key ?? "general", adminEmail: "", adminName: "", phoneNumber: "", monthlyMinuteLimit: "", plan: "STARTER" });
+  const [f, setF] = useState({ name: "", industry: templates[0]?.key ?? "general", adminEmail: "", adminName: "", phoneNumber: "", monthlyMinuteLimit: "", plan: "STARTER", trial: true });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [done, setDone] = useState<{ id: string; link: string | null } | null>(null);
@@ -151,6 +151,7 @@ function CreateTenant({ templates, onClose, onCreated }: { templates: { key: str
             <input className="input" placeholder="Twilio-Nummer (+49…)" value={f.phoneNumber} onChange={set("phoneNumber")} />
             <input className="input" type="number" placeholder="Minutenlimit / Monat" value={f.monthlyMinuteLimit} onChange={set("monthlyMinuteLimit")} />
             <input className="input col-span-2" placeholder="Tarif (z. B. STARTER, PRO)" value={f.plan} onChange={set("plan")} />
+            <label className="col-span-2 flex items-center gap-2 text-sm text-zinc-300"><input type="checkbox" checked={f.trial} onChange={(e) => setF({ ...f, trial: e.target.checked })} />Als Testkunde starten (kostenlose Testphase)</label>
             {err && <p className="col-span-2 text-xs text-amber-400">{err}</p>}
             <div className="col-span-2 mt-2 flex justify-end gap-2">
               <button type="button" className="btn-ghost" onClick={onClose}>Abbrechen</button>

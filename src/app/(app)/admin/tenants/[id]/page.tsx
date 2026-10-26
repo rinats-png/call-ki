@@ -27,6 +27,7 @@ type Detail = {
     invoice: { lines: { label: string; quantity: number; unit: string; totalCents: number }[]; netCents: number; grossCents: number };
     cost: { totalCents: number }; marginCents: number;
   };
+  trial: { active: boolean; endsAt: string; daysLeft: number; minutesUsed: number; minutesIncluded: number | null; nextPlan: { name: string } | null; ended: boolean } | null;
   addons: { key: string; name: string; active: boolean; booked: boolean; priceCents: number; endsAt: string | null }[];
   phoneNumbers: { id: string; e164: string; label: string | null; voiceAgentId: string | null; voiceProvider: string | null; fallbackNumber: string | null }[];
   integrations: { type: string; status: string; lastError: string | null }[];
@@ -60,6 +61,9 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
   const patch = (body: Record<string, unknown>) => run("patch", async () => {
     const r = await apiFetch<{ notice?: string | null }>(`/api/admin/tenants/${id}`, { method: "PATCH", json: body });
     if (r.notice) setMsg({ ok: true, text: r.notice });
+  });
+  const trial = (body: Record<string, unknown>) => run("trial", async () => {
+    await apiFetch(`/api/admin/tenants/${id}/trial`, { method: "POST", json: body });
   });
   const addon = (key: string, action: "book" | "cancel" | "end_now", free = false) => run("addon", async () => {
     await apiFetch(`/api/admin/tenants/${id}/addons`, { method: "POST", json: { key, action, free } });
@@ -135,6 +139,21 @@ export default function Page({ params }: { params: Promise<{ id: string }> }) {
         <label className="mt-3 block"><span className="mb-1 block text-xs text-zinc-400">Notiz zur Abrechnung</span>
           <input className="input" defaultValue={data.billingNote ?? ""} placeholder="z. B. 3 Monate 50 % Rabatt" onBlur={(e) => e.target.value !== (data.billingNote ?? "") && patch({ billingNote: e.target.value || null })} />
         </label>
+      </Panel>
+
+      <Panel title="Testphase">
+        {data.trial ? (
+          <p className="text-sm text-zinc-300">
+            {data.trial.active ? <>Läuft bis <b>{new Date(data.trial.endsAt).toLocaleDateString("de-DE")}</b> (noch {data.trial.daysLeft} Tage) · {data.trial.minutesUsed}{data.trial.minutesIncluded != null ? ` von ${data.trial.minutesIncluded}` : ""} Minuten · danach: {data.trial.nextPlan?.name ?? <span className="text-amber-300">kein Paket gewählt → Pause</span>}</>
+              : data.trial.ended ? <span className="text-amber-300">Beendet am {new Date(data.trial.endsAt).toLocaleDateString("de-DE")} ohne Paket – Kunde ist pausiert.</span>
+              : <>Beendet am {new Date(data.trial.endsAt).toLocaleDateString("de-DE")}.</>}
+          </p>
+        ) : <p className="text-sm text-zinc-500">Keine Testphase.</p>}
+        <div className="mt-3 flex flex-wrap gap-2">
+          {!data.trial?.active && <button className="btn-ghost text-xs" onClick={() => trial({ action: "start" })}>Testphase starten</button>}
+          {data.trial && <button className="btn-ghost text-xs" onClick={() => trial({ action: "extend", days: 14 })}>+14 Tage</button>}
+          {data.trial?.active && <button className="btn-ghost text-xs text-amber-300" onClick={() => confirm("Testphase sofort beenden? Ohne gewähltes Paket wird der Kunde pausiert.") && trial({ action: "end" })}>Sofort beenden</button>}
+        </div>
       </Panel>
 
       <Panel title={<span className="flex items-center gap-1">Zusatzoptionen<InfoTip title="Zusatzoptionen" steps={["Kunden buchen selbst unter Tarif; hier kannst du für sie buchen – zum Standardpreis oder kostenlos.", "„Im Paket“ = über das Paket freigeschaltet (Preise & Pakete).", "Beenden: zum Monatsende (normal) oder sofort."]} /></span>}>

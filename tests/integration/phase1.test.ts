@@ -587,3 +587,71 @@ describe.skipIf(!enabled)("Phase 4 – Live-Konsole", () => {
     await expect(l.takeOver(tenant.id, viaSip.id, "0151 1234567")).rejects.toMatchObject({ status: 409 });
   });
 });
+
+describe.skipIf(!enabled)("Phase 4 – Testphase", () => {
+  const made: string[] = [];
+  let plan: Awaited<ReturnType<typeof prisma.plan.create>>;
+  beforeAll(async () => { plan = await prisma.plan.create({ data: { key: `trial-${uid}`, name: "Basis", monthlyPriceCents: 3000, setupFeeCents: 9900, includedMinutes: 300, overageCentsPerMinute: 39, features: [] } }); });
+  afterAll(async () => {
+    await prisma.message.deleteMany({ where: { tenantId: { in: made } } });
+    await prisma.tenant.deleteMany({ where: { id: { in: made } } });
+    await prisma.plan.delete({ where: { id: plan.id } });
+  });
+  const mk = async (data: Record<string, unknown> = {}) => {
+    const t = await prisma.tenant.create({ data: { name: `Test ${uid} ${made.length}`, slug: `p4t-${uid}-${made.length}`, industry: "trades", status: "ACTIVE", timezone: "Europe/Berlin", planId: plan.id, ...data } });
+    made.push(t.id);
+    await prisma.user.create({ data: { email: `admin-${uid}-${made.length}@example.org`, role: "TENANT_ADMIN", tenantId: t.id } });
+    return t;
+  };
+
+  it("berechnet im Test nichts, im Monat des Testendes anteilig, Einrichtung im ersten bezahlten Monat", async () => {
+    const { monthInvoice } = await import("@/lib/trial");
+    const { effectivePlan, withTopUps } = await import("@/lib/billing");
+    const t = await mk({ createdAt: new Date("2026-03-20T10:00:00Z"), trialStartedAt: new Date("2026-03-20T10:00:00Z"), trialEndsAt: new Date("2026-04-15T22:00:00Z") });
+    await prisma.call.create({ data: { tenantId: t.id, fromNumber: "+491", toNumber: "+4930", status: "ENDED", startedAt: new Date("2026-04-10T09:00:00Z"), durationSec: 600 } });
+    await prisma.call.create({ data: { tenantId: t.id, fromNumber: "+491", toNumber: "+4930", status: "ENDED", startedAt: new Date("2026-04-20T09:00:00Z"), durationSec: 120 } });
+    const full = await prisma.tenant.findUniqueOrThrow({ where: { id: t.id }, include: { planRef: true } });
+    const ep = (y: number, m: number) => withTopUps(t.id, effectivePlan(full, full.planRef), y, m);
+    const usage = { calls: 0, seconds: 0, minutes: 0, sms: 0, emails: 0, tickets: 0, emergencies: 0 };
+    const march = await monthInvoice(full, await ep(2026, 3), usage, 2026, 3);
+    expect(march.invoice.netCents).toBe(0);
+    expect(march.invoice.lines[0].label).toContain("kostenlos");
+    const april = await monthInvoice(full, await ep(2026, 4), usage, 2026, 4);
+    expect(april.usage.minutes).toBe(2); // nur der Anruf nach Testende
+    expect(april.plan.monthlyPriceCents).toBe(1500); // 15 von 30 Tagen
+    expect(april.invoice.lines.some((l) => l.label === "Einrichtungsgebühr")).toBe(true);
+    const may = await monthInvoice(full, await ep(2026, 5), usage, 2026, 5);
+    expect(may.plan.monthlyPriceCents).toBe(3000);
+    expect(may.invoice.lines.some((l) => l.label === "Einrichtungsgebühr")).toBe(false);
+  });
+
+  it("erinnert, stellt mit gewähltem Paket um oder pausiert und reaktiviert nach Paketwahl", async () => {
+    const tr = await import("@/lib/trial");
+    const now = new Date();
+    const soon = await mk({ trialStartedAt: now, trialEndsAt: new Date(now.getTime() + 6 * 86400_000), trialMinutes: 100 });
+    const chosen = await mk({ trialStartedAt: now, trialEndsAt: new Date(now.getTime() - 1000), trialNextPlanId: plan.id, planId: null });
+    const none = await mk({ trialStartedAt: now, trialEndsAt: new Date(now.getTime() - 1000) });
+    await tr.runTrialLifecycle(now);
+    expect((await prisma.tenant.findUniqueOrThrow({ where: { id: soon.id } })).trialNotice).toBe(1);
+    expect(await prisma.message.count({ where: { tenantId: soon.id, purpose: "BILLING_NOTICE" } })).toBe(1);
+    expect(await prisma.tenant.findUniqueOrThrow({ where: { id: chosen.id } })).toMatchObject({ planId: plan.id, status: "ACTIVE", trialNotice: 3 });
+    expect(await prisma.tenant.findUniqueOrThrow({ where: { id: none.id } })).toMatchObject({ status: "PAUSED", trialNotice: 3 });
+    expect((await tr.trialStatus(await prisma.tenant.findUniqueOrThrow({ where: { id: none.id } })))?.ended).toBe(true);
+    // zweiter Lauf schickt nichts doppelt
+    await tr.runTrialLifecycle(now);
+    expect(await prisma.message.count({ where: { tenantId: soon.id, purpose: "BILLING_NOTICE" } })).toBe(1);
+    // Paket wählen nach Testende → sofort wieder aktiv
+    await tr.chooseTrialPlan(none.id, plan.id);
+    expect(await prisma.tenant.findUniqueOrThrow({ where: { id: none.id } })).toMatchObject({ planId: plan.id, status: "ACTIVE" });
+  });
+
+  it("sperrt nach dem Testkontingent (Anrufe → Ersatznummer)", async () => {
+    const { minuteGate } = await import("@/lib/billing");
+    const now = new Date();
+    const t = await mk({ trialStartedAt: new Date(now.getTime() - 86400_000), trialEndsAt: new Date(now.getTime() + 86400_000), trialMinutes: 5 });
+    const full = () => prisma.tenant.findUniqueOrThrow({ where: { id: t.id }, include: { planRef: true } });
+    expect((await minuteGate(await full())).blocked).toBe(false);
+    await prisma.call.create({ data: { tenantId: t.id, fromNumber: "+491", toNumber: "+4930", status: "ENDED", startedAt: new Date(now.getTime() - 3600_000), durationSec: 330 } });
+    expect(await minuteGate(await full())).toMatchObject({ blocked: true, reason: "trial_quota" });
+  });
+});

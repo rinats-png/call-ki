@@ -11,6 +11,7 @@ import { BarChart } from "@/components/BarChart";
 import { PlanSelfService, type SelfServiceData } from "@/components/PlanSelfService";
 import { InvoicesPanel } from "@/components/InvoicesPanel";
 import { AddonsPanel } from "@/components/AddonsPanel";
+import { TrialPlanPanel } from "@/components/TrialPlanPanel";
 
 type Data = {
   plan: { name: string; hasPlan: boolean; includedMinutes: number; overageMode: string; includedSms: number; features: string[]; monthlyPriceCents?: number; overageCentsPerMinute?: number; smsCents?: number };
@@ -19,6 +20,7 @@ type Data = {
   daily: { day: number; minutes: number; calls: number }[];
   history: { period: string; minutes: number; calls: number }[];
   invoice: { lines: { label: string; quantity: number; totalCents: number }[]; netCents: number; vatPercent: number; vatCents: number; grossCents: number } | null;
+  trial: { active: boolean; endsAt: string; daysLeft: number; minutesUsed: number; minutesIncluded: number | null; nextPlan: { id: string; name: string } | null; ended: boolean } | null;
 } & Partial<SelfServiceData>;
 
 const monthName = (p: string) => new Date(`${p}-01T12:00:00`).toLocaleDateString("de-DE", { month: "short" });
@@ -54,6 +56,8 @@ export default function Page() {
           </div>
         </Panel>
       </div>
+
+      {data.trial && (data.trial.active || data.trial.ended) && data.plans && <TrialPlanPanel trial={data.trial} plans={data.plans.map((p) => ({ ...p, description: p.description ?? "" }))} onChanged={reload} />}
 
       <AddonsPanel onChanged={reload} />
 

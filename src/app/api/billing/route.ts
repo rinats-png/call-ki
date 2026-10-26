@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { api } from "@/lib/http";
 import { requireTenant } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
-import { currentMonth, dailyMinutes, invoiceFor, MINUTE_PACKS, minutePackPrice, planForTenant, usageForMonth, withTopUps } from "@/lib/billing";
+import { currentMonth, dailyMinutes, MINUTE_PACKS, minutePackPrice, planForTenant, usageForMonth, withTopUps } from "@/lib/billing";
 import { zonedParts } from "@/lib/time";
 import { PLAN_FEATURES } from "@/lib/platform/registry";
 import { isAddonKey } from "@/lib/addons";
+import { monthInvoice, trialStatus } from "@/lib/trial";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,6 @@ export const GET = api(async () => {
   // Hochrechnung bis Monatsende (linear nach bisherigem Verbrauch)
   const projected = today > 0 ? Math.round((usage.minutes / today) * daysInMonth) : usage.minutes;
   const isAdmin = auth.isPlatformAdmin || auth.user.role === "TENANT_ADMIN";
-  const created = zonedParts(tenant.createdAt, tenant.timezone);
   return NextResponse.json({
     plan: {
       name: plan.name,
@@ -44,7 +44,8 @@ export const GET = api(async () => {
     projectedMinutes: projected,
     daily,
     history,
-    invoice: isAdmin ? invoiceFor(plan, usage, { includeSetupFee: created.year === year && created.month === month }) : null,
+    invoice: isAdmin ? (await monthInvoice(tenant, plan, usage, year, month)).invoice : null,
+    trial: await trialStatus(tenant),
     topUps: plan.topUps,
     // Selbstbedienung für Kunden-Admins: Minuten nachbuchen, Paketwechsel anfragen
     ...(isAdmin

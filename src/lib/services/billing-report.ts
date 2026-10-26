@@ -1,7 +1,7 @@
 import type { BillingSnapshot } from "@prisma/client";
+import { monthInvoice } from "../trial";
 import { prisma } from "../db";
-import { costFor, effectivePlan, invoiceFor, usageForMonth, withTopUps, type EffectivePlan, type Invoice, type Usage } from "../billing";
-import { zonedParts } from "../time";
+import { costFor, effectivePlan, usageForMonth, withTopUps, type EffectivePlan, type Invoice, type Usage } from "../billing";
 
 export type BillingRow = {
   tenantId: string; tenantName: string; status: string;
@@ -26,10 +26,8 @@ export async function billingReport(year: number, month: number, tenantId?: stri
       const plan = await withTopUps(t.id, effectivePlan(t, t.planRef), year, month);
       const snap = snaps.get(t.id);
       if (snap && !snap.partial) return fromSnapshot(snap, t.status, plan);
-      const usage = await usageForMonth(t, year, month, plan.billingIncrementSec);
-      const created = zonedParts(t.createdAt, t.timezone);
-      const invoice = invoiceFor(plan, usage, { includeSetupFee: created.year === year && created.month === month });
-      return row(t.id, t.name, t.status, false, plan, usage, invoice);
+      const m = await monthInvoice(t, plan, await usageForMonth(t, year, month, plan.billingIncrementSec), year, month);
+      return row(t.id, t.name, t.status, false, m.plan, m.usage, m.invoice);
     }),
   );
   // Gelöschte Kunden: nur noch ihr festgeschriebener Monat (Schlussabrechnung) bleibt

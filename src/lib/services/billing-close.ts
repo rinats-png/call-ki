@@ -1,6 +1,7 @@
 import { prisma } from "../db";
 import { logger } from "../logger";
-import { effectivePlan, invoiceFor, liveUsageForMonth, monthRange, withTopUps } from "../billing";
+import { effectivePlan, liveUsageForMonth, monthRange, withTopUps } from "../billing";
+import { monthInvoice } from "../trial";
 import { zonedParts } from "../time";
 import { issueInvoice } from "./invoices";
 
@@ -14,9 +15,7 @@ export async function closeMonth(tenantId: string, year: number, month: number, 
   if (existing && !existing.partial) return existing;
   const t = await prisma.tenant.findUniqueOrThrow({ where: { id: tenantId }, include: { planRef: true } });
   const plan = await withTopUps(t.id, effectivePlan(t, t.planRef), year, month);
-  const usage = await liveUsageForMonth(t, year, month, plan.billingIncrementSec);
-  const created = zonedParts(t.createdAt, t.timezone);
-  const invoice = invoiceFor(plan, usage, { includeSetupFee: created.year === year && created.month === month });
+  const { usage, invoice } = await monthInvoice(t, plan, await liveUsageForMonth(t, year, month, plan.billingIncrementSec), year, month);
   const data = { tenantName: t.name, planName: plan.name, usage, invoice, partial: !!opts.partial, closedAt: new Date() };
   const snap = await prisma.billingSnapshot.upsert({ where: { tenantId_year_month: { tenantId, year, month } }, create: { tenantId, year, month, ...data }, update: data });
   await issueInvoice(snap);

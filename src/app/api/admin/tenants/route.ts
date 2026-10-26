@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { startTrial } from "@/lib/trial";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { api, readJson, HttpError } from "@/lib/http";
@@ -35,6 +36,8 @@ const schema = z.object({
   phoneNumber: z.string().optional(),
   monthlyMinuteLimit: z.number().int().min(0).nullable().optional(),
   plan: z.string().max(40).optional(),
+  /** Als Testkunde anlegen (Testphase laut Plattform-Einstellung) */
+  trial: z.boolean().default(false),
 });
 
 export const POST = api(async (req) => {
@@ -44,7 +47,9 @@ export const POST = api(async (req) => {
   const phone = d.phoneNumber ? normalizePhone(d.phoneNumber) : null;
   if (d.phoneNumber && !phone) throw new HttpError(400, "Ungültige Telefonnummer.");
   if (phone && (await prisma.phoneNumber.findUnique({ where: { e164: phone } }))) throw new HttpError(409, "Diese Nummer ist bereits vergeben.");
-  const { tenant, inviteLink } = await createTenant({ ...d, phoneNumber: phone });
+  const { trial, ...rest } = d;
+  const { tenant, inviteLink } = await createTenant({ ...rest, phoneNumber: phone });
+  if (trial) await startTrial(tenant.id);
   await audit({ tenantId: tenant.id, userId: auth.user.id, action: "tenant.create", meta: { name: tenant.name } });
   return NextResponse.json({ tenant, inviteLink: smtpConfigured() ? null : inviteLink }, { status: 201 });
 });
