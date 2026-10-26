@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { UserRound, LayoutGrid, Users, Wrench, Settings, PhoneCall, Building2, LogOut, Zap, Server, Tags, Receipt, Gauge, Activity } from "lucide-react";
+import { UserRound, LayoutGrid, Users, Wrench, Settings, PhoneCall, Building2, LogOut, Zap, Server, Tags, Receipt, Gauge, Activity, FileText } from "lucide-react";
 import { cn } from "@/lib/ui";
 import { ThemeToggle } from "./ThemeToggle";
 import { useSession } from "./session";
@@ -14,6 +14,7 @@ const TENANT_NAV: Item[] = [
   { href: "/", label: "Hub", icon: LayoutGrid },
   { href: "/calls", label: "Anrufe", icon: PhoneCall },
   { href: "/customers", label: "Kunden", icon: Users },
+  { href: "/billing", label: "Rechnungen", icon: FileText },
   { href: "/team", label: "Team", icon: Wrench },
   { href: "/settings/plan", label: "Tarif", icon: Gauge },
   { href: "/settings", label: "Einstellungen", icon: Settings },

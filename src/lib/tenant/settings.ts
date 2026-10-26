@@ -73,6 +73,28 @@ export const tenantSettingsSchema = z.object({
       transferNumber: z.string().trim().max(30).default(""),
     })
     .prefault({}),
+  /** Rechnungen an Endkunden: Angaben des Betriebs als Rechnungssteller (§ 14 UStG) */
+  invoicing: z
+    .object({
+      legalName: z.string().trim().max(120).default(""),
+      address: z.string().trim().max(300).default(""),
+      taxNumber: z.string().trim().max(40).default(""),
+      vatId: z.string().trim().max(20).default(""),
+      iban: z.string().trim().max(40).default(""),
+      bic: z.string().trim().max(11).default(""),
+      bankName: z.string().trim().max(80).default(""),
+      email: z.string().trim().max(120).default(""),
+      phone: z.string().trim().max(40).default(""),
+      /** Zahlungsziel in Tagen */
+      paymentDays: z.number().int().min(0).max(90).default(14),
+      /** Kleinunternehmer nach § 19 UStG: keine Umsatzsteuer ausweisen */
+      smallBusiness: z.boolean().default(false),
+      /** Automatische Zahlungserinnerung (Stufe 1) und Mahnung (Stufe 2) nach Fälligkeit */
+      autoReminders: z.boolean().default(false),
+      reminderDays: z.array(z.number().int().min(1).max(120)).max(3).default([7, 21]),
+      footer: z.string().trim().max(600).default(""),
+    })
+    .prefault({}),
   /** Datenschutzinformation des Kunden für Anrufer (Art. 13 DSGVO), wird von der KI genannt */
   privacyUrl: z.string().trim().max(300).url().or(z.literal("")).default(""),
   /** Löschfrist für Transkripte/Aufnahmen in Tagen (DSGVO) */

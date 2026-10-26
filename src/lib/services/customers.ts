@@ -112,7 +112,18 @@ export async function eraseCustomer(tenantId: string, customerId: string): Promi
     // Aufnahme-Link nur dort entfernen, wo die Löschung beim Anbieter geklappt hat – sonst versucht es der Löschfristen-Job erneut
     prisma.call.updateMany({ where: { id: { in: purged } }, data: { recordingUrl: null, providerPurgedAt: new Date() } }),
     prisma.callTicket.updateMany({ where: { tenantId, customerId: c.id }, data: { callId: null } }),
-    prisma.customer.delete({ where: { id: c.id } }), // Tickets per Cascade
+    prisma.bill.deleteMany({ where: { tenantId, customerId: c.id, status: "DRAFT" } }),
   ]);
+  // Ausgestellte Belege unterliegen der Aufbewahrungspflicht (§ 147 AO, Art. 17 Abs. 3 lit. b DSGVO):
+  // dann bleibt ein anonymer Kundendatensatz als Anker, die Belege behalten ihre eingefrorene Anschrift.
+  const keptBills = await prisma.bill.count({ where: { tenantId, customerId: c.id } });
+  if (keptBills) {
+    await prisma.$transaction([
+      prisma.callTicket.deleteMany({ where: { tenantId, customerId: c.id } }),
+      prisma.customer.update({ where: { id: c.id }, data: { phone: `geloescht:${c.id}`, name: "gelöscht", companyName: null, email: null, address: null, postalCode: null, notes: null, smsConsentAt: null, smsConsentSource: null } }),
+    ]);
+  } else {
+    await prisma.customer.delete({ where: { id: c.id } }); // Tickets per Cascade
+  }
   return { providerComplete };
 }

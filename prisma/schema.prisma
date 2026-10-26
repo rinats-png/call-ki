@@ -60,6 +60,7 @@ model Tenant {
   planChangeRequests PlanChangeRequest[]
   webhookEndpoints   WebhookEndpoint[]
   services           Service[]
+  bills              Bill[]
 }
 
 model User {
@@ -192,6 +193,8 @@ model Customer {
   tickets          CallTicket[]
   calls            Call[]
 
+  bills              Bill[]
+
   @@unique([tenantId, phone])
 }
 
@@ -272,6 +275,7 @@ model CallTicket {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   messages           Message[]
+  bills              Bill[]
 
   @@index([tenantId, createdAt])
   @@index([assignedEmployeeId, appointmentStart])
@@ -496,4 +500,64 @@ model Service {
 
   @@unique([tenantId, name])
   @@index([tenantId, active])
+}
+
+/**
+ * Belege des Betriebs an seine Endkunden: Angebot, Rechnung, Gutschrift (Storno).
+ * Entwurf = frei änderbar, ohne Nummer. Ausstellen vergibt die fortlaufende Nummer und friert
+ * Aussteller, Empfänger und Positionen ein (GoBD); danach nur noch Statuswechsel
+ * (bezahlt, gemahnt) und Storno per Gutschrift. Beträge werden immer serverseitig berechnet.
+ */
+model Bill {
+  id            String    @id @default(cuid())
+  tenantId      String
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  /// QUOTE, INVOICE, CREDIT_NOTE
+  kind          String    @default("INVOICE")
+  /// DRAFT, ISSUED, PAID, CANCELLED (Rechnung storniert), ACCEPTED, DECLINED (Angebot)
+  status        String    @default("DRAFT")
+  number        String?
+  customerId    String
+  customer      Customer  @relation(fields: [customerId], references: [id], onDelete: NoAction)
+  ticketId      String?
+  ticket        CallTicket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  /// Gutschrift → stornierte Rechnung; Rechnung → Angebot, aus dem sie entstand
+  relatedId     String?
+  issueDate     DateTime?
+  serviceDate   DateTime?
+  dueAt         DateTime?
+  issuer        Json?
+  recipient     Json?
+  lines         Json      @default("[]")
+  netCents      Int       @default(0)
+  taxCents      Int       @default(0)
+  grossCents    Int       @default(0)
+  taxes         Json      @default("[]")
+  smallBusiness Boolean   @default(false)
+  introText     String?
+  note          String?
+  paidAt        DateTime?
+  paymentMethod String?
+  reminderLevel Int       @default(0)
+  lastReminderAt DateTime?
+  sentAt        DateTime?
+  /// Link für den Kunden (Ansicht, Druck, GiroCode) – zufällig, nicht erratbar
+  publicToken   String    @unique
+  createdById   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([tenantId, number])
+  @@index([tenantId, kind, status])
+  @@index([status, dueAt])
+}
+
+/// Fortlaufende Nummern je Betrieb, Jahr und Belegart (RE, AN, GS)
+model BillCounter {
+  tenantId String
+  year     Int
+  kind     String
+  last     Int    @default(0)
+
+  @@id([tenantId, year, kind])
 }

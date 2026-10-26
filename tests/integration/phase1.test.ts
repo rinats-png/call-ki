@@ -48,3 +48,71 @@ describe.skipIf(!enabled)("Phase 1 – Leistungskatalog & Gewerke", () => {
     if (r.appointment) expect((r.appointment.end.getTime() - r.appointment.start.getTime()) / 60000).toBe(cfg.durationMin);
   });
 });
+
+describe.skipIf(!enabled)("Phase 1 – Endkunden-Rechnungen", () => {
+  let tenant: Awaited<ReturnType<typeof prisma.tenant.create>>;
+  let customerId: string;
+  const line = { description: "Rohrbruch beheben", quantity: 1, unit: "pauschal", unitCents: 8900, taxRate: 19 };
+  beforeAll(async () => {
+    tenant = await prisma.tenant.create({ data: { name: `Rechnung P1 ${uid}`, slug: `p1b-${uid}`, industry: "trades", status: "ACTIVE", settings: { invoicing: { address: "Gartenstraße 8, 55116 Mainz", taxNumber: "26/123/45678", iban: "DE89370400440532013000" } } } });
+    customerId = (await prisma.customer.create({ data: { tenantId: tenant.id, phone: "+4915112345101", name: "Jonas Weber", address: "Am Rhein 3, 55116 Mainz" } })).id;
+  });
+  afterAll(async () => {
+    await prisma.bill.deleteMany({ where: { tenantId: tenant.id } });
+    await prisma.customer.deleteMany({ where: { tenantId: tenant.id } });
+    await prisma.tenant.delete({ where: { id: tenant.id } });
+  });
+
+  it("stellt fortlaufend nummeriert aus, friert ein und storniert per Gutschrift", async () => {
+    const { createDraft, issueBill, updateDraft, cancelInvoice } = await import("@/lib/services/bills");
+    const a = await issueBill(tenant.id, (await createDraft(tenant.id, { kind: "INVOICE", customerId, lines: [line] })).id);
+    const b = await issueBill(tenant.id, (await createDraft(tenant.id, { kind: "INVOICE", customerId, lines: [line, { ...line, description: "Material", unitCents: 1000 }] })).id);
+    const y = new Date().getUTCFullYear();
+    expect(a.number).toBe(`RE-${y}-0001`);
+    expect(b.number).toBe(`RE-${y}-0002`);
+    expect(a.grossCents).toBe(10591);
+    expect((a.recipient as { address: string }).address).toContain("Am Rhein 3");
+    await expect(updateDraft(tenant.id, a.id, { note: "x" })).rejects.toMatchObject({ status: 409 });
+    // spätere Änderungen am Kunden ändern den ausgestellten Beleg nicht
+    await prisma.customer.update({ where: { id: customerId }, data: { address: "Neue Straße 1" } });
+    expect(((await prisma.bill.findUniqueOrThrow({ where: { id: a.id } })).recipient as { address: string }).address).toContain("Am Rhein 3");
+    const credit = await cancelInvoice(tenant.id, a.id, "Doppelt");
+    expect(credit.number).toBe(`GS-${y}-0001`);
+    expect(credit.grossCents).toBe(-10591);
+    expect(credit.relatedId).toBe(a.id);
+    expect((await prisma.bill.findUniqueOrThrow({ where: { id: a.id } })).status).toBe("CANCELLED");
+    await expect(cancelInvoice(tenant.id, a.id, "")).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("verweigert das Ausstellen ohne Pflichtangaben und Kundenanschrift", async () => {
+    const { createDraft, issueBill } = await import("@/lib/services/bills");
+    const bare = await prisma.customer.create({ data: { tenantId: tenant.id, phone: "+4915112345102" } });
+    const d = await createDraft(tenant.id, { kind: "INVOICE", customerId: bare.id, lines: [line] });
+    await expect(issueBill(tenant.id, d.id)).rejects.toMatchObject({ status: 400 });
+    // Angebote gehen auch ohne Anschrift
+    const q = await issueBill(tenant.id, (await createDraft(tenant.id, { kind: "QUOTE", customerId: bare.id, lines: [line] })).id);
+    expect(q.number).toMatch(/^AN-/);
+  });
+
+  it("macht aus einem Angebot einen Rechnungsentwurf", async () => {
+    const { createDraft, issueBill, convertQuote } = await import("@/lib/services/bills");
+    const q = await issueBill(tenant.id, (await createDraft(tenant.id, { kind: "QUOTE", customerId, lines: [line] })).id);
+    const inv = await convertQuote(tenant.id, q.id);
+    expect(inv.kind).toBe("INVOICE");
+    expect(inv.status).toBe("DRAFT");
+    expect((await prisma.bill.findUniqueOrThrow({ where: { id: inv.id } })).relatedId).toBe(q.id);
+    expect((await prisma.bill.findUniqueOrThrow({ where: { id: q.id } })).status).toBe("ACCEPTED");
+  });
+
+  it("Löschanfrage: Entwürfe weg, Kunde mit ausgestellten Belegen anonymisiert", async () => {
+    const { createDraft } = await import("@/lib/services/bills");
+    const { eraseCustomer } = await import("@/lib/services/customers");
+    await createDraft(tenant.id, { kind: "INVOICE", customerId, lines: [line] });
+    expect(await eraseCustomer(tenant.id, customerId)).toBeTruthy();
+    const c = await prisma.customer.findUnique({ where: { id: customerId } });
+    expect(c?.phone).toMatch(/^geloescht:/);
+    expect(c?.address).toBeFalsy();
+    expect(await prisma.bill.count({ where: { tenantId: tenant.id, customerId, status: "DRAFT" } })).toBe(0);
+    expect(await prisma.bill.count({ where: { tenantId: tenant.id, customerId } })).toBeGreaterThan(0);
+  });
+});
