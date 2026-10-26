@@ -9,6 +9,7 @@ import { PageHero } from "@/components/PageHero";
 import { Panel, Skeleton } from "@/components/hub/Primitives";
 import { apiFetch, useModule, useSession } from "@/components/session";
 import { ModuleGate } from "@/components/ModuleGate";
+import { BankImportButton, BankSuggestions } from "@/components/BankImport";
 
 type Kind = "QUOTE" | "INVOICE" | "CREDIT_NOTE";
 type Cust = { id: string; name: string | null; companyName: string | null; phone: string };
@@ -117,7 +118,7 @@ function Billing() {
         value={euro(data.stats.openCents)}
         valueLabel={`offen (${data.stats.openCount})`}
         stats={[{ label: `überfällig (${data.stats.overdueCount})`, value: euro(data.stats.overdueCents) }]}
-        action={active && <div className="flex gap-2"><button className="btn-ghost" onClick={() => { setErr(null); setForm(newForm("QUOTE")); }}><Plus className="h-4 w-4" />Angebot</button><button className="btn-primary" onClick={() => { setErr(null); setForm(newForm("INVOICE")); }}><Plus className="h-4 w-4" />Rechnung</button></div>}
+        action={active && <div className="flex flex-wrap gap-2">{isTenantAdmin && <BankImportButton onDone={reload} />}<button className="btn-ghost" onClick={() => { setErr(null); setForm(newForm("QUOTE")); }}><Plus className="h-4 w-4" />Angebot</button><button className="btn-primary" onClick={() => { setErr(null); setForm(newForm("INVOICE")); }}><Plus className="h-4 w-4" />Rechnung</button></div>}
       />
       {!active && <p className="rounded-lg border border-zinc-700 bg-white/5 px-4 py-3 text-sm text-zinc-300">Archiv: Die Zusatzoption „Angebote &amp; Rechnungen“ ist nicht gebucht. Bestehende Belege bleiben einsehbar (Aufbewahrungspflicht), offene Rechnungen können Sie weiter als bezahlt markieren oder stornieren. {isTenantAdmin && <Link className="underline" href="/settings/plan#zusatzoptionen">Wieder buchen</Link>}</p>}
       {active && data.issuerMissing.length > 0 && (
@@ -125,6 +126,7 @@ function Billing() {
           Zum Ausstellen fehlen noch: {data.issuerMissing.join(", ")}. {isTenantAdmin ? <Link className="underline" href="/settings/invoicing">Jetzt ergänzen</Link> : "Bitte Inhaber bzw. Admin fragen."}
         </p>
       )}
+      {isTenantAdmin && <BankSuggestions onChanged={reload} />}
       <Panel title="Belege" action={
         <div className="flex gap-1">{([["", "Alle"], ["INVOICE", "Rechnungen"], ["QUOTE", "Angebote"], ["CREDIT_NOTE", "Gutschriften"]] as const).map(([k, l]) => (
           <button key={k} className={cn("rounded-md px-2.5 py-1 text-xs", kind === k ? "bg-cyan-400/15 text-cyan-300" : "text-zinc-400 hover:text-zinc-200")} onClick={() => setKind(k)}>{l}</button>

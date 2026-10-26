@@ -63,6 +63,7 @@ model Tenant {
   bills              Bill[]
   jobReports         JobReport[]
   addons             TenantAddon[]
+  bankTransactions   BankTransaction[]
 }
 
 model User {
@@ -649,4 +650,25 @@ model TenantAddon {
   createdAt  DateTime  @default(now())
 
   @@index([tenantId, key])
+}
+
+/// Zahlungseingang aus einem hochgeladenen Kontoauszug – nur zugeordnete bzw. vorgeschlagene Gutschriften (Datensparsamkeit), 90 Tage
+model BankTransaction {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  /// SHA-256 aus Datum, Betrag, Verwendungszweck, Name – verhindert doppelte Verarbeitung beim erneuten Import
+  hash         String
+  bookingDate  DateTime
+  amountCents  Int
+  counterparty String   @default("")
+  reference    String   @default("")
+  /// MATCHED (automatisch bezahlt), SUGGESTED (bitte prüfen), ACCEPTED, IGNORED
+  status       String
+  billId       String?
+  reason       String   @default("")
+  createdAt    DateTime @default(now())
+
+  @@unique([tenantId, hash])
+  @@index([tenantId, status])
 }

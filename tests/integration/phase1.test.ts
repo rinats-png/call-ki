@@ -323,3 +323,46 @@ describe.skipIf(!enabled)("Zusatzoptionen", () => {
     await expect(j.employeeForToken(token)).rejects.toMatchObject({ status: 404 });
   });
 });
+
+describe.skipIf(!enabled)("Zahlungsabgleich per Kontoauszug", () => {
+  let tenant: Awaited<ReturnType<typeof prisma.tenant.create>>;
+  beforeAll(async () => {
+    tenant = await prisma.tenant.create({ data: { name: `Bank ${uid}`, slug: `p1bank-${uid}`, industry: "trades", status: "ACTIVE", settings: { invoicing: { address: "Gartenstraße 8, 55116 Mainz", taxNumber: "26/123/45678", iban: "DE89370400440532013000" } }, addons: { create: [{ key: "invoicing", priceCents: 1900 }] } } });
+  });
+  afterAll(async () => {
+    await prisma.bill.deleteMany({ where: { tenantId: tenant.id } });
+    await prisma.customer.deleteMany({ where: { tenantId: tenant.id } });
+    await prisma.tenant.delete({ where: { id: tenant.id } });
+  });
+
+  it("markiert eindeutige Zahlungen als bezahlt, legt Vorschläge ab, verarbeitet nichts doppelt", async () => {
+    const { createDraft, issueBill } = await import("@/lib/services/bills");
+    const { importStatement, resolveSuggestion } = await import("@/lib/services/bank-import");
+    const c1 = await prisma.customer.create({ data: { tenantId: tenant.id, phone: "+4915112345401", name: "Jonas Weber", address: "Am Rhein 3, 55116 Mainz" } });
+    const c2 = await prisma.customer.create({ data: { tenantId: tenant.id, phone: "+4915112345402", companyName: "Hausverwaltung Kurz", address: "Bahnhofstr. 12, Mainz" } });
+    const line = { description: "Rohrbruch", quantity: 1, unit: "pauschal", unitCents: 8900, taxRate: 19 };
+    const a = await issueBill(tenant.id, (await createDraft(tenant.id, { kind: "INVOICE", customerId: c1.id, lines: [line] })).id);
+    const b = await issueBill(tenant.id, (await createDraft(tenant.id, { kind: "INVOICE", customerId: c2.id, lines: [{ ...line, unitCents: 50000 }] })).id);
+    const camt = `<Document><BkToCstmrStmt><Stmt>
+      <Ntry><Amt Ccy="EUR">${(a.grossCents / 100).toFixed(2)}</Amt><CdtDbtInd>CRDT</CdtDbtInd><BookgDt><Dt>2026-10-24</Dt></BookgDt><NtryDtls><TxDtls><RltdPties><Dbtr><Nm>Jonas Weber</Nm></Dbtr></RltdPties><RmtInf><Ustrd>${a.number}</Ustrd></RmtInf></TxDtls></NtryDtls></Ntry>
+      <Ntry><Amt Ccy="EUR">200.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><BookgDt><Dt>2026-10-25</Dt></BookgDt><NtryDtls><TxDtls><RltdPties><Dbtr><Nm>HV Kurz</Nm></Dbtr></RltdPties><RmtInf><Ustrd>Abschlag ${b.number}</Ustrd></RmtInf></TxDtls></NtryDtls></Ntry>
+      <Ntry><Amt Ccy="EUR">12.00</Amt><CdtDbtInd>CRDT</CdtDbtInd><BookgDt><Dt>2026-10-25</Dt></BookgDt><NtryDtls><TxDtls><RmtInf><Ustrd>Erstattung</Ustrd></RmtInf></TxDtls></NtryDtls></Ntry>
+    </Stmt></BkToCstmrStmt></Document>`;
+    const r = await importStatement(tenant.id, camt);
+    expect(r).toMatchObject({ credits: 3, suggested: 1, unmatched: 1, duplicates: 0 });
+    expect(r.matched.map((m) => m.number)).toEqual([a.number]);
+    const pa = await prisma.bill.findUniqueOrThrow({ where: { id: a.id } });
+    expect(pa.status).toBe("PAID");
+    expect(pa.paidAt?.toISOString().slice(0, 10)).toBe("2026-10-24");
+    // unzugeordnete Zahlungen werden nicht gespeichert
+    expect(await prisma.bankTransaction.count({ where: { tenantId: tenant.id } })).toBe(2);
+    const again = await importStatement(tenant.id, camt);
+    expect(again).toMatchObject({ duplicates: 2, suggested: 0, matched: [] });
+
+    const s = await prisma.bankTransaction.findFirstOrThrow({ where: { tenantId: tenant.id, status: "SUGGESTED" } });
+    expect(s.billId).toBe(b.id);
+    await resolveSuggestion(tenant.id, s.id, "accept");
+    expect((await prisma.bill.findUniqueOrThrow({ where: { id: b.id } })).status).toBe("PAID");
+    await expect(resolveSuggestion(tenant.id, s.id, "accept")).rejects.toMatchObject({ status: 404 });
+  });
+});

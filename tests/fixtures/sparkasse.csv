@@ -1,0 +1,5 @@
+"UmsÃ¤tze Girokonto";"Zeitraum: 01.10.2026 - 26.10.2026"
+
+"Auftragskonto";"Buchungstag";"Valutadatum";"Buchungstext";"Verwendungszweck";"Beguenstigter/Zahlungspflichtiger";"Kontonummer/IBAN";"BIC (SWIFT-Code)";"Betrag";"Waehrung";"Info"
+"DE89370400440532013000";"24.10.26";"24.10.26";"GUTSCHR. UEBERWEISUNG";"RE-2026-0001";"Müller, Jürgen";"DE02120300000000202051";"BYLADEM1001";"1.105,91";"EUR";"Umsatz gebucht"
+"DE89370400440532013000";"25.10.26";"25.10.26";"LASTSCHRIFT";"Strom Oktober";"Stadtwerke";"DE02";"X";"-89,00";"EUR";"Umsatz gebucht"
